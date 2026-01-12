@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType, TariffItem, Contract, ContractType, ContractAudit, DisciplinaryAction, PaymentRequest } from '../../types';
-import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
+import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType, TariffItem, Contract, ContractType, ContractAudit, DisciplinaryAction, PaymentRequest, ClinicalRecord, RecordType, RecordStatus, Patient } from '../../types';
+import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
 import { 
     Shield, Users, FileText, Settings, Plus, Edit, Trash2, X, Save, 
     Download, CheckCircle, Search, LayoutTemplate, List, AlertCircle, 
     ChevronDown, ChevronRight, Calculator, Type, Hash, Calendar, CheckSquare, AlignLeft, Info,
-    Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload
+    Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -90,6 +90,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [globalFields, setGlobalFields] = useState<TemplateField[]>(MOCK_FIELD_LIBRARY);
   const [globalSections, setGlobalSections] = useState<TemplateSection[]>(MOCK_SECTION_LIBRARY);
   const [templates, setTemplates] = useState<RoleTemplate[]>(MOCK_TEMPLATES);
+
+  // RIPS STATE
+  const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
+  const [ripsEndDate, setRipsEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [generatedRips, setGeneratedRips] = useState<{
+      US: any[], AC: any[], AP: any[], AF: any[]
+  } | null>(null);
 
   // --- USER HANDLERS ---
   const handleEditUser = (user: User) => { 
@@ -237,6 +244,144 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       if(window.confirm("¿Está seguro de RECHAZAR esta cuenta de cobro?")) {
           setPaymentRequests(prev => prev.map(req => req.id === reqId ? { ...req, status: 'REJECTED' } : req));
       }
+  };
+
+  // --- RIPS GENERATION LOGIC ---
+  const generateRIPS = () => {
+      // 1. Filter Records by Date and Status
+      const filteredRecords = MOCK_RECORDS.filter(r => {
+          const d = r.dateCreated.split('T')[0];
+          return d >= ripsStartDate && d <= ripsEndDate && r.status === RecordStatus.FINALIZED;
+      });
+
+      if (filteredRecords.length === 0) {
+          alert("No se encontraron registros finalizados en el rango de fechas seleccionado.");
+          setGeneratedRips(null);
+          return;
+      }
+
+      // 2. Generate US (Usuarios)
+      const uniquePatientIds = Array.from(new Set(filteredRecords.map(r => r.patientId)));
+      const usFile = uniquePatientIds.map(pid => {
+          const p = MOCK_PATIENTS.find(pt => pt.id === pid);
+          if (!p) return null;
+          return {
+              tipo_documento: 'CC', // Mock
+              numero_documento: p.identification,
+              codigo_admin: 'EPS001',
+              tipo_usuario: '1', // Contributivo
+              apellido_1: p.fullName.split(' ')[1] || 'Unknown',
+              apellido_2: '',
+              nombre_1: p.fullName.split(' ')[0],
+              nombre_2: '',
+              edad: new Date().getFullYear() - new Date(p.birthDate).getFullYear(),
+              unidad_medida_edad: '1',
+              sexo: p.gender,
+              depto: '11', // Bogota
+              municipio: '001',
+              zona: 'U'
+          };
+      }).filter(Boolean);
+
+      // 3. Generate AC (Consultas)
+      const acFile = filteredRecords
+          .filter(r => [RecordType.GENERAL, RecordType.PSYCHOLOGY, RecordType.NUTRITION, RecordType.PYP_CV_RISK, RecordType.PYP_GROWTH_DEV, RecordType.PYP_PREGNANCY].includes(r.recordType))
+          .map(r => ({
+              numero_factura: `FAC-${r.id}`, // Mock Link
+              codigo_prestador: '1100100001',
+              tipo_documento: 'CC',
+              numero_documento: MOCK_PATIENTS.find(p => p.id === r.patientId)?.identification,
+              fecha_consulta: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
+              numero_autorizacion: 'AUT-000',
+              codigo_consulta: r.recordType === RecordType.PSYCHOLOGY ? '890208' : '890201',
+              finalidad: '10', // Tratamiento
+              causa_externa: '13', // Enfermedad general
+              dx_principal: r.diagnoses?.[0]?.code || 'Z000',
+              dx_relacionado_1: r.diagnoses?.[1]?.code || '',
+              dx_relacionado_2: '',
+              dx_relacionado_3: '',
+              tipo_dx_principal: '1', // Impresion diagnostica
+              valor_consulta: 45000,
+              valor_cuota_moderadora: 4500,
+              valor_neto: 40500
+          }));
+
+      // 4. Generate AP (Procedimientos) - From 'performedProcedures' or Lab/Imaging Records
+      let apFile: any[] = [];
+      
+      // 4a. Procedures embedded in records
+      filteredRecords.forEach(r => {
+          if (r.performedProcedures && r.performedProcedures.length > 0) {
+              r.performedProcedures.forEach(proc => {
+                  apFile.push({
+                      numero_factura: `FAC-${r.id}`,
+                      codigo_prestador: '1100100001',
+                      tipo_documento: 'CC',
+                      numero_documento: MOCK_PATIENTS.find(p => p.id === r.patientId)?.identification,
+                      fecha_procedimiento: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
+                      numero_autorizacion: 'AUT-000',
+                      codigo_procedimiento: proc.code,
+                      ambito: '1', // Ambulatorio
+                      finalidad: '1', // Diagnostico
+                      personal_atiende: '1', // Especialista
+                      dx_principal: r.diagnoses?.[0]?.code || 'Z000',
+                      dx_relacionado: '',
+                      complicacion: '',
+                      acto_qx: '1', // Unico
+                      valor: 25000 // Mock value
+                  });
+              });
+          }
+          // 4b. Pure Diagnostic Records (Lab/Img)
+          if (r.recordType === RecordType.LAB_RESULT || r.recordType === RecordType.IMAGING_REPORT) {
+               // Determine CUPS based on type (Mock logic)
+               const cups = r.recordType === RecordType.LAB_RESULT ? '902213' : '871020';
+               apFile.push({
+                  numero_factura: `FAC-${r.id}`,
+                  codigo_prestador: '1100100001',
+                  tipo_documento: 'CC',
+                  numero_documento: MOCK_PATIENTS.find(p => p.id === r.patientId)?.identification,
+                  fecha_procedimiento: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
+                  numero_autorizacion: 'AUT-000',
+                  codigo_procedimiento: cups,
+                  ambito: '1',
+                  finalidad: '1',
+                  personal_atiende: '4', // Bacteriologo/Otros
+                  dx_principal: '',
+                  dx_relacionado: '',
+                  complicacion: '',
+                  acto_qx: '1',
+                  valor: 35000
+              });
+          }
+      });
+
+      // 5. Generate AF (Transacciones/Facturas)
+      const afFile = filteredRecords.map(r => ({
+          codigo_prestador: '1100100001',
+          razon_social: 'MEDICORE IPS SAS',
+          tipo_id: 'NI',
+          numero_id: '900123456',
+          numero_factura: `FAC-${r.id}`,
+          fecha_expedicion: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
+          fecha_inicio: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
+          fecha_final: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
+          codigo_entidad: 'EPS001',
+          nombre_entidad: 'EPS SANITAS',
+          numero_contrato: 'CONT-2024',
+          plan_beneficios: 'PBS',
+          numero_poliza: '',
+          valor_copago: 4500,
+          valor_comision: 0,
+          valor_descuentos: 0,
+          valor_neto: 40500
+      }));
+
+      setGeneratedRips({ US: usFile, AC: acFile, AP: apFile, AF: afFile });
+  };
+
+  const downloadRIPS = () => {
+      alert("Descargando paquete .ZIP con archivos TXT/JSON validados...");
   };
 
   // --- RENDER LOGIC ---
@@ -710,6 +855,90 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                       </div>
                   </div>
               )}
+          </div>
+      );
+  }
+
+  // 4. REPORTS TAB - NEW RIPS GENERATION
+  if (activeTab === 'reports' && isAdmin) {
+      return (
+          <div className="space-y-8 animate-in fade-in duration-500">
+              <h2 className="text-2xl font-bold text-slate-800 mb-2">Reportes y Analítica</h2>
+              
+              {/* RIPS GENERATOR SECTION */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                  <div className="flex justify-between items-start mb-6">
+                      <div>
+                          <h3 className="font-bold text-lg text-slate-800 flex items-center">
+                              <FileJson className="mr-2 text-purple-600"/> Generación de RIPS
+                          </h3>
+                          <p className="text-sm text-slate-500">Generación de Archivos Planos (JSON/TXT) para validación en MinSalud.</p>
+                      </div>
+                      <div className="flex items-center space-x-3 bg-slate-50 p-2 rounded-lg">
+                          <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase">Fecha Inicio</label>
+                              <input type="date" className="border rounded px-2 py-1 text-sm bg-white" value={ripsStartDate} onChange={e => setRipsStartDate(e.target.value)} />
+                          </div>
+                          <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase">Fecha Fin</label>
+                              <input type="date" className="border rounded px-2 py-1 text-sm bg-white" value={ripsEndDate} onChange={e => setRipsEndDate(e.target.value)} />
+                          </div>
+                          <button onClick={generateRIPS} className="h-full bg-purple-600 text-white px-4 py-2 rounded font-bold text-sm shadow hover:bg-purple-700 flex items-center">
+                              <Zap size={16} className="mr-2"/> Generar
+                          </button>
+                      </div>
+                  </div>
+
+                  {generatedRips ? (
+                      <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                          <div className="grid grid-cols-4 gap-4">
+                              {Object.entries(generatedRips).map(([key, data]) => (
+                                  <div key={key} className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+                                      <h4 className="font-bold text-2xl text-slate-800">{data.length}</h4>
+                                      <p className="text-xs text-slate-500 font-bold uppercase">Archivo {key}</p>
+                                  </div>
+                              ))}
+                          </div>
+                          
+                          <div className="border rounded-lg overflow-hidden">
+                              <div className="bg-slate-100 px-4 py-2 border-b flex justify-between items-center">
+                                  <span className="font-mono text-xs font-bold text-slate-600">Previsualización (Formato JSON Res. 2275/2023)</span>
+                                  <button onClick={downloadRIPS} className="text-xs flex items-center text-blue-600 font-bold hover:underline">
+                                      <Download size={14} className="mr-1"/> Descargar ZIP
+                                  </button>
+                              </div>
+                              <div className="bg-slate-900 text-green-400 p-4 font-mono text-xs h-64 overflow-y-auto">
+                                  {JSON.stringify(generatedRips, null, 2)}
+                              </div>
+                          </div>
+                      </div>
+                  ) : (
+                      <div className="text-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-300">
+                          <FileJson size={48} className="mx-auto text-slate-300 mb-4"/>
+                          <p className="text-sm text-slate-500">Seleccione un rango de fechas y haga clic en "Generar" para crear los reportes.</p>
+                      </div>
+                  )}
+              </div>
+
+              {/* FINANCIAL CHARTS (Existing Logic) */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                  <h3 className="font-bold text-lg text-slate-800 mb-6 flex items-center">
+                      <TrendingUp className="mr-2 text-green-600"/> Indicadores Financieros
+                  </h3>
+                  {/* Reuse existing chart logic */}
+                  <div className="h-80">
+                       <ResponsiveContainer width="100%" height="100%">
+                           <ComposedChart data={generateFinancialData('MONTH', false)}>
+                               <CartesianGrid stroke="#f5f5f5" vertical={false} />
+                               <XAxis dataKey="name" />
+                               <YAxis tickFormatter={(val) => `$${val/1000000}M`} />
+                               <Tooltip formatter={(val: number) => formatCurrency(val)} />
+                               <Bar dataKey="income" name="Ingresos" barSize={20} fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                               <Line type="monotone" dataKey="profit" name="Margen Neto" stroke="#10b981" strokeWidth={2} dot={false} />
+                           </ComposedChart>
+                       </ResponsiveContainer>
+                  </div>
+              </div>
           </div>
       );
   }
