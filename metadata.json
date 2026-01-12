@@ -1,0 +1,5 @@
+{
+  "name": "Historia Clínica Eficiente",
+  "description": "Un sistema de Historia Clínica Electrónica de alta seguridad basado en roles (RBAC), con flujos de trabajo específicos para Profesionales, Administradores, Secretarias y Apoyo Diagnóstico, incluyendo re-autenticación estricta para el cierre de historias.",
+  "requestFramePermissions": []
+}

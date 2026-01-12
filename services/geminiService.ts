@@ -1,0 +1,35 @@
+import { GoogleGenAI } from "@google/genai";
+
+const apiKey = process.env.API_KEY || ''; 
+
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+
+export const generateClinicalSummary = async (notes: string): Promise<string> => {
+  if (!ai) return "Clave API de Gemini no configurada.";
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Eres un asistente médico útil. Resume las siguientes notas clínicas en un párrafo conciso adecuado para una entrega de paciente o epicrisis. Usa terminología médica profesional en español. \n\n Notas: ${notes}`,
+    });
+    return response.text || "No se generó resumen.";
+  } catch (error) {
+    console.error("Gemini Error:", error);
+    return "Error generando el resumen. Intente nuevamente.";
+  }
+};
+
+export const suggestICDCodes = async (symptoms: string): Promise<string> => {
+    if (!ai) return "Clave API de Gemini no configurada.";
+  
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Basado en los siguientes síntomas y hallazgos, sugiere 3 posibles códigos CIE-11 con sus descripciones en español. Formato de lista con viñetas. \n\n Hallazgos: ${symptoms}`,
+      });
+      return response.text || "No se encontraron sugerencias.";
+    } catch (error) {
+      console.error("Gemini Error:", error);
+      return "Error buscando códigos CIE.";
+    }
+  };
