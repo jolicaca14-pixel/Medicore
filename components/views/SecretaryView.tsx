@@ -173,22 +173,28 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   const calculateTotal = () => {
       let subtotal = 0;
-      let totalDiscount = 0;
+      let totalItemDiscounts = 0;
 
       selectedServices.forEach(item => {
           const itemTotal = item.price * item.quantity;
           subtotal += itemTotal;
           // Item discount
-          if (item.discount) {
-              totalDiscount += itemTotal * (item.discount / 100);
+          if (item.discount && item.discount > 0) {
+              totalItemDiscounts += itemTotal * (item.discount / 100);
           }
       });
 
+      const netSubtotal = subtotal - totalItemDiscounts;
+      
+      let globalDiscountAmount = 0;
       if (globalDiscount > 0) {
-          totalDiscount = subtotal * (globalDiscount / 100);
+          globalDiscountAmount = netSubtotal * (globalDiscount / 100);
       }
 
-      return { subtotal, totalDiscount, total: subtotal - totalDiscount };
+      const totalDiscount = totalItemDiscounts + globalDiscountAmount;
+      const total = subtotal - totalDiscount;
+
+      return { subtotal, totalDiscount, total, totalItemDiscounts, globalDiscountAmount };
   };
 
   const finalizeInvoice = () => {
@@ -217,7 +223,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       setSelectedServices([]);
       setBillingPatient(null);
       setPartialPayment('');
-      alert("Factura generada y enviada a Cartera.");
+      alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
   };
 
   const printInvoice = (invoice: Invoice) => {
@@ -226,7 +232,8 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
         FACTURA DE VENTA N° ${invoice.id}
         Paciente: ${invoice.patientName}
         Total: ${formatCurrency(invoice.total)}
-        Saldo: ${formatCurrency(invoice.balance)}
+        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
+        Saldo Pendiente: ${formatCurrency(invoice.balance)}
         Estado: ${invoice.status}
       `;
       alert("Imprimiendo...\n" + printContent);
@@ -234,21 +241,30 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   // --- CARTERA HANDLERS ---
   const registerPayment = (id: string) => {
-      const amountStr = prompt("Ingrese el monto a pagar:");
+      const inv = invoices.find(i => i.id === id);
+      if(!inv) return;
+
+      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
       if (!amountStr) return;
       const amount = parseFloat(amountStr);
       
-      setInvoices(invoices.map(inv => {
-          if (inv.id !== id) return inv;
-          const newBalance = inv.balance - amount;
+      if(amount > inv.balance) {
+          alert("El monto ingresado supera el saldo pendiente.");
+          return;
+      }
+
+      setInvoices(invoices.map(invoice => {
+          if (invoice.id !== id) return invoice;
+          const newBalance = invoice.balance - amount;
           const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
           return {
-              ...inv,
+              ...invoice,
               balance: newBalance,
               status: newStatus,
-              payments: [...inv.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
+              payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
+      alert("Pago registrado correctamente.");
   };
 
   return (
@@ -547,9 +563,16 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                   <span>Subtotal:</span>
                                   <span>{formatCurrency(calculateTotal().subtotal)}</span>
                               </div>
+                              <div className="flex justify-between text-sm text-slate-500">
+                                  <span>Descuentos Ítems:</span>
+                                  <span>- {formatCurrency(calculateTotal().totalItemDiscounts)}</span>
+                              </div>
                               <div className="flex justify-between text-sm text-red-500">
                                   <span>Descuento Global (%):</span>
-                                  <input type="number" className="w-12 border rounded text-right" value={globalDiscount} onChange={e => setGlobalDiscount(parseFloat(e.target.value))} />
+                                  <div className="flex items-center">
+                                      <input type="number" className="w-12 border rounded text-right mr-2" value={globalDiscount} onChange={e => setGlobalDiscount(parseFloat(e.target.value))} />
+                                      <span>- {formatCurrency(calculateTotal().globalDiscountAmount)}</span>
+                                  </div>
                               </div>
                                <div className="flex justify-between items-center text-xl font-bold text-slate-900 pt-2 border-t">
                                   <span>Total:</span>
@@ -585,7 +608,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                   <th className="p-4">Fecha</th>
                                   <th className="p-4">Paciente</th>
                                   <th className="p-4">Total</th>
-                                  <th className="p-4">Saldo</th>
+                                  <th className="p-4">Saldo Pendiente</th>
                                   <th className="p-4">Estado</th>
                                   <th className="p-4 text-right">Acción</th>
                               </tr>

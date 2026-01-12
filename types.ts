@@ -143,6 +143,7 @@ export interface PaymentRequest {
         url?: string;
     }[];
     adminNotes?: string;
+    paymentReceiptUrl?: string; // URL of the uploaded receipt
 }
 
 export interface WorkShift {
@@ -308,7 +309,7 @@ export interface ServiceItem {
 
 export interface InvoiceItem extends ServiceItem {
   quantity: number;
-  discount?: number; // Per item discount
+  discount?: number; // Per item discount percentage
   isSupply?: boolean; 
 }
 

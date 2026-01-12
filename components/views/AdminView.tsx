@@ -6,7 +6,7 @@ import {
     Shield, Users, FileText, Settings, Plus, Edit, Trash2, X, Save, 
     Download, CheckCircle, Search, LayoutTemplate, List, AlertCircle, 
     ChevronDown, ChevronRight, Calculator, Type, Hash, Calendar, CheckSquare, AlignLeft, Info,
-    Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer
+    Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -78,6 +78,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   
   // Payments
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>(MOCK_PAYMENT_REQUESTS);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedPaymentReq, setSelectedPaymentReq] = useState<PaymentRequest | null>(null);
+  const [paymentReceiptFile, setPaymentReceiptFile] = useState<string | null>(null); // Mock file path/name
 
   // Disciplinary
   const [newDisciplinary, setNewDisciplinary] = useState<Partial<DisciplinaryAction>>({ type: 'COMPLAINT', status: 'OPEN' });
@@ -215,9 +218,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       alert("Caso registrado. El empleado podrá ver esto y responder.");
   };
 
-  const handleUpdatePaymentStatus = (reqId: string, status: 'PAID' | 'REJECTED') => {
-      setPaymentRequests(prev => prev.map(req => req.id === reqId ? { ...req, status } : req));
-      alert(`Cuenta de cobro ${status === 'PAID' ? 'PAGADA' : 'RECHAZADA'} correctamente.`);
+  const handleOpenPaymentModal = (req: PaymentRequest) => {
+      setSelectedPaymentReq(req);
+      setPaymentReceiptFile(null);
+      setIsPaymentModalOpen(true);
+  };
+
+  const handleConfirmPayment = () => {
+      if(!selectedPaymentReq) return;
+      if(!paymentReceiptFile) return alert("Debe cargar el desprendible de pago.");
+
+      setPaymentRequests(prev => prev.map(req => req.id === selectedPaymentReq.id ? { ...req, status: 'PAID', paymentReceiptUrl: paymentReceiptFile } : req));
+      setIsPaymentModalOpen(false);
+      alert(`Pago registrado exitosamente para ${selectedPaymentReq.userName}.`);
+  };
+
+  const handleRejectPayment = (reqId: string) => {
+      if(window.confirm("¿Está seguro de RECHAZAR esta cuenta de cobro?")) {
+          setPaymentRequests(prev => prev.map(req => req.id === reqId ? { ...req, status: 'REJECTED' } : req));
+      }
   };
 
   // --- RENDER LOGIC ---
@@ -349,6 +368,61 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'hr' && isAdmin) {
       return (
           <div className="space-y-6">
+              {isPaymentModalOpen && selectedPaymentReq && (
+                  <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                              <DollarSign className="mr-2 text-green-600"/> Registrar Pago Honorarios
+                          </h3>
+                          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-4">
+                              <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div>
+                                      <p className="text-slate-500 font-bold">Profesional:</p>
+                                      <p>{selectedPaymentReq.userName}</p>
+                                  </div>
+                                  <div>
+                                      <p className="text-slate-500 font-bold">Periodo:</p>
+                                      <p>{selectedPaymentReq.period}</p>
+                                  </div>
+                                  <div>
+                                      <p className="text-slate-500 font-bold">Valor a Pagar:</p>
+                                      <p className="text-lg font-bold text-green-700">{formatCurrency(selectedPaymentReq.amount)}</p>
+                                  </div>
+                              </div>
+                          </div>
+                          
+                          <div className="mb-6">
+                              <label className="block text-sm font-bold text-slate-700 mb-2">Cargar Soporte de Pago / Transferencia</label>
+                              <div 
+                                  className="border-2 border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors"
+                                  onClick={() => setPaymentReceiptFile("comprobante_pago_123.pdf")}
+                              >
+                                  {paymentReceiptFile ? (
+                                      <div className="text-center">
+                                          <CheckCircle size={32} className="text-green-500 mx-auto mb-2"/>
+                                          <p className="text-sm font-bold text-slate-800">{paymentReceiptFile}</p>
+                                          <p className="text-xs text-slate-500">Click para cambiar</p>
+                                      </div>
+                                  ) : (
+                                      <div className="text-center">
+                                          <UploadCloud size={32} className="text-slate-400 mx-auto mb-2"/>
+                                          <p className="text-sm font-bold text-slate-600">Click para subir archivo</p>
+                                          <p className="text-xs text-slate-400">PDF, JPG, PNG</p>
+                                      </div>
+                                  )}
+                              </div>
+                          </div>
+
+                          <div className="flex justify-end gap-2">
+                              <button onClick={() => setIsPaymentModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                              <button onClick={handleConfirmPayment} className="px-4 py-2 bg-green-600 text-white rounded-lg font-bold text-sm hover:bg-green-700">
+                                  Confirmar Pago
+                              </button>
+                          </div>
+                      </div>
+                  </div>
+              )}
+
               <div className="flex justify-between items-center mb-4">
                   <h2 className="text-2xl font-bold text-slate-800">Talento Humano</h2>
               </div>
@@ -388,12 +462,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           <td className="p-3">{req.period}</td>
                                           <td className="p-3 font-mono text-slate-600">{formatCurrency(req.amount)}</td>
                                           <td className="p-3">
-                                              <div className="flex gap-1">
+                                              <div className="flex gap-1 items-center">
                                                   {req.attachments.map(att => (
                                                       <span key={att.name} className="p-1 bg-blue-50 text-blue-600 rounded border border-blue-200 cursor-pointer" title={att.name}>
                                                           <FileText size={14}/>
                                                       </span>
                                                   ))}
+                                                  {req.paymentReceiptUrl && (
+                                                      <span className="p-1 bg-green-50 text-green-600 rounded border border-green-200 cursor-pointer ml-2" title="Desprendible de Pago">
+                                                          <CheckCircle size={14}/>
+                                                      </span>
+                                                  )}
                                               </div>
                                           </td>
                                           <td className="p-3">
@@ -402,15 +481,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                                   req.status === 'PAID' ? 'bg-green-100 text-green-800' :
                                                   req.status === 'REJECTED' ? 'bg-red-100 text-red-800' : 'bg-gray-100'
                                               }`}>
-                                                  {req.status}
+                                                  {req.status === 'PAID' ? 'PAGADO' : (req.status === 'SUBMITTED' ? 'PENDIENTE' : req.status)}
                                               </span>
                                           </td>
                                           <td className="p-3 text-right">
-                                              {req.status === 'SUBMITTED' && (
+                                              {req.status === 'SUBMITTED' ? (
                                                   <div className="flex justify-end gap-2">
-                                                      <button onClick={() => alert("Descargando PDF...")} className="p-2 text-slate-500 hover:bg-slate-200 rounded" title="Ver PDF Generado"><Printer size={16}/></button>
-                                                      <button onClick={() => handleUpdatePaymentStatus(req.id, 'PAID')} className="p-2 bg-green-100 text-green-600 hover:bg-green-200 rounded font-bold text-xs">Pagar</button>
-                                                      <button onClick={() => handleUpdatePaymentStatus(req.id, 'REJECTED')} className="p-2 bg-red-100 text-red-600 hover:bg-red-200 rounded font-bold text-xs">Rechazar</button>
+                                                      <button onClick={() => alert("Descargando PDF...")} className="p-2 text-slate-500 hover:bg-slate-200 rounded" title="Ver Cuenta de Cobro"><Printer size={16}/></button>
+                                                      <button onClick={() => handleOpenPaymentModal(req)} className="p-2 bg-green-100 text-green-600 hover:bg-green-200 rounded font-bold text-xs">Pagar</button>
+                                                      <button onClick={() => handleRejectPayment(req.id)} className="p-2 bg-red-100 text-red-600 hover:bg-red-200 rounded font-bold text-xs">Rechazar</button>
+                                                  </div>
+                                              ) : (
+                                                  <div className="flex justify-end gap-2">
+                                                      <button onClick={() => alert("Descargando PDF...")} className="p-2 text-slate-500 hover:bg-slate-200 rounded" title="Ver Documento"><FileText size={16}/></button>
                                                   </div>
                                               )}
                                           </td>
