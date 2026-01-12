@@ -125,27 +125,6 @@ export interface DisciplinaryAction {
   response?: string; // Worker's response (Descargos)
 }
 
-// NEW: OPS Payment Requests (Cuentas de Cobro)
-export type PaymentRequestStatus = 'SUBMITTED' | 'APPROVED' | 'PAID' | 'REJECTED';
-
-export interface PaymentRequest {
-    id: string;
-    userId: string;
-    userName: string;
-    contractId: string;
-    period: string; // e.g. "Octubre 2023"
-    amount: number;
-    dateSubmitted: string;
-    status: PaymentRequestStatus;
-    attachments: {
-        name: string; // e.g. "Planilla_Seguridad_Social.pdf"
-        type: 'SOCIAL_SECURITY' | 'ACTIVITY_REPORT' | 'OTHER';
-        url?: string;
-    }[];
-    adminNotes?: string;
-    paymentReceiptUrl?: string; // URL of the uploaded receipt
-}
-
 export interface WorkShift {
   id: string;
   userId: string;
@@ -153,6 +132,23 @@ export interface WorkShift {
   endTime: string; // ISO String
   type: 'DIURNAL' | 'NOCTURNAL' | 'HOLIDAY'; // Simplified for demo
 }
+
+export interface PaymentRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  contractId: string;
+  period: string;
+  amount: number;
+  dateSubmitted: string;
+  status: 'SUBMITTED' | 'PAID' | 'REJECTED';
+  attachments: {
+      name: string;
+      type: string;
+  }[];
+  paymentReceiptUrl?: string; // URL for the payment receipt uploaded by admin
+}
+
 // --------------------------------
 
 export interface AppNotification {
@@ -185,8 +181,11 @@ export interface User {
   specialty?: string; 
 
   roles: UserRole[]; 
+  
+  // HR Module
   contracts?: Contract[]; 
   disciplinaryHistory?: DisciplinaryAction[];
+  
   status?: 'ACTIVE' | 'INACTIVE';
 }
 

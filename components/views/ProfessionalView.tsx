@@ -175,9 +175,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       alert("Cuenta de cobro generada y notificada a Administración.");
   };
 
-  // CALCULATORS LOGIC
+  // --- AUTOMATIC CALCULATORS (TFG, FRAMINGHAM, BMI, TAM) ---
   useEffect(() => {
-      if (viewMode !== 'CREATE') return;
+      if (viewMode !== 'CREATE' || !selectedPatient) return;
 
       const newData = { ...dynamicData };
       let changed = false;
@@ -196,6 +196,39 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       if (sys && dia) {
           const tam = Math.round((2 * dia + sys) / 3).toString();
           if (newData['v_tam'] !== tam) { newData['v_tam'] = tam; changed = true; }
+      }
+
+      // 3. TFG (Cockcroft-Gault)
+      // (140 - Age) * Weight / (72 * Creatinine) (* 0.85 if female)
+      const creat = parseFloat(newData['global_creatinine']);
+      if (w && creat) {
+          const age = new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear();
+          let tfg = ((140 - age) * w) / (72 * creat);
+          if (selectedPatient.gender === 'F') tfg *= 0.85;
+          const tfgStr = tfg.toFixed(1);
+          if (newData['calc_tfg'] !== tfgStr) { newData['calc_tfg'] = tfgStr; changed = true; }
+      }
+
+      // 4. FRAMINGHAM RISK (Simplified Mock Logic for Demo)
+      // Uses: Age, Gender, Smoker, SBP, Total Chol, HDL
+      const chol = parseFloat(newData['global_chol_total']);
+      const hdl = parseFloat(newData['global_chol_hdl']);
+      const smoker = newData['global_smoker'];
+      
+      if (chol && hdl && sys && smoker) {
+          const age = new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear();
+          // Simplified Scoring (Not clinically accurate, for demo visualization only)
+          let points = 0;
+          if(age > 40) points += 2; if(age > 60) points += 3;
+          if(selectedPatient.gender === 'M') points += 1;
+          if(smoker === 'SI') points += 2;
+          if(sys > 140) points += 2;
+          if(chol > 240) points += 2;
+          if(hdl < 40) points += 1;
+          
+          const risk = points * 1.5; // Mock percentage
+          const riskStr = risk > 30 ? '>30' : risk.toFixed(1);
+          if (newData['calc_framingham'] !== riskStr) { newData['calc_framingham'] = riskStr; changed = true; }
       }
 
       if (changed) setDynamicData(newData);
@@ -243,7 +276,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     
     // Check previous records for RCV History
     const prevRCV = records.some(r => r.patientId === patient.id && r.recordType === RecordType.PYP_CV_RISK && r.status === RecordStatus.FINALIZED);
-    setIsFirstTimeRCV(!prevRCV);
+    setIsFirstTimeRCV(!prevRCV); // If no previous record, it is first time
 
     // Filter templates based on user role
     const allowedTemplates = MOCK_TEMPLATES.filter(t => t.allowedRoles.some(r => user.roles.includes(r)));
@@ -338,6 +371,13 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
             alert("Es obligatorio seleccionar al menos un diagnóstico CIE-11.");
             setActiveFormTab('orders_tab');
             return;
+        }
+        // VALIDATE BARTHEL IF REQUIRED
+        if (isFirstTimeRCV && selectedTemplate?.recordType === RecordType.PYP_CV_RISK) {
+            if(!dynamicData['global_barthel']) {
+                alert("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.");
+                return;
+            }
         }
     }
     setAuthAction(action); setPasswordInput(''); setAuthError(''); setShowAuthModal(true);
@@ -440,14 +480,16 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
       const val = dynamicData[field.id] || '';
       const isBarthel = field.id === 'global_barthel';
+      // RCV Logic: Barthel mandatory only on first time
+      const isMandatory = field.required || (isBarthel && isFirstTimeRCV);
       const showBarthelAlert = isBarthel && isFirstTimeRCV && !val;
 
       return (
           <div key={field.id} className={`${field.type === 'TEXTAREA' ? 'col-span-2' : 'col-span-1'}`}>
               <label className="block text-xs font-bold text-slate-500 mb-1 flex items-center">
                   {field.label} {field.unit && <span className="ml-1 text-slate-400">({field.unit})</span>}
-                  {field.required && <span className="text-red-500 ml-1">*</span>}
-                  {showBarthelAlert && <AlertTriangle size={12} className="text-orange-500 ml-2" />}
+                  {isMandatory && <span className="text-red-500 ml-1">*</span>}
+                  {showBarthelAlert && <AlertTriangle size={12} className="text-orange-500 ml-2 animate-pulse" />}
               </label>
               
               {field.type === 'TEXTAREA' ? (
@@ -458,7 +500,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'CALCULATED' ? (
-                  <input disabled className="w-full p-2 border rounded text-sm bg-slate-100 text-slate-700 font-mono" value={val} />
+                  <div className="relative">
+                      <input disabled className="w-full p-2 border rounded text-sm bg-purple-50 text-purple-800 font-bold border-purple-100" value={val} placeholder="Calculando..."/>
+                      <Calculator size={14} className="absolute right-2 top-2.5 text-purple-400"/>
+                  </div>
               ) : (
                   <input 
                     disabled={isReadOnly} 
@@ -466,9 +511,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                     className={`w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white ${showBarthelAlert ? 'border-orange-500 ring-1 ring-orange-200' : ''}`}
                     value={val} 
                     onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})} 
+                    placeholder={field.placeholder}
                   />
               )}
-              {showBarthelAlert && <span className="text-[10px] text-orange-500">Obligatorio (1ra Vez)</span>}
+              {showBarthelAlert && <span className="text-[10px] text-orange-600 font-bold block mt-1">Campo obligatorio para ingreso al programa.</span>}
           </div>
       );
   };

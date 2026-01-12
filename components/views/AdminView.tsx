@@ -368,6 +368,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'hr' && isAdmin) {
       return (
           <div className="space-y-6">
+              {/* MODALS */}
               {isPaymentModalOpen && selectedPaymentReq && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
@@ -423,6 +424,169 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   </div>
               )}
 
+              {isContractModalOpen && selectedHRUser && (
+                  <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-6 h-[90vh] overflow-y-auto flex flex-col">
+                          <div className="flex justify-between items-center mb-6 border-b pb-4">
+                              <div>
+                                  <h3 className="text-xl font-bold text-slate-800">Gestión Contractual y Disciplinaria</h3>
+                                  <p className="text-sm text-slate-500">{selectedHRUser.name} - {selectedHRUser.documentNumber}</p>
+                              </div>
+                              <button onClick={() => setIsContractModalOpen(false)}><X size={24}/></button>
+                          </div>
+
+                          <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg mb-6 w-fit">
+                              <button onClick={() => setContractTab('GENERAL')} className={`px-4 py-2 rounded-md text-sm font-bold ${contractTab === 'GENERAL' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Contrato Vigente</button>
+                              <button onClick={() => setContractTab('AUDIT')} className={`px-4 py-2 rounded-md text-sm font-bold ${contractTab === 'AUDIT' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Auditoría</button>
+                              <button onClick={() => setContractTab('DISCIPLINARY')} className={`px-4 py-2 rounded-md text-sm font-bold ${contractTab === 'DISCIPLINARY' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Procesos Disciplinarios</button>
+                          </div>
+
+                          <div className="flex-1 overflow-y-auto pr-2">
+                              {contractTab === 'GENERAL' && (
+                                  <div className="space-y-6">
+                                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                                          <h4 className="font-bold text-blue-800 mb-4 flex items-center"><Briefcase className="mr-2"/> Configuración del Contrato</h4>
+                                          <div className="grid grid-cols-2 gap-4">
+                                              <div>
+                                                  <label className="text-xs font-bold text-slate-500">Tipo de Vinculación</label>
+                                                  <select className="w-full border p-2 rounded" value={newContract.type} onChange={e => setNewContract({...newContract, type: e.target.value as ContractType})}>
+                                                      <option value={ContractType.NOMINA}>Laboral (Nómina)</option>
+                                                      <option value={ContractType.OPS}>Prestación de Servicios (OPS)</option>
+                                                  </select>
+                                              </div>
+                                              <div>
+                                                  <label className="text-xs font-bold text-slate-500">Estado</label>
+                                                  <select className="w-full border p-2 rounded" value={newContract.isActive ? 'ACTIVO' : 'INACTIVO'} onChange={e => setNewContract({...newContract, isActive: e.target.value === 'ACTIVO'})}>
+                                                      <option value="ACTIVO">Activo</option>
+                                                      <option value="INACTIVO">Terminado / Inactivo</option>
+                                                  </select>
+                                              </div>
+                                              <div>
+                                                  <label className="text-xs font-bold text-slate-500">Fecha Inicio</label>
+                                                  <input type="date" className="w-full border p-2 rounded" value={newContract.startDate || ''} onChange={e => setNewContract({...newContract, startDate: e.target.value})} />
+                                              </div>
+                                              <div>
+                                                  <label className="text-xs font-bold text-slate-500">Fecha Fin (Opcional)</label>
+                                                  <input type="date" className="w-full border p-2 rounded" value={newContract.endDate || ''} onChange={e => setNewContract({...newContract, endDate: e.target.value})} />
+                                              </div>
+                                              
+                                              {newContract.type === ContractType.NOMINA ? (
+                                                  <div className="col-span-2">
+                                                      <label className="text-xs font-bold text-slate-500">Salario Básico Mensual</label>
+                                                      <input type="number" className="w-full border p-2 rounded font-bold" value={newContract.baseSalary || 0} onChange={e => setNewContract({...newContract, baseSalary: parseFloat(e.target.value)})} />
+                                                  </div>
+                                              ) : (
+                                                  <>
+                                                      <div>
+                                                          <label className="text-xs font-bold text-slate-500">Método de Pago OPS</label>
+                                                          <select className="w-full border p-2 rounded" value={newContract.opsPaymentMethod || 'FIXED_MONTHLY'} onChange={e => setNewContract({...newContract, opsPaymentMethod: e.target.value as any})}>
+                                                              <option value="FIXED_MONTHLY">Valor Fijo Mensual</option>
+                                                              <option value="PER_PROCEDURE">Por Evento / Procedimiento</option>
+                                                              <option value="PER_HOUR">Por Hora</option>
+                                                          </select>
+                                                      </div>
+                                                      <div>
+                                                          <label className="text-xs font-bold text-slate-500">Valor Honorarios</label>
+                                                          <input type="number" className="w-full border p-2 rounded font-bold" value={newContract.opsValue || 0} onChange={e => setNewContract({...newContract, opsValue: parseFloat(e.target.value)})} />
+                                                      </div>
+                                                  </>
+                                              )}
+                                          </div>
+                                          <div className="mt-4 flex justify-end">
+                                              <button onClick={handleSaveContract} className="bg-blue-600 text-white px-4 py-2 rounded font-bold shadow hover:bg-blue-700">
+                                                  Guardar Cambios Contractuales
+                                              </button>
+                                          </div>
+                                      </div>
+
+                                      {/* Existing Contracts List */}
+                                      <div>
+                                          <h4 className="font-bold text-slate-700 mb-2">Historial de Contratos</h4>
+                                          <div className="space-y-2">
+                                              {selectedHRUser.contracts?.map(c => (
+                                                  <div key={c.id} className={`border p-3 rounded flex justify-between items-center ${c.isActive ? 'border-green-200 bg-green-50' : 'bg-slate-50'}`}>
+                                                      <div>
+                                                          <p className="font-bold text-sm">{c.type === ContractType.NOMINA ? 'Laboral' : 'OPS'} - {c.isActive ? 'ACTIVO' : 'TERMINADO'}</p>
+                                                          <p className="text-xs text-slate-500">{c.startDate} - {c.endDate || 'Indefinido'}</p>
+                                                      </div>
+                                                      <button onClick={() => handleEditContract(c)} className="text-blue-600 text-xs font-bold hover:underline">Editar</button>
+                                                  </div>
+                                              ))}
+                                              {(!selectedHRUser.contracts || selectedHRUser.contracts.length === 0) && <p className="text-slate-400 italic text-sm">Sin contratos registrados.</p>}
+                                          </div>
+                                      </div>
+                                  </div>
+                              )}
+
+                              {contractTab === 'AUDIT' && (
+                                  <div className="space-y-4">
+                                      <h4 className="font-bold text-slate-700 mb-2 flex items-center"><Activity className="mr-2"/> Auditoría de Cambios</h4>
+                                      <div className="border-l-2 border-slate-200 pl-4 space-y-6">
+                                          {selectedHRUser.contracts?.flatMap(c => c.auditTrail).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((audit, idx) => (
+                                              <div key={idx} className="relative">
+                                                  <div className="absolute -left-[21px] top-0 w-3 h-3 bg-slate-300 rounded-full border-2 border-white"></div>
+                                                  <p className="text-sm font-bold text-slate-800">{audit.action}</p>
+                                                  <p className="text-xs text-slate-500">{new Date(audit.date).toLocaleString()} por <span className="font-semibold">{audit.changedBy}</span></p>
+                                                  <p className="text-sm text-slate-600 mt-1 bg-slate-50 p-2 rounded border">{audit.details}</p>
+                                              </div>
+                                          ))}
+                                          {(!selectedHRUser.contracts || selectedHRUser.contracts.flatMap(c => c.auditTrail).length === 0) && <p className="text-slate-400 italic">No hay registros de auditoría.</p>}
+                                      </div>
+                                  </div>
+                              )}
+
+                              {contractTab === 'DISCIPLINARY' && (
+                                  <div className="space-y-6">
+                                      <div className="bg-red-50 p-4 rounded-lg border border-red-100">
+                                          <h4 className="font-bold text-red-800 mb-4 flex items-center"><AlertTriangle className="mr-2"/> Registrar Nuevo Evento</h4>
+                                          <div className="space-y-3">
+                                              <div>
+                                                  <label className="text-xs font-bold text-slate-500">Tipo de Evento</label>
+                                                  <select className="w-full border p-2 rounded" value={newDisciplinary.type} onChange={e => setNewDisciplinary({...newDisciplinary, type: e.target.value as any})}>
+                                                      <option value="COMPLAINT">Queja / Reclamo</option>
+                                                      <option value="REQUEST">Requerimiento / Solicitud</option>
+                                                      <option value="SANCTION">Sanción Disciplinaria</option>
+                                                  </select>
+                                              </div>
+                                              <div>
+                                                  <label className="text-xs font-bold text-slate-500">Título / Asunto</label>
+                                                  <input className="w-full border p-2 rounded" placeholder="Ej. Retraso reiterado..." value={newDisciplinary.title || ''} onChange={e => setNewDisciplinary({...newDisciplinary, title: e.target.value})} />
+                                              </div>
+                                              <div>
+                                                  <label className="text-xs font-bold text-slate-500">Descripción Detallada</label>
+                                                  <textarea className="w-full border p-2 rounded" rows={3} value={newDisciplinary.description || ''} onChange={e => setNewDisciplinary({...newDisciplinary, description: e.target.value})} />
+                                              </div>
+                                              <button onClick={handleSaveDisciplinary} className="w-full bg-red-600 text-white py-2 rounded font-bold hover:bg-red-700">Registrar Evento</button>
+                                          </div>
+                                      </div>
+
+                                      <div>
+                                          <h4 className="font-bold text-slate-700 mb-2">Historial Disciplinario</h4>
+                                          <div className="space-y-3">
+                                              {selectedHRUser.disciplinaryHistory?.map(d => (
+                                                  <div key={d.id} className="border p-3 rounded bg-white hover:shadow-sm">
+                                                      <div className="flex justify-between items-start">
+                                                          <span className={`text-[10px] font-bold px-2 py-1 rounded ${d.type === 'SANCTION' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>{d.type}</span>
+                                                          <span className="text-xs text-slate-400">{new Date(d.date).toLocaleDateString()}</span>
+                                                      </div>
+                                                      <h5 className="font-bold text-sm mt-1">{d.title}</h5>
+                                                      <p className="text-xs text-slate-600 mt-1 line-clamp-2">{d.description}</p>
+                                                      <div className="mt-2 text-xs">
+                                                          <span className={`font-bold ${d.status === 'OPEN' ? 'text-green-600' : 'text-slate-500'}`}>Estado: {d.status}</span>
+                                                          {d.response && <p className="mt-1 bg-slate-50 p-1 rounded italic text-slate-500">"Descargos recibidos"</p>}
+                                                      </div>
+                                                  </div>
+                                              ))}
+                                              {(!selectedHRUser.disciplinaryHistory || selectedHRUser.disciplinaryHistory.length === 0) && <p className="text-slate-400 italic text-sm">Hoja de vida limpia.</p>}
+                                          </div>
+                                      </div>
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+                  </div>
+              )}
+
               <div className="flex justify-between items-center mb-4">
                   <h2 className="text-2xl font-bold text-slate-800">Talento Humano</h2>
               </div>
@@ -434,8 +598,49 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               </div>
 
               {contractTab === 'GENERAL' && (
-                  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 text-center text-slate-400">
-                      <p>Módulo de directorio y gestión de contratos (Placeholder - Use el flujo de usuario individual para editar).</p>
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                      <h3 className="font-bold text-lg text-slate-800 mb-4">Directorio de Personal</h3>
+                      <table className="w-full text-sm text-left">
+                          <thead className="bg-slate-50 text-slate-500 font-medium">
+                              <tr>
+                                  <th className="p-3">Funcionario</th>
+                                  <th className="p-3">Rol</th>
+                                  <th className="p-3">Contrato Actual</th>
+                                  <th className="p-3">Alertas</th>
+                                  <th className="p-3 text-right">Gestión</th>
+                              </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                              {users.map(u => {
+                                  const activeContract = u.contracts?.find(c => c.isActive);
+                                  const openIssues = u.disciplinaryHistory?.filter(d => d.status === 'OPEN').length || 0;
+                                  return (
+                                      <tr key={u.id} className="hover:bg-slate-50">
+                                          <td className="p-3">
+                                              <p className="font-bold text-slate-700">{u.name}</p>
+                                              <p className="text-xs text-slate-400">{u.documentNumber}</p>
+                                          </td>
+                                          <td className="p-3 text-xs">{roleLabels[u.roles[0]]}</td>
+                                          <td className="p-3">
+                                              {activeContract ? (
+                                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold">
+                                                      {activeContract.type === ContractType.NOMINA ? 'Laboral' : 'OPS'}
+                                                  </span>
+                                              ) : <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full">Sin contrato</span>}
+                                          </td>
+                                          <td className="p-3">
+                                              {openIssues > 0 && <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full font-bold flex w-fit items-center"><AlertTriangle size={12} className="mr-1"/> {openIssues} Proc.</span>}
+                                          </td>
+                                          <td className="p-3 text-right">
+                                              <button onClick={() => handleOpenContracts(u)} className="text-blue-600 hover:bg-blue-50 px-3 py-1 rounded text-xs font-bold border border-blue-200">
+                                                  Administrar
+                                              </button>
+                                          </td>
+                                      </tr>
+                                  );
+                              })}
+                          </tbody>
+                      </table>
                   </div>
               )}
 

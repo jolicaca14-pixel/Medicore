@@ -147,35 +147,48 @@ export const MOCK_USERS: User[] = [
   }
 ];
 
-// --- FINANCIAL / TARIFFS ---
+// --- FINANCIAL / TARIFFS (Updated with Specific Lab CUPS) ---
 export const MOCK_SOAT_TARIFF: TariffItem[] = [
     { code: '890201', name: 'CONSULTA DE PRIMERA VEZ POR MEDICINA GENERAL', soatFactor: 1.00 },
     { code: '890301', name: 'CONSULTA DE CONTROL POR MEDICINA GENERAL', soatFactor: 0.89 },
     { code: '890208', name: 'CONSULTA DE PRIMERA VEZ POR PSICOLOGIA', soatFactor: 0.95 },
-    { code: '890308', name: 'CONSULTA DE CONTROL POR PSICOLOGIA', soatFactor: 0.85 },
-    { code: '903895', name: 'HEMOGRAMA IV [AUTOMATIZADO]', soatFactor: 0.55 }, 
-    { code: '902213', name: 'UROANALISIS CON SEDIMENTO', soatFactor: 0.35 },
+    { code: '902213', name: 'HEMOGRAMA IV [AUTOMATIZADO]', soatFactor: 0.65 }, 
+    { code: '907106', name: 'UROANALISIS CON SEDIMENTO Y DENSIDAD', soatFactor: 0.40 },
+    { code: '903825', name: 'PERFIL LIPIDICO (COLESTEROL, HDL, LDL, TRIGLICERIDOS)', soatFactor: 1.80 },
+    { code: '903841', name: 'GLUCOSA EN SUERO (BASAL)', soatFactor: 0.35 },
+    { code: '903842', name: 'GLUCOSA POST PRANDIAL', soatFactor: 0.35 },
+    { code: '903839', name: 'HEMOGLOBINA GLICOSILADA A1C', soatFactor: 0.90 },
     { code: '871020', name: 'RADIOGRAFIA DE TORAX', soatFactor: 1.10 },
     { code: '881234', name: 'ECOGRAFIA DE ABDOMEN TOTAL', soatFactor: 2.10 },
 ];
 
 // --- GLOBAL FIELD LIBRARY ---
 export const MOCK_FIELD_LIBRARY: TemplateField[] = [
+    // BASIC
     { id: 'global_weight', label: 'Peso', type: 'NUMBER', unit: 'kg', required: true, isGlobal: true },
     { id: 'global_height', label: 'Talla', type: 'NUMBER', unit: 'm', required: true, isGlobal: true },
     { id: 'global_bmi', label: 'IMC', type: 'CALCULATED', unit: 'kg/m²', formula: 'global_weight / (global_height * global_height)', required: false, isGlobal: true },
     { id: 'global_sys_bp', label: 'Tensión Sistólica', type: 'NUMBER', unit: 'mmHg', required: true, isGlobal: true },
     { id: 'global_dia_bp', label: 'Tensión Diastólica', type: 'NUMBER', unit: 'mmHg', required: true, isGlobal: true },
     { id: 'global_temp', label: 'Temperatura', type: 'NUMBER', unit: '°C', required: true, isGlobal: true },
+    // RCV SPECIFIC
     { id: 'global_creatinine', label: 'Creatinina Sérica', type: 'NUMBER', unit: 'mg/dL', required: false, isGlobal: true },
     { id: 'global_chol_total', label: 'Colesterol Total', type: 'NUMBER', unit: 'mg/dL', required: false, isGlobal: true },
     { id: 'global_chol_hdl', label: 'Colesterol HDL', type: 'NUMBER', unit: 'mg/dL', required: false, isGlobal: true },
     { id: 'global_smoker', label: 'Fumador Activo', type: 'SELECT', options: ['NO', 'SI'], required: true, isGlobal: true },
     { id: 'global_barthel', label: 'Puntaje Barthel (0-100)', type: 'NUMBER', required: false, isGlobal: true },
+    // OBSTETRIC
+    { id: 'obs_gestational_age', label: 'Edad Gestacional', type: 'NUMBER', unit: 'semanas', required: true, isGlobal: true },
+    { id: 'obs_fhr', label: 'Frec. Cardíaca Fetal', type: 'NUMBER', unit: 'lpm', required: true, isGlobal: true },
+    { id: 'obs_uterine_height', label: 'Altura Uterina', type: 'NUMBER', unit: 'cm', required: true, isGlobal: true },
+    // VISUAL
+    { id: 'vis_av_od', label: 'Agudeza Visual O.D.', type: 'TEXT', required: true, isGlobal: true, placeholder: 'Ej. 20/20' },
+    { id: 'vis_av_oi', label: 'Agudeza Visual O.I.', type: 'TEXT', required: true, isGlobal: true, placeholder: 'Ej. 20/20' },
 ];
 
 // --- GLOBAL SECTION LIBRARY ---
 export const MOCK_SECTION_LIBRARY: TemplateSection[] = [
+  // 0. ANAMNESIS
   {
     id: 'sec_anamnesis',
     title: 'Anamnesis General',
@@ -184,6 +197,7 @@ export const MOCK_SECTION_LIBRARY: TemplateSection[] = [
       { id: 'f_ea', label: 'Enfermedad Actual', type: 'TEXTAREA', required: true }
     ]
   },
+  // 1. ANTECEDENTES
   {
     id: 'sec_antecedentes_full',
     title: 'Antecedentes Completos',
@@ -195,6 +209,7 @@ export const MOCK_SECTION_LIBRARY: TemplateSection[] = [
       { id: 'f_ant_gineco', label: 'Gineco-Obstétricos (G/P/A/C)', type: 'TEXT', required: false }
     ]
   },
+  // 2. VITALS
   {
     id: 'sec_vitals_adult',
     title: 'Signos Vitales',
@@ -210,6 +225,7 @@ export const MOCK_SECTION_LIBRARY: TemplateSection[] = [
       { id: 'v_sat', label: 'Saturación O2', type: 'NUMBER', required: false, unit: '%' }
     ]
   },
+  // 3. DX & PLAN
   {
     id: 'sec_diagnosis_plan',
     title: 'Diagnóstico y Plan',
@@ -219,31 +235,93 @@ export const MOCK_SECTION_LIBRARY: TemplateSection[] = [
       { id: 'd_rx_header', label: 'Módulo de Prescripción', type: 'HEADER', required: false }
     ]
   },
-  // --- LAB SECTIONS (NEW) ---
+  // --- DETAILED LAB SECTIONS (UPDATED) ---
+  // 4. HEMOGRAM FULL
   {
-      id: 'sec_lab_hemogram',
-      title: 'Hemograma IV [Automatizado]',
+      id: 'sec_lab_hemo_full',
+      title: 'Hemograma Completo (CUPS 902213)',
       fields: [
-          { id: 'lab_hgb', label: 'Hemoglobina', type: 'NUMBER', unit: 'g/dL', required: true },
-          { id: 'lab_hct', label: 'Hematocrito', type: 'NUMBER', unit: '%', required: true },
-          { id: 'lab_wbc', label: 'Leucocitos', type: 'NUMBER', unit: 'x10^3/uL', required: true },
-          { id: 'lab_plt', label: 'Plaquetas', type: 'NUMBER', unit: 'x10^3/uL', required: true },
-          { id: 'lab_neut', label: 'Neutrófilos', type: 'NUMBER', unit: '%', required: false },
-          { id: 'lab_lymph', label: 'Linfocitos', type: 'NUMBER', unit: '%', required: false }
+          // RED SERIES
+          { id: 'hem_header_red', label: 'Serie Roja (Eritrocitaria)', type: 'HEADER', required: false },
+          { id: 'hem_rbc', label: 'Glóbulos Rojos', type: 'NUMBER', unit: 'M/uL', required: true, placeholder: 'M: 4.5-5.9 | F: 4.1-5.1' },
+          { id: 'hem_hb', label: 'Hemoglobina (Hb)', type: 'NUMBER', unit: 'g/dL', required: true, placeholder: 'M: 14-18 | F: 12-16' },
+          { id: 'hem_hto', label: 'Hematocrito (Hto)', type: 'NUMBER', unit: '%', required: true, placeholder: 'M: 42-50 | F: 36-47' },
+          { id: 'hem_vcm', label: 'VCM', type: 'NUMBER', unit: 'fL', required: true, placeholder: '80-100' },
+          { id: 'hem_hcm', label: 'HCM', type: 'NUMBER', unit: 'pg', required: true, placeholder: '27-34' },
+          { id: 'hem_chcm', label: 'CHCM', type: 'NUMBER', unit: 'g/dL', required: true, placeholder: '32-36' },
+          { id: 'hem_rdw', label: 'RDW', type: 'NUMBER', unit: '%', required: true, placeholder: '11-14.5' },
+          
+          // WHITE SERIES
+          { id: 'hem_header_white', label: 'Serie Blanca (Leucocitaria)', type: 'HEADER', required: false },
+          { id: 'hem_wbc', label: 'Leucocitos Totales', type: 'NUMBER', unit: '/mm3', required: true, placeholder: '4,500 - 11,000' },
+          { id: 'hem_neu_p', label: 'Neutrófilos %', type: 'NUMBER', unit: '%', required: true, placeholder: '55-70%' },
+          { id: 'hem_lin_p', label: 'Linfocitos %', type: 'NUMBER', unit: '%', required: true, placeholder: '20-40%' },
+          { id: 'hem_mon_p', label: 'Monocitos %', type: 'NUMBER', unit: '%', required: true, placeholder: '2-8%' },
+          { id: 'hem_eos_p', label: 'Eosinófilos %', type: 'NUMBER', unit: '%', required: true, placeholder: '1-4%' },
+          { id: 'hem_bas_p', label: 'Basófilos %', type: 'NUMBER', unit: '%', required: true, placeholder: '0-1%' },
+          
+          // PLATELETS
+          { id: 'hem_header_plt', label: 'Serie Plaquetaria', type: 'HEADER', required: false },
+          { id: 'hem_plt', label: 'Recuento Plaquetas', type: 'NUMBER', unit: '/uL', required: true, placeholder: '150k - 450k' },
+          { id: 'hem_vpm', label: 'VPM', type: 'NUMBER', unit: 'fL', required: false, placeholder: '7-11' }
       ]
   },
+  // 5. UROANALYSIS FULL
   {
-      id: 'sec_lab_uro',
-      title: 'Uroanálisis',
+      id: 'sec_lab_uro_full',
+      title: 'Uroanálisis Completo (CUPS 907106)',
       fields: [
-          { id: 'lab_uro_color', label: 'Color', type: 'TEXT', required: true },
-          { id: 'lab_uro_aspect', label: 'Aspecto', type: 'SELECT', options: ['Transparente', 'Lig. Turbio', 'Turbio'], required: true },
-          { id: 'lab_uro_ph', label: 'pH', type: 'NUMBER', required: true },
-          { id: 'lab_uro_dens', label: 'Densidad', type: 'NUMBER', required: true },
-          { id: 'lab_uro_leuc', label: 'Leucocitos (Tira)', type: 'TEXT', required: true }
+          // PHYSICAL
+          { id: 'uro_color', label: 'Color', type: 'TEXT', required: true, placeholder: 'Amarillo/Ámbar' },
+          { id: 'uro_aspect', label: 'Aspecto', type: 'SELECT', options: ['Transparente', 'Ligeramente Turbio', 'Turbio'], required: true },
+          { id: 'uro_dens', label: 'Densidad', type: 'NUMBER', required: true, placeholder: '1.005 - 1.030' },
+          { id: 'uro_ph', label: 'pH', type: 'NUMBER', required: true, placeholder: '4.6 - 8.0' },
+          
+          // CHEMICAL (STRIP)
+          { id: 'uro_header_chem', label: 'Examen Químico (Tira)', type: 'HEADER', required: false },
+          { id: 'uro_gluc', label: 'Glucosa', type: 'SELECT', options: ['Negativo', 'Positivo (+)'], required: true },
+          { id: 'uro_prot', label: 'Proteínas', type: 'SELECT', options: ['Negativo', 'Trazas', 'Positivo'], required: true },
+          { id: 'uro_ket', label: 'Cetonas', type: 'SELECT', options: ['Negativo', 'Positivo'], required: true },
+          { id: 'uro_blood', label: 'Sangre/Hb', type: 'SELECT', options: ['Negativo', 'Positivo'], required: true },
+          { id: 'uro_nit', label: 'Nitritos', type: 'SELECT', options: ['Negativo', 'Positivo'], required: true },
+          { id: 'uro_leu', label: 'Esterasa Leucocitaria', type: 'SELECT', options: ['Negativo', 'Positivo'], required: true },
+
+          // SEDIMENT
+          { id: 'uro_header_micro', label: 'Sedimento Microscópico', type: 'HEADER', required: false },
+          { id: 'uro_sed_epi', label: 'Células Epiteliales', type: 'TEXT', required: true, placeholder: 'Escasas' },
+          { id: 'uro_sed_leu', label: 'Leucocitos x Campo', type: 'TEXT', required: true, placeholder: '0-5' },
+          { id: 'uro_sed_rbc', label: 'Hematíes x Campo', type: 'TEXT', required: true, placeholder: '0-3' },
+          { id: 'uro_sed_bac', label: 'Bacterias', type: 'SELECT', options: ['Ausentes', 'Escasas', 'Moderadas', 'Abundantes'], required: true },
+          { id: 'uro_sed_obs', label: 'Otros (Cristales/Cilindros)', type: 'TEXTAREA', required: false }
       ]
   },
-  // --- IMAGING SECTIONS (NEW) ---
+  // 6. LIPID PROFILE
+  {
+      id: 'sec_lab_lipid',
+      title: 'Perfil Lipídico Detallado (CUPS 903825)',
+      fields: [
+          MOCK_FIELD_LIBRARY[7], // Cholesterol Total
+          MOCK_FIELD_LIBRARY[8], // HDL
+          { id: 'lip_ldl', label: 'Colesterol LDL (Malo)', type: 'NUMBER', unit: 'mg/dL', required: true, placeholder: '< 100 óptimo' },
+          { id: 'lip_trig', label: 'Triglicéridos', type: 'NUMBER', unit: 'mg/dL', required: true, placeholder: '< 150' },
+          
+          // CALCULATED
+          { id: 'lip_vldl', label: 'VLDL (Calc)', type: 'CALCULATED', unit: 'mg/dL', required: false, formula: 'lip_trig / 5' },
+          { id: 'lip_nohdl', label: 'Colesterol No-HDL (Calc)', type: 'CALCULATED', unit: 'mg/dL', required: false, formula: 'global_chol_total - global_chol_hdl' }
+      ]
+  },
+  // 7. GLUCOSE METABOLISM
+  {
+      id: 'sec_lab_glucose',
+      title: 'Metabolismo de la Glucosa (ADA/OMS)',
+      fields: [
+          { id: 'glu_fasting', label: 'Glucosa Ayunas (Basal)', type: 'NUMBER', unit: 'mg/dL', required: false, placeholder: '70-99 Normal' },
+          { id: 'glu_post', label: 'Glucosa Postprandial (2h)', type: 'NUMBER', unit: 'mg/dL', required: false, placeholder: '< 140 Normal' },
+          { id: 'glu_hba1c', label: 'Hemoglobina Glicosilada (HbA1c)', type: 'NUMBER', unit: '%', required: false, placeholder: '< 5.7% Normal' },
+          { id: 'glu_dx_sugg', label: 'Interpretación Sugerida', type: 'INFO', required: false, placeholder: 'Pre-Diabetes: 5.7-6.4% | Diabetes: >= 6.5%' }
+      ]
+  },
+  // 8. RAD REPORT
   {
       id: 'sec_rad_report',
       title: 'Informe Radiológico',
@@ -254,7 +332,7 @@ export const MOCK_SECTION_LIBRARY: TemplateSection[] = [
           { id: 'rad_images', label: 'Imágenes / Placas', type: 'FILE', required: false }
       ]
   },
-  // --- PSYCHOLOGY SECTIONS ---
+  // 9. PSY EXAM
   {
       id: 'sec_psy_mental',
       title: 'Examen Mental',
@@ -265,54 +343,170 @@ export const MOCK_SECTION_LIBRARY: TemplateSection[] = [
           { id: 'psy_pensamiento', label: 'Pensamiento', type: 'TEXTAREA', required: true },
           { id: 'psy_juicio', label: 'Juicio y Raciocinio', type: 'TEXTAREA', required: true }
       ]
+  },
+  // 10. NUTRITION
+  {
+      id: 'sec_nutrition_recall',
+      title: 'Valoración Nutricional',
+      fields: [
+          MOCK_FIELD_LIBRARY[0], // Weight
+          MOCK_FIELD_LIBRARY[1], // Height
+          MOCK_FIELD_LIBRARY[2], // BMI
+          { id: 'nut_abdominal', label: 'Perímetro Abdominal', type: 'NUMBER', unit: 'cm', required: true },
+          { id: 'nut_anamnesis', label: 'Anamnesis Alimentaria (Recordatorio 24h)', type: 'TEXTAREA', required: true },
+          { id: 'nut_dx', label: 'Diagnóstico Nutricional', type: 'TEXTAREA', required: true }
+      ]
+  },
+  // 11. PROCEDURES
+  {
+      id: 'sec_proc_details',
+      title: 'Nota de Procedimiento',
+      fields: [
+          { id: 'proc_name', label: 'Nombre del Procedimiento', type: 'TEXT', required: true },
+          { id: 'proc_anesthesia', label: 'Tipo de Anestesia', type: 'SELECT', options: ['Local', 'General', 'Sedación', 'Ninguna'], required: true },
+          { id: 'proc_description', label: 'Descripción Técnica / Hallazgos', type: 'TEXTAREA', required: true },
+          { id: 'proc_complications', label: 'Complicaciones', type: 'TEXTAREA', required: false, defaultValue: 'No se presentaron.' }
+      ]
+  },
+  // 12. PYP Crecimiento
+  {
+      id: 'sec_pyp_growth',
+      title: 'Crecimiento y Desarrollo (<10 Años)',
+      fields: [
+          MOCK_FIELD_LIBRARY[0], // Weight
+          MOCK_FIELD_LIBRARY[1], // Height
+          { id: 'pyp_pc', label: 'Perímetro Cefálico', type: 'NUMBER', unit: 'cm', required: false },
+          { id: 'pyp_milestones', label: 'Hitos del Desarrollo', type: 'TEXTAREA', required: true, placeholder: 'Motor grueso, fino, lenguaje, personal-social...' },
+          { id: 'pyp_vaccination', label: 'Esquema Vacunación', type: 'SELECT', options: ['Completo para la edad', 'Incompleto', 'Sin carnet'], required: true },
+          { id: 'pyp_deworming', label: 'Desparasitación Reciente', type: 'SELECT', options: ['SI', 'NO'], required: true }
+      ]
+  },
+  // 13. PYP Joven
+  {
+      id: 'sec_pyp_young',
+      title: 'Desarrollo del Joven (10-29 Años)',
+      fields: [
+          { id: 'pyp_tanner', label: 'Estadio de Tanner', type: 'SELECT', options: ['I', 'II', 'III', 'IV', 'V'], required: true },
+          { id: 'pyp_sexual_health', label: 'Salud Sexual y Reproductiva', type: 'TEXTAREA', required: true },
+          { id: 'pyp_risks', label: 'Riesgos (SPA, Violencia, Mental)', type: 'TEXTAREA', required: true }
+      ]
+  },
+  // 14. PYP Prenatal
+  {
+      id: 'sec_pyp_prenatal',
+      title: 'Control Prenatal',
+      fields: [
+          MOCK_FIELD_LIBRARY[12], // Edad Gestacional
+          MOCK_FIELD_LIBRARY[14], // Altura Uterina
+          MOCK_FIELD_LIBRARY[13], // FHR
+          { id: 'pyp_fetal_mov', label: 'Movimientos Fetales', type: 'SELECT', options: ['Presentes', 'Ausentes', 'Disminuidos'], required: true },
+          { id: 'pyp_alarm_signs', label: 'Signos de Alarma', type: 'TEXTAREA', required: true, defaultValue: 'Negativos.' },
+          { id: 'pyp_prenatal_labs', label: 'Revisión Paraclínicos', type: 'TEXTAREA', required: false }
+      ]
+  },
+  // 15. PYP CV Risk
+  {
+      id: 'sec_pyp_cv_risk',
+      title: 'Riesgo Cardiovascular (RCV)',
+      fields: [
+          MOCK_FIELD_LIBRARY[3], // Sys
+          MOCK_FIELD_LIBRARY[4], // Dia
+          MOCK_FIELD_LIBRARY[9], // Smoker
+          MOCK_FIELD_LIBRARY[0], // Weight
+          MOCK_FIELD_LIBRARY[7], // Total Chol
+          MOCK_FIELD_LIBRARY[8], // HDL
+          MOCK_FIELD_LIBRARY[6], // Creatinine
+          // Calculated Fields
+          { id: 'calc_tfg', label: 'TFG Estimada (Cockcroft-Gault)', type: 'CALCULATED', unit: 'mL/min', required: false },
+          { id: 'calc_framingham', label: 'Riesgo Framingham (10 años)', type: 'CALCULATED', unit: '%', required: false },
+          // Barthel (Logic in View to make required if first time)
+          MOCK_FIELD_LIBRARY[10], // Barthel
+          { id: 'pyp_cv_goals', label: 'Metas Terapéuticas', type: 'TEXTAREA', required: true }
+      ]
+  },
+  // 16. PYP Visual
+  {
+      id: 'sec_pyp_visual',
+      title: 'Salud Visual',
+      fields: [
+          MOCK_FIELD_LIBRARY[15], // OD
+          MOCK_FIELD_LIBRARY[16], // OI
+          { id: 'vis_structures', label: 'Examen Externo / Estructuras', type: 'TEXTAREA', required: true },
+          { id: 'vis_dx', label: 'Diagnóstico Visual', type: 'TEXT', required: true }
+      ]
+  },
+  // 17. PYP Family Planning
+  {
+      id: 'sec_pyp_family_planning',
+      title: 'Planificación Familiar',
+      fields: [
+          { id: 'fp_current_method', label: 'Método Actual', type: 'TEXT', required: true },
+          { id: 'fp_side_effects', label: 'Efectos Secundarios', type: 'TEXT', required: false },
+          { id: 'fp_counseling', label: 'Asesoría Brindada', type: 'TEXTAREA', required: true, defaultValue: 'Se brinda asesoría sobre derechos sexuales y reproductivos y canasta de métodos disponibles.' },
+          { id: 'fp_method_chosen', label: 'Método Elegido / Renovado', type: 'TEXT', required: true }
+      ]
+  },
+  // 18. PYP Cancer
+  {
+      id: 'sec_pyp_cancer',
+      title: 'Detección Cáncer (Cuello Uterino/Seno)',
+      fields: [
+          { id: 'ca_cytology_date', label: 'Fecha Última Citología', type: 'DATE', required: false },
+          { id: 'ca_cytology_result', label: 'Resultado Citología', type: 'TEXT', required: false },
+          { id: 'ca_breast_exam', label: 'Examen Clínico de Mama', type: 'TEXTAREA', required: true, placeholder: 'Inspección y palpación...' },
+          { id: 'ca_mammo_date', label: 'Fecha Mamografía (>50 años)', type: 'DATE', required: false }
+      ]
+  },
+  // 19. PYP Newborn
+  {
+      id: 'sec_pyp_newborn',
+      title: 'Recién Nacido (< 1 Mes)',
+      fields: [
+          MOCK_FIELD_LIBRARY[0], // Weight
+          MOCK_FIELD_LIBRARY[1], // Height (Length)
+          { id: 'nb_reflexes', label: 'Reflejos Primitivos', type: 'TEXTAREA', required: true },
+          { id: 'nb_umbilical', label: 'Muñón Umbilical', type: 'TEXT', required: true },
+          { id: 'nb_lactation', label: 'Lactancia Materna', type: 'SELECT', options: ['Exclusiva', 'Mixta', 'Fórmula'], required: true }
+      ]
+  },
+  // 20. PYP Puerperium
+  {
+      id: 'sec_pyp_puerperium',
+      title: 'Atención Puerperio (Post-Parto)',
+      fields: [
+          MOCK_FIELD_LIBRARY[3], // Sys
+          MOCK_FIELD_LIBRARY[4], // Dia
+          { id: 'pp_uterus', label: 'Involución Uterina', type: 'TEXT', required: true },
+          { id: 'pp_lochia', label: 'Loquios (Características)', type: 'TEXT', required: true },
+          { id: 'pp_episiotomy', label: 'Herida Qx / Episiotomía', type: 'TEXT', required: true },
+          { id: 'pp_mastitis', label: 'Signos de Mastitis', type: 'SELECT', options: ['NO', 'SI'], required: true }
+      ]
   }
 ];
 
 // --- MOCK TEMPLATES ---
 export const MOCK_TEMPLATES: RoleTemplate[] = [
-  // ... (Existing clinical templates)
+  // 1. GENERAL
   {
     id: 't_general',
-    name: 'Consulta Externa General',
-    description: 'Historia clínica estándar.',
+    name: 'Historia Medicina General',
+    description: 'Consulta morbilidad externa.',
     active: true,
     allowedRoles: [UserRole.PROFESSIONAL],
     recordType: RecordType.GENERAL,
     sections: [ MOCK_SECTION_LIBRARY[0], MOCK_SECTION_LIBRARY[1], MOCK_SECTION_LIBRARY[2], MOCK_SECTION_LIBRARY[3] ]
   },
-  
-  // --- LAB TEMPLATES ---
+  // 2. NUTRITION
   {
-      id: 't_lab_hemo',
-      name: 'Resultado Hemograma',
-      description: 'Reporte automatizado de cuadro hemático.',
+      id: 't_nutrition',
+      name: 'Historia Nutrición',
+      description: 'Valoración antropométrica y dietaria.',
       active: true,
-      allowedRoles: [UserRole.BACTERIOLOGIST],
-      recordType: RecordType.LAB_RESULT,
-      sections: [ MOCK_SECTION_LIBRARY[4] ] // Only Hemogram section
+      allowedRoles: [UserRole.PROFESSIONAL], 
+      recordType: RecordType.NUTRITION,
+      sections: [ MOCK_SECTION_LIBRARY[0], MOCK_SECTION_LIBRARY[10], MOCK_SECTION_LIBRARY[3] ]
   },
-  {
-      id: 't_lab_uro',
-      name: 'Resultado Uroanálisis',
-      description: 'Parcial de orina.',
-      active: true,
-      allowedRoles: [UserRole.BACTERIOLOGIST],
-      recordType: RecordType.LAB_RESULT,
-      sections: [ MOCK_SECTION_LIBRARY[5] ] // Only Uro section
-  },
-
-  // --- IMAGING TEMPLATES ---
-  {
-      id: 't_rad_general',
-      name: 'Informe Imagenología General',
-      description: 'Rayos X, Ecografía básica.',
-      active: true,
-      allowedRoles: [UserRole.RADIOLOGIST],
-      recordType: RecordType.IMAGING_REPORT,
-      sections: [ MOCK_SECTION_LIBRARY[6] ] // Only Radiology section
-  },
-
-  // --- PSYCHOLOGY TEMPLATE ---
+  // 3. PSYCHOLOGY
   {
       id: 't_psychology',
       name: 'Consulta Psicológica',
@@ -320,7 +514,145 @@ export const MOCK_TEMPLATES: RoleTemplate[] = [
       active: true,
       allowedRoles: [UserRole.PSYCHOLOGIST, UserRole.PROFESSIONAL],
       recordType: RecordType.PSYCHOLOGY,
-      sections: [ MOCK_SECTION_LIBRARY[0], MOCK_SECTION_LIBRARY[7], MOCK_SECTION_LIBRARY[3] ] // Anamnesis, Examen Mental, Plan
+      sections: [ MOCK_SECTION_LIBRARY[0], MOCK_SECTION_LIBRARY[9], MOCK_SECTION_LIBRARY[3] ]
+  },
+  // 4. PROCEDURES
+  {
+      id: 't_procedure',
+      name: 'Nota de Procedimiento',
+      description: 'Registro de procedimientos menores.',
+      active: true,
+      allowedRoles: [UserRole.PROFESSIONAL],
+      recordType: RecordType.PROCEDURE,
+      sections: [ MOCK_SECTION_LIBRARY[11] ]
+  },
+  // --- PYP TEMPLATES ---
+  {
+      id: 't_pyp_growth',
+      name: 'PyP Crecimiento y Desarrollo',
+      description: 'Menores de 10 años.',
+      active: true,
+      allowedRoles: [UserRole.PROFESSIONAL],
+      recordType: RecordType.PYP_GROWTH_DEV,
+      sections: [ MOCK_SECTION_LIBRARY[0], MOCK_SECTION_LIBRARY[12], MOCK_SECTION_LIBRARY[3] ]
+  },
+  {
+      id: 't_pyp_young',
+      name: 'PyP Joven (10-29 años)',
+      description: 'Detección temprana alteraciones joven.',
+      active: true,
+      allowedRoles: [UserRole.PROFESSIONAL],
+      recordType: RecordType.PYP_YOUNG,
+      sections: [ MOCK_SECTION_LIBRARY[0], MOCK_SECTION_LIBRARY[2], MOCK_SECTION_LIBRARY[13], MOCK_SECTION_LIBRARY[3] ]
+  },
+  {
+      id: 't_pyp_prenatal',
+      name: 'PyP Control Prenatal',
+      description: 'Seguimiento gestantes.',
+      active: true,
+      allowedRoles: [UserRole.PROFESSIONAL],
+      recordType: RecordType.PYP_PREGNANCY,
+      sections: [ MOCK_SECTION_LIBRARY[0], MOCK_SECTION_LIBRARY[2], MOCK_SECTION_LIBRARY[14], MOCK_SECTION_LIBRARY[3] ]
+  },
+  {
+      id: 't_pyp_cv_risk',
+      name: 'PyP Riesgo Cardiovascular',
+      description: 'Hipertensión y Diabetes. Calculadoras auto.',
+      active: true,
+      allowedRoles: [UserRole.PROFESSIONAL],
+      recordType: RecordType.PYP_CV_RISK,
+      sections: [ MOCK_SECTION_LIBRARY[0], MOCK_SECTION_LIBRARY[1], MOCK_SECTION_LIBRARY[15] ]
+  },
+  {
+      id: 't_pyp_visual',
+      name: 'PyP Agudeza Visual',
+      description: 'Tamizaje salud visual.',
+      active: true,
+      allowedRoles: [UserRole.PROFESSIONAL],
+      recordType: RecordType.PYP_VISUAL,
+      sections: [ MOCK_SECTION_LIBRARY[16], MOCK_SECTION_LIBRARY[3] ]
+  },
+  {
+      id: 't_pyp_cancer',
+      name: 'PyP Detección Cáncer',
+      description: 'Cuello Uterino y Seno.',
+      active: true,
+      allowedRoles: [UserRole.PROFESSIONAL],
+      recordType: RecordType.PYP_CANCER,
+      sections: [ MOCK_SECTION_LIBRARY[18], MOCK_SECTION_LIBRARY[3] ]
+  },
+  {
+      id: 't_pyp_family_planning',
+      name: 'PyP Planificación Familiar',
+      description: 'Hombres y Mujeres.',
+      active: true,
+      allowedRoles: [UserRole.PROFESSIONAL],
+      recordType: RecordType.PYP_FAMILY_PLANNING,
+      sections: [ MOCK_SECTION_LIBRARY[0], MOCK_SECTION_LIBRARY[17], MOCK_SECTION_LIBRARY[3] ]
+  },
+  {
+      id: 't_pyp_newborn',
+      name: 'PyP Recién Nacido',
+      description: 'Atención primeros días.',
+      active: true,
+      allowedRoles: [UserRole.PROFESSIONAL],
+      recordType: RecordType.PYP_NEWBORN,
+      sections: [ MOCK_SECTION_LIBRARY[0], MOCK_SECTION_LIBRARY[19], MOCK_SECTION_LIBRARY[3] ]
+  },
+  {
+      id: 't_pyp_puerperium',
+      name: 'PyP Puerperio',
+      description: 'Control post-parto.',
+      active: true,
+      allowedRoles: [UserRole.PROFESSIONAL],
+      recordType: RecordType.PYP_PUERPERIUM,
+      sections: [ MOCK_SECTION_LIBRARY[0], MOCK_SECTION_LIBRARY[20], MOCK_SECTION_LIBRARY[3] ]
+  },
+  // --- DIAGNOSTIC (NEW LAB TEMPLATES) ---
+  {
+      id: 't_lab_hemo',
+      name: 'Hemograma Completo',
+      description: 'Cuadro hemático automatizado (CUPS 902213)',
+      active: true,
+      allowedRoles: [UserRole.BACTERIOLOGIST],
+      recordType: RecordType.LAB_RESULT,
+      sections: [ MOCK_SECTION_LIBRARY[4] ] // Use the NEW Detailed Hemo Section
+  },
+  {
+      id: 't_lab_uro',
+      name: 'Uroanálisis Completo',
+      description: 'Físico, Químico y Sedimento (CUPS 907106)',
+      active: true,
+      allowedRoles: [UserRole.BACTERIOLOGIST],
+      recordType: RecordType.LAB_RESULT,
+      sections: [ MOCK_SECTION_LIBRARY[5] ] // Use the NEW Detailed Uro Section
+  },
+  {
+      id: 't_lab_lipid',
+      name: 'Perfil Lipídico',
+      description: 'Panel de Colesterol y Triglicéridos (CUPS 903825)',
+      active: true,
+      allowedRoles: [UserRole.BACTERIOLOGIST],
+      recordType: RecordType.LAB_RESULT,
+      sections: [ MOCK_SECTION_LIBRARY[6] ] // Detailed Lipid Section
+  },
+  {
+      id: 't_lab_glucose',
+      name: 'Perfil Metabólico / Glucosa',
+      description: 'Glucosa y HbA1c (ADA/OMS)',
+      active: true,
+      allowedRoles: [UserRole.BACTERIOLOGIST],
+      recordType: RecordType.LAB_RESULT,
+      sections: [ MOCK_SECTION_LIBRARY[7] ] // Detailed Glucose Section
+  },
+  {
+      id: 't_rad_general',
+      name: 'Informe Imagenología General',
+      description: 'Rayos X, Ecografía básica.',
+      active: true,
+      allowedRoles: [UserRole.RADIOLOGIST],
+      recordType: RecordType.IMAGING_REPORT,
+      sections: [ MOCK_SECTION_LIBRARY[8] ]
   }
 ];
 
