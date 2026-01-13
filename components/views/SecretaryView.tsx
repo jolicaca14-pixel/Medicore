@@ -297,6 +297,12 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-8">
           
+          {/* PATIENTS TAB */}
+          {activeTab === 'PATIENTS' && (
+             <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+             </div>
+          )}
           {/* AGENDA TAB (Now Functional) */}
           {activeTab === 'AGENDA' && (
               <div>
