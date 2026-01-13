@@ -8,6 +8,7 @@ import {
     ChevronDown, ChevronRight, Calculator, Type, Hash, Calendar, CheckSquare, AlignLeft, Info,
     Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson
 } from 'lucide-react';
+import { UserForm } from '../UserForm';
 
 interface AdminViewProps {
   activeTab: string;
@@ -85,6 +86,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // Disciplinary
   const [newDisciplinary, setNewDisciplinary] = useState<Partial<DisciplinaryAction>>({ type: 'COMPLAINT', status: 'OPEN' });
 
+  // File Management
+  const [fileManagementTab, setFileManagementTab] = useState<'CONTRACTS' | 'PAYMENTS'>('CONTRACTS');
+
   // Settings / Templates
   const [settingsTab, setSettingsTab] = useState<'TEMPLATES' | 'SECTIONS' | 'FIELDS'>('TEMPLATES');
   const [globalFields, setGlobalFields] = useState<TemplateField[]>(MOCK_FIELD_LIBRARY);
@@ -133,17 +137,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
     // Use map to return a new array reference
     if (users.some(u => u.id === userToSave.id)) { 
-        setUsers(prev => prev.map(u => u.id === userToSave.id ? userToSave : u)); 
-    } else { 
-        setUsers(prev => [...prev, userToSave]); 
+    setUsers(prev => prev.map(u => u.id === userToSave.id ? userToSave : u));
+    } else {
+        setUsers(prev => [...prev, userToSave]);
     }
     setIsUserModalOpen(false);
-  };
-
-  const toggleUserRole = (role: UserRole) => {
-    const currentRoles = currentUser.roles || [];
-    const newRoles = currentRoles.includes(role) ? currentRoles.filter(r => r !== role) : [...currentRoles, role];
-    setCurrentUser({ ...currentUser, roles: newRoles });
   };
 
   // --- HR HANDLERS ---
@@ -502,6 +500,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                        <button onClick={() => setActiveTab('hr')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
                            <Briefcase size={18} className="mr-2 text-orange-400"/> Contratos
                        </button>
+                       <button onClick={() => setActiveTab('files')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
+                           <File size={18} className="mr-2 text-yellow-400"/> Archivos
+                       </button>
                    </div>
                    <div className="absolute right-0 top-0 opacity-10"><Zap size={150}/></div>
                </div>
@@ -509,6 +510,60 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
+  // FILE MANAGEMENT MODULE - ADMIN VIEW
+  if (activeTab === 'files' && isAdmin) {
+    return (
+        <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-slate-800">Gestión de Archivos</h2>
+            <div className="flex space-x-1 bg-white p-1 rounded-lg border border-slate-200 w-fit">
+                <button onClick={() => setFileManagementTab('CONTRACTS')} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'CONTRACTS' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
+                    Contratos
+                </button>
+                <button onClick={() => setFileManagementTab('PAYMENTS')} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'PAYMENTS' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
+                    Soportes de Pago
+                </button>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-lg text-slate-800">
+                        {fileManagementTab === 'CONTRACTS' ? 'Archivos de Contratos' : 'Archivos de Soportes de Pago'}
+                    </h3>
+                    <button onClick={() => alert('Función para subir archivo no implementada.')} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-blue-700">
+                        <Upload size={16} className="mr-2"/> Subir Archivo
+                    </button>
+                </div>
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 text-slate-500 font-medium">
+                        <tr>
+                            <th className="p-3">Nombre del Archivo</th>
+                            <th className="p-3">Usuario</th>
+                            <th className="p-3">Fecha de Subida</th>
+                            <th className="p-3 text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {(fileManagementTab === 'CONTRACTS'
+                            ? users.flatMap(u => u.contracts?.map(c => ({ ...c, userName: u.name })))
+                            : paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl })))
+                            .map((file: any) => (
+                                <tr key={file.id}>
+                                    <td className="p-3 font-medium text-slate-700">{file.fileUrl || `contrato_${file.id}.pdf`}</td>
+                                    <td className="p-3">{file.userName}</td>
+                                    <td className="p-3 text-slate-500">{new Date(file.startDate || file.dateSubmitted).toLocaleDateString()}</td>
+                                    <td className="p-3 text-right">
+                                        <button onClick={() => alert('Descargando archivo...')} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Download size={14}/></button>
+                                        <button onClick={() => alert('Eliminando archivo...')} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button>
+                                    </td>
+                                </tr>
+                            ))
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+  }
   // HR MODULE - ADMIN VIEW
   if (activeTab === 'hr' && isAdmin) {
       return (
@@ -945,103 +1000,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   // 2. USERS LIST - Only Admin
   if (activeTab === 'users' && isAdmin) {
-      const showProfessionalFields = currentUser.roles?.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST);
-
       return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {isUserModalOpen && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-                  <h3 className="text-xl font-bold mb-4">{users.some(u => u.id === currentUser.id) ? 'Editar Usuario' : 'Nuevo Usuario'}</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                        <label className="text-xs font-bold text-slate-500">Número de Documento (Cédula) <span className="text-red-500">*</span></label>
-                        <input className="w-full p-2 border rounded" placeholder="CC/DNI" value={currentUser.documentNumber || ''} onChange={e => setCurrentUser({...currentUser, documentNumber: e.target.value})} />
-                        <p className="text-[10px] text-slate-400 mt-1">Este será la contraseña inicial del usuario.</p>
-                    </div>
-                    {/* ... (Existing Name/Username fields) ... */}
-                    <div className="col-span-2 md:col-span-1">
-                        <label className="text-xs font-bold text-slate-500">Nombres <span className="text-red-500">*</span></label>
-                        <input className="w-full p-2 border rounded" value={currentUser.firstName || ''} onChange={e => setCurrentUser({...currentUser, firstName: e.target.value})} />
-                    </div>
-                    <div className="col-span-2 md:col-span-1">
-                        <label className="text-xs font-bold text-slate-500">Apellidos <span className="text-red-500">*</span></label>
-                        <input className="w-full p-2 border rounded" value={currentUser.lastName || ''} onChange={e => setCurrentUser({...currentUser, lastName: e.target.value})} />
-                    </div>
-                    
-                    <div className="col-span-2 md:col-span-1">
-                        <label className="text-xs font-bold text-slate-500">Usuario (Login) <span className="text-red-500">*</span></label>
-                        <input className="w-full p-2 border rounded" value={currentUser.username || ''} onChange={e => setCurrentUser({...currentUser, username: e.target.value})} />
-                    </div>
-                     <div className="col-span-2 md:col-span-1">
-                        <label className="text-xs font-bold text-slate-500">Fecha Nacimiento</label>
-                        <input type="date" className="w-full p-2 border rounded" value={currentUser.birthDate || ''} onChange={e => setCurrentUser({...currentUser, birthDate: e.target.value})} />
-                    </div>
-
-                    <div className="col-span-2 border-t pt-4">
-                        <label className="block text-sm font-semibold mb-3">Roles y Permisos</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {Object.values(UserRole).map(role => (
-                                <label key={role} className={`flex items-center space-x-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${currentUser.roles?.includes(role) ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}>
-                                    <input type="checkbox" checked={currentUser.roles?.includes(role) || false} onChange={() => toggleUserRole(role)} className="hidden" />
-                                    <div className="flex flex-col">
-                                        <span className="text-xs font-bold">{roleLabels[role]}</span>
-                                        <span className="text-[9px] opacity-75">{role}</span>
-                                    </div>
-                                    {currentUser.roles?.includes(role) && <CheckCircle size={14} className="ml-auto text-blue-600"/>}
-                                </label>
-                            ))}
-                        </div>
-                    </div>
-
-                    {showProfessionalFields && (
-                        <div className="col-span-2 border-t pt-4 mt-2 bg-slate-50 p-4 rounded-lg border border-slate-200 animate-in slide-in-from-top-2">
-                            <h4 className="font-bold text-sm text-slate-800 mb-2 flex items-center">
-                                <Shield size={16} className="mr-2 text-blue-600"/> 
-                                Credenciales Asistenciales
-                            </h4>
-                            <div className="grid grid-cols-2 gap-3 mb-3">
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500">Registro Médico / Licencia <span className="text-red-500">*</span></label>
-                                    <input className="w-full p-2 border rounded text-sm" placeholder="Ej. MED-12345" value={currentUser.professionalLicense || ''} onChange={e => setCurrentUser({...currentUser, professionalLicense: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500">Especialidad</label>
-                                    <input className="w-full p-2 border rounded text-sm" placeholder="Ej. Medicina General" value={currentUser.specialty || ''} onChange={e => setCurrentUser({...currentUser, specialty: e.target.value})} />
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 mb-1 block">Firma Digital (Imagen) <span className="text-red-500">*</span></label>
-                                <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center bg-white cursor-pointer hover:bg-slate-50 transition-colors relative group">
-                                    {currentUser.digitalStampUrl ? (
-                                        <>
-                                            <div className="text-center">
-                                                <p className="text-green-600 font-bold text-sm flex items-center"><CheckCircle size={14} className="mr-1"/> Firma Cargada</p>
-                                                <p className="text-xs text-slate-400 mt-1 truncate max-w-xs">{currentUser.digitalStampUrl}</p>
-                                            </div>
-                                            <button className="absolute top-2 right-2 p-1 bg-red-100 text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); setCurrentUser({...currentUser, digitalStampUrl: ''}) }}>
-                                                <Trash2 size={14}/>
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <div className="text-center" onClick={() => setCurrentUser({...currentUser, digitalStampUrl: 'firma_simulada.png'})}>
-                                            <UploadCloud size={32} className="text-slate-300 mb-2 mx-auto"/>
-                                            <p className="text-xs font-bold text-slate-500">Click para cargar firma</p>
-                                            <p className="text-[10px] text-slate-400">PNG, JPG (Fondo transparente recomendado)</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                  </div>
-                  <div className="mt-6 flex justify-end space-x-3">
-                    <button onClick={() => setIsUserModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
-                    <button onClick={handleSaveUser} className="px-4 py-2 bg-slate-900 text-white rounded">Guardar</button>
-                  </div>
-                </div>
-              </div>
+              <UserForm
+                user={currentUser}
+                onSave={handleSaveUser}
+                onCancel={() => setIsUserModalOpen(false)}
+              />
             )}
             
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
