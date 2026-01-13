@@ -81,6 +81,26 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
 
+  // API Key Check
+  if (!import.meta.env.VITE_GEMINI_API_KEY) {
+    return (
+      <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+           <div className="w-16 h-16 bg-red-500 rounded-xl mx-auto mb-4 flex items-center justify-center text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+           </div>
+           <h1 className="text-2xl font-bold text-red-700">Error de Configuración</h1>
+           <p className="text-slate-600 mt-2">
+            La clave API de Gemini (VITE_GEMINI_API_KEY) no está configurada en su archivo <code>.env.local</code>.
+           </p>
+           <p className="text-xs text-slate-400 mt-4">
+            Por favor, siga las instrucciones en el archivo README.md para configurar su clave y habilitar las funciones de IA.
+           </p>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return <Login onLogin={setUser} />;
   }
