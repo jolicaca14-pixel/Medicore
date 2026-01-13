@@ -18,11 +18,12 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
     // Verify user from mock
     const user = MOCK_USERS.find(u => u.username === username);
     
-    // Auth Logic: Check if password matches OR if password matches documentNumber (First time login)
-    if (user && (password === 'password' || password === user.documentNumber)) { 
+    // 🛡️ SENTINEL: Temporarily disabled insecure login logic.
+    // TODO: Implement a secure authentication mechanism (e.g., OAuth, password hashing).
+    if (user && password === 'password') {
       onLogin(user);
     } else {
-      setError('Credenciales inválidas. (Por defecto use "password" o su documento)');
+      setError('Credenciales inválidas');
     }
   };
 
