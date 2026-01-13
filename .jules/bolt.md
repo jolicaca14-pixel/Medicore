@@ -1,0 +1,3 @@
+## 2024-07-26 - Memoize Expensive Computations
+**Learning:** I discovered that the `ProfessionalView.tsx` component was executing expensive data transformations (filtering and sorting a large `records` array) on every single render. This is a common performance anti-pattern in React that can lead to a sluggish UI, especially as data grows.
+**Action:** I will always look for expensive computations that are not wrapped in `React.useMemo`. By memoizing these calculations with the correct dependency array, I can ensure they only re-run when their dependencies change, preventing unnecessary work and significantly improving component rendering performance. This is a high-impact, low-risk optimization.
