@@ -31,6 +31,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [authAction, setAuthAction] = useState<'FINALIZE' | 'SIGN_NOTE'>('FINALIZE');
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // RCV Logic State
   const [isFirstTimeRCV, setIsFirstTimeRCV] = useState(false);
@@ -390,38 +391,45 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   };
 
   const confirmAuth = async () => {
-    if (passwordInput === 'password' || passwordInput === user.documentNumber) { 
-       if (authAction === 'FINALIZE') {
-           setIsSendingRDA(true); 
-           setShowAuthModal(false);
+    setAuthError('');
+    if (passwordInput === 'password' || passwordInput === user.documentNumber) {
+      if (authAction === 'FINALIZE') {
+        setIsSubmitting(true);
+        // Keep modal open but show loading in button
 
-           const fullRecord = { ...currentRecord, dynamicData } as ClinicalRecord;
-           const rdaPayload = generateRDA(fullRecord);
-           
-           setTimeout(() => {
-               const finalizedRecord = { 
-                   ...fullRecord, 
-                   status: RecordStatus.FINALIZED, 
-                   dateFinalized: new Date().toISOString(), 
-                   emailSent: true,
-                   rdaStatus: RDAStatus.SENT_MINSALUD, 
-                   rdaPayload: rdaPayload
-               } as ClinicalRecord;
-               
-               setRecords(prev => { 
-                   const idx = prev.findIndex(r=>r.id===finalizedRecord.id); 
-                   if(idx>=0) { const upd=[...prev]; upd[idx]=finalizedRecord; return upd; } 
-                   return [...prev, finalizedRecord]; 
-               });
-               
-               setIsSendingRDA(false);
-               setViewMode('LIST');
-               setSelectedPatient(null);
-               alert(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`);
-           }, 2500); 
-       } else {
-         setShowAuthModal(false);
-       }
+        const fullRecord = { ...currentRecord, dynamicData } as ClinicalRecord;
+        const rdaPayload = generateRDA(fullRecord);
+
+        // Simulate API call
+        setTimeout(() => {
+          const finalizedRecord = {
+            ...fullRecord,
+            status: RecordStatus.FINALIZED,
+            dateFinalized: new Date().toISOString(),
+            emailSent: true,
+            rdaStatus: RDAStatus.SENT_MINSALUD,
+            rdaPayload: rdaPayload
+          } as ClinicalRecord;
+
+          setRecords(prev => {
+            const idx = prev.findIndex(r => r.id === finalizedRecord.id);
+            if (idx >= 0) {
+              const upd = [...prev];
+              upd[idx] = finalizedRecord;
+              return upd;
+            }
+            return [...prev, finalizedRecord];
+          });
+
+          setIsSubmitting(false);
+          setShowAuthModal(false);
+          setViewMode('LIST');
+          setSelectedPatient(null);
+          alert(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`);
+        }, 2500);
+      } else {
+        setShowAuthModal(false);
+      }
     } else {
       setAuthError('Contraseña inválida.');
     }
@@ -945,28 +953,47 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     
     return (
       <div className="flex flex-col h-[calc(100vh-100px)] relative">
-         {isSendingRDA && (
-             <div className="absolute inset-0 bg-white/90 z-40 flex flex-col items-center justify-center">
-                 <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600 mb-4"></div>
-                 <h3 className="text-xl font-bold text-slate-800">Finalizando Historia Clínica</h3>
-                 <p className="text-slate-500 mt-2">Generando RDA (Res. 1888/2025)...</p>
-                 <p className="text-blue-600 font-medium text-sm mt-1 animate-pulse">Enviando a Plataforma de Interoperabilidad...</p>
-             </div>
-         )}
          
          {showRDAModal && <RDAViewerModal />}
          {showAuthModal && (
-            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-                <div className="bg-white p-6 rounded-lg shadow-xl">
-                    <h3 className="text-lg font-bold mb-4">Confirmar Identidad</h3>
-                    <input type="password" value={passwordInput} onChange={e=>setPasswordInput(e.target.value)} className="border p-2 w-full mb-4" placeholder="Contraseña o Documento"/>
-                    {authError && <p className="text-red-500 text-xs mb-2">{authError}</p>}
-                    <div className="flex justify-end gap-2">
-                        <button onClick={() => setShowAuthModal(false)} className="px-3 py-1 text-slate-500">Cancelar</button>
-                        <button onClick={confirmAuth} className="bg-blue-600 text-white px-4 py-2 rounded">Confirmar</button>
-                    </div>
-                </div>
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full">
+              <h3 className="text-xl font-bold mb-2 text-slate-800">Confirmar Identidad</h3>
+              <p className="text-sm text-slate-500 mb-6">Por seguridad, ingrese su contraseña o documento para firmar y finalizar el registro.</p>
+
+              <label className="text-xs font-bold text-slate-600">Contraseña</label>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={e => setPasswordInput(e.target.value)}
+                className="w-full p-3 border border-slate-300 rounded-lg mb-2 mt-1 focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="Contraseña o Documento"
+                onKeyPress={(e) => e.key === 'Enter' && !isSubmitting && confirmAuth()}
+              />
+              {authError && <p className="text-red-500 text-xs mb-4 font-medium">{authError}</p>}
+
+              <div className="flex justify-end gap-3 mt-8">
+                <button
+                  onClick={() => setShowAuthModal(false)}
+                  className="px-4 py-2 text-slate-600 font-bold rounded-lg hover:bg-slate-100"
+                  disabled={isSubmitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmAuth}
+                  className="bg-blue-600 text-white px-5 py-2 rounded-lg font-bold hover:bg-blue-700 shadow-md shadow-blue-200 flex items-center justify-center min-w-[120px]"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+                  ) : (
+                    'Confirmar'
+                  )}
+                </button>
+              </div>
             </div>
+          </div>
          )}
          
          {/* HEADER ACTIONS */}
