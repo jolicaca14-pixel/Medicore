@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip } from 'lucide-react';
@@ -236,7 +236,11 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   }, [dynamicData, selectedPatient, viewMode]);
 
   // --- HELPERS FOR HISTORY ---
-  const getTopMedications = () => {
+  // Bolt ⚡: Memoize top medications to prevent re-calculation on every render.
+  // This is a good optimization because the list of records can grow, and this calculation
+  // could become expensive. The dependency array [records, user.id] ensures it only
+  // re-runs when the underlying data changes.
+  const topMedications = useMemo(() => {
       // Aggregate from all records of this professional
       const allMeds = records
           .filter(r => r.professionalId === user.id)
@@ -251,9 +255,11 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           .sort((a,b) => b[1] - a[1])
           .slice(0, 5)
           .map(e => e[0]);
-  };
+  }, [records, user.id]);
 
-  const getTopProcedures = () => {
+  // Bolt ⚡: Memoize top procedures for the same reason as top medications.
+  // It avoids redundant, potentially expensive calculations on each render cycle.
+  const topProcedures = useMemo(() => {
        const allProcs = records
           .filter(r => r.professionalId === user.id)
           .flatMap(r => r.performedProcedures || [])
@@ -268,7 +274,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
            }
        });
        return uniqueProcs.slice(0, 5);
-  };
+  }, [records, user.id]);
 
   const handleCreateRecord = (patient: Patient) => {
     setSelectedPatient(patient);
@@ -1083,12 +1089,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                         {showMedHistory && (
                                             <div className="absolute right-0 top-full mt-2 w-64 bg-white shadow-xl border rounded-xl z-20 p-2">
                                                 <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase">Más Usados</p>
-                                                {getTopMedications().map(med => (
+                                                 {topMedications.map(med => (
                                                     <div key={med} className="p-2 hover:bg-blue-50 cursor-pointer text-xs rounded" onClick={() => { setNewRx({ ...newRx, medicationName: med }); setShowMedHistory(false); }}>
                                                         {med}
                                                     </div>
                                                 ))}
-                                                {getTopMedications().length === 0 && <p className="text-xs text-slate-400 italic">Sin historial.</p>}
+                                                 {topMedications.length === 0 && <p className="text-xs text-slate-400 italic">Sin historial.</p>}
                                             </div>
                                         )}
                                     </div>
@@ -1172,13 +1178,13 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                         {showProcHistory && (
                                             <div className="absolute right-0 top-full mt-2 w-72 bg-white shadow-xl border rounded-xl z-20 p-2">
                                                 <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase">Historial de Uso</p>
-                                                {getTopProcedures().map(proc => (
+                                                 {topProcedures.map(proc => (
                                                     <div key={proc.code} className="p-2 hover:bg-green-50 cursor-pointer text-xs rounded border-b last:border-0" onClick={() => { handleAddProcedure(proc.code, proc.name); setShowProcHistory(false); }}>
                                                         <span className="font-bold block text-slate-700">{proc.code}</span>
                                                         <span className="text-slate-500">{proc.name}</span>
                                                     </div>
                                                 ))}
-                                                {getTopProcedures().length === 0 && <p className="text-xs text-slate-400 italic">Sin historial.</p>}
+                                                 {topProcedures.length === 0 && <p className="text-xs text-slate-400 italic">Sin historial.</p>}
                                             </div>
                                         )}
                                     </div>
