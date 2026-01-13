@@ -7,11 +7,28 @@ import { AdminView } from './components/views/AdminView';
 import { SecretaryView } from './components/views/SecretaryView';
 import { DiagnosticView } from './components/views/DiagnosticView';
 
+const EyeIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const EyeOffIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+    <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+    <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+    <line x1="2" x2="22" y1="2" y2="22" />
+  </svg>
+);
+
 // Simple Login Component
 const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,14 +65,25 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
              />
            </div>
            <div>
-             <label className="block text-sm font-semibold text-slate-700 mb-1">Contraseña</label>
-             <input 
-               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-               type="password" 
-               value={password}
-               onChange={(e) => setPassword(e.target.value)}
-               placeholder="password"
-             />
+             <label htmlFor="password-input" className="block text-sm font-semibold text-slate-700 mb-1">Contraseña</label>
+             <div className="relative">
+               <input
+                 id="password-input"
+                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all pr-10"
+                 type={showPassword ? 'text' : 'password'}
+                 value={password}
+                 onChange={(e) => setPassword(e.target.value)}
+                 placeholder="password"
+               />
+               <button
+                  type="button"
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 hover:text-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+             </div>
            </div>
            
            {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
