@@ -70,6 +70,27 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // Expand State for Result Widget
   const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
 
+  // Bolt ⚡: Memoize filtered results to prevent re-calculating on every render.
+  // This is a crucial optimization for search inputs within large components.
+  // The filter operation runs only when the search term changes, not on every keystroke that causes a re-render.
+  const filteredDiagnoses = useMemo(() => {
+      if (!diagSearch) return [];
+      const lowerCaseSearch = diagSearch.toLowerCase();
+      return MOCK_CIE11.filter(t =>
+          t.name.toLowerCase().includes(lowerCaseSearch) ||
+          t.code.toLowerCase().includes(lowerCaseSearch)
+      );
+  }, [diagSearch]);
+
+  const filteredProcedures = useMemo(() => {
+      if (!procSearch) return [];
+      const lowerCaseSearch = procSearch.toLowerCase();
+      return MOCK_SOAT_TARIFF.filter(t =>
+          t.name.toLowerCase().includes(lowerCaseSearch) ||
+          t.code.toLowerCase().includes(lowerCaseSearch)
+      );
+  }, [procSearch]);
+
   // Set default tab when template/patient changes
   useEffect(() => {
     if (selectedTemplate?.sections?.length) {
@@ -1082,7 +1103,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                     <input className="w-full p-2 border rounded text-sm" placeholder="Buscar código o nombre CIE-11..." value={diagSearch} onChange={e => setDiagSearch(e.target.value)} />
                                     {diagSearch && (
                                         <ul className="absolute z-10 w-full bg-white border shadow-lg max-h-40 overflow-y-auto mt-1">
-                                            {MOCK_CIE11.filter(t => t.name.toLowerCase().includes(diagSearch.toLowerCase()) || t.code.includes(diagSearch)).map(t => (
+                                            {filteredDiagnoses.map(t => (
                                                 <li key={t.code} className="p-2 hover:bg-slate-50 cursor-pointer text-sm" onClick={() => handleAddDiagnosis(t.code, t.name)}>
                                                     <span className="font-bold">{t.code}</span> - {t.name}
                                                 </li>
@@ -1241,7 +1262,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                             <input className="w-full p-2 border rounded text-sm" placeholder="Buscar CUPS..." value={procSearch} onChange={e => setProcSearch(e.target.value)} />
                                             {procSearch && (
                                                 <ul className="absolute z-10 w-full bg-white border shadow-lg max-h-40 overflow-y-auto mt-1">
-                                                    {MOCK_SOAT_TARIFF.filter(t => t.name.toLowerCase().includes(procSearch.toLowerCase()) || t.code.includes(procSearch)).map(t => (
+                                                    {filteredProcedures.map(t => (
                                                         <li key={t.code} className="p-2 hover:bg-slate-50 cursor-pointer text-sm" onClick={() => handleAddProcedure(t.code, t.name)}>
                                                             <span className="font-bold">{t.code}</span> - {t.name}
                                                         </li>
