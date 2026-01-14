@@ -607,7 +607,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                   <h3 className="text-xl font-bold text-slate-800 flex items-center">
                       <ShieldCheck className="mr-2 text-green-600"/> Resumen Digital de Atención (RDA)
                   </h3>
-                  <button onClick={() => setShowRDAModal(false)}><X size={20}/></button>
+                  <button aria-label="Cerrar modal" onClick={() => setShowRDAModal(false)}><X size={20}/></button>
               </div>
               <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4 text-xs text-blue-800">
                   <span className="font-bold block mb-1">Cumplimiento Resolución 1888 de 2025:</span>
@@ -999,7 +999,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
          {/* HEADER ACTIONS */}
          <div className="flex items-center justify-between mb-4 pb-4 border-b">
             <div className="flex items-center">
-                <button onClick={() => { setViewMode('LIST'); setSelectedPatient(null); }} className="mr-4 p-2 hover:bg-slate-100 rounded-full"><ChevronRight className="rotate-180" size={20}/></button>
+                <button aria-label="Volver a la lista de pacientes" onClick={() => { setViewMode('LIST'); setSelectedPatient(null); }} className="mr-4 p-2 hover:bg-slate-100 rounded-full"><ChevronRight className="rotate-180" size={20}/></button>
                 <div>
                     <h2 className="text-xl font-bold text-slate-800">{selectedPatient.fullName}</h2>
                     <p className="text-xs text-slate-500">{selectedPatient.insuranceType} | {new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear()} años</p>
@@ -1098,7 +1098,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded mr-2 ${d.type === 'PRINCIPAL' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>{d.type}</span>
                                             <span className="text-sm font-medium">{d.code} - {d.name}</span>
                                         </div>
-                                        {!isReadOnly && <button onClick={() => handleRemoveDiagnosis(d.code)} className="text-red-400"><Trash2 size={14}/></button>}
+                                        {!isReadOnly && <button aria-label={`Eliminar diagnóstico ${d.name}`} onClick={() => handleRemoveDiagnosis(d.code)} className="text-red-400"><Trash2 size={14}/></button>}
                                     </div>
                                 ))}
                             </div>
@@ -1183,7 +1183,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                             <td className="p-2 border">{p.dose} - {p.frequency} ({p.route})</td>
                                             <td className="p-2 border">{p.duration}</td>
                                             <td className="p-2 border text-center">{p.totalQuantity}</td>
-                                            {!isReadOnly && <td className="p-2 border text-center"><button onClick={() => handleRemovePrescription(p.id)} className="text-red-500"><Trash2 size={12}/></button></td>}
+                                            {!isReadOnly && <td className="p-2 border text-center"><button aria-label={`Eliminar prescripción ${p.medicationName}`} onClick={() => handleRemovePrescription(p.id)} className="text-red-500"><Trash2 size={12}/></button></td>}
                                         </tr>
                                     ))}
                                 </tbody>
@@ -1234,7 +1234,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                             >
                                                 Agregar
                                             </button>
-                                            <button onClick={() => setShowCustomProcInput(false)} className="bg-slate-200 text-slate-600 px-3 rounded"><X size={16}/></button>
+                                            <button aria-label="Cerrar campo de texto para procedimiento personalizado" onClick={() => setShowCustomProcInput(false)} className="bg-slate-200 text-slate-600 px-3 rounded"><X size={16}/></button>
                                         </div>
                                     ) : (
                                         <div className="relative">
@@ -1259,7 +1259,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                             <span className="text-xs font-bold text-slate-400 mr-2">{p.code}</span>
                                             <span className="text-sm font-medium">{p.name}</span>
                                         </div>
-                                        {!isReadOnly && <button onClick={() => handleRemoveProcedure(p.id)} className="text-red-400"><Trash2 size={14}/></button>}
+                                        {!isReadOnly && <button aria-label={`Eliminar procedimiento ${p.name}`} onClick={() => handleRemoveProcedure(p.id)} className="text-red-400"><Trash2 size={14}/></button>}
                                     </div>
                                 ))}
                             </div>
