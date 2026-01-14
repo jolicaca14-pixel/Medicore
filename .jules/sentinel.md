@@ -1,0 +1,4 @@
+## 2024-07-25 - Hardcoded Password in Login Component
+**Vulnerability:** A hardcoded password ('password') was used for all users in the login component (`App.tsx`).
+**Learning:** This vulnerability existed because the application uses mock data for demonstration purposes, and a temporary, insecure login mechanism was implemented. While convenient for development, it represents a critical security flaw if ever deployed.
+**Prevention:** Implement a secure authentication mechanism (e.g., OAuth, password hashing) and never hardcode credentials, even in a testing or staging environment. User-specific secrets should always be used.
