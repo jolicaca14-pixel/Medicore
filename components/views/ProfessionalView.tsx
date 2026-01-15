@@ -555,10 +555,18 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   };
   
   const RecentResultsWidget = () => {
-      const results = records.filter(r => 
-          r.patientId === selectedPatient?.id && 
-          (r.recordType === RecordType.LAB_RESULT || r.recordType === RecordType.IMAGING_REPORT)
-      ).sort((a,b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime());
+      // Bolt ⚡: Memoize recent results to prevent re-filtering on every render.
+      // This calculation can become expensive if the patient has a long record history.
+      // The dependency array ensures it only recalculates when records or the selected patient change.
+      const results = useMemo(() => {
+        if (!selectedPatient) return [];
+        return records
+            .filter(r =>
+                r.patientId === selectedPatient.id &&
+                (r.recordType === RecordType.LAB_RESULT || r.recordType === RecordType.IMAGING_REPORT)
+            )
+            .sort((a, b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime());
+      }, [records, selectedPatient]);
 
       if (results.length === 0) return (
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6">
