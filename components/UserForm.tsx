@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
-import { roleLabels } from '../constants';
 import { Shield, CheckCircle, UploadCloud, Trash2 } from 'lucide-react';
+
+const roleLabels: { [key in UserRole]: string } = {
+  [UserRole.ADMIN]: 'Administrador',
+  [UserRole.PROFESSIONAL]: 'Profesional de Salud',
+  [UserRole.BACTERIOLOGIST]: 'Bacteriólogo/a',
+  [UserRole.RADIOLOGIST]: 'Radiólogo/a',
+  [UserRole.SECRETARY]: 'Secretaría',
+  [UserRole.PSYCHOLOGIST]: 'Psicólogo/a'
+};
 
 interface UserFormProps {
   user: Partial<User>;
