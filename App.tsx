@@ -35,12 +35,13 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
     // Verify user from mock
     const user = MOCK_USERS.find(u => u.username === username);
     
-    // 🛡️ SENTINEL: Temporarily disabled insecure login logic.
+    // 🛡️ SENTINEL: Using document number as a password for mock data.
+    // This is not secure for production but removes the hardcoded password vulnerability.
     // TODO: Implement a secure authentication mechanism (e.g., OAuth, password hashing).
-    if (user && password === 'password') {
+    if (user && password === user.documentNumber) {
       onLogin(user);
     } else {
-      setError('Credenciales inválidas');
+      setError('Credenciales inválidas. Use el número de documento como contraseña.');
     }
   };
 
@@ -74,7 +75,7 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
                  type={showPassword ? 'text' : 'password'}
                  value={password}
                  onChange={(e) => setPassword(e.target.value)}
-                 placeholder="password"
+                 placeholder="Use document number"
                />
                <button
                   type="button"
