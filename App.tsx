@@ -57,8 +57,9 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
         </div>
         <form onSubmit={handleLogin} className="p-8 space-y-5">
            <div>
-             <label className="block text-sm font-semibold text-slate-700 mb-1">Usuario</label>
+             <label htmlFor="username-input" className="block text-sm font-semibold text-slate-700 mb-1">Usuario</label>
              <input 
+               id="username-input"
                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                type="text" 
                value={username}
