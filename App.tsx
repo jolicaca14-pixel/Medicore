@@ -29,20 +29,27 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Verify user from mock
-    const user = MOCK_USERS.find(u => u.username === username);
-    
-    // 🛡️ SENTINEL: Using document number as a password for mock data.
-    // This is not secure for production but removes the hardcoded password vulnerability.
-    // TODO: Implement a secure authentication mechanism (e.g., OAuth, password hashing).
-    if (user && password === user.documentNumber) {
-      onLogin(user);
-    } else {
-      setError('Credenciales inválidas. Use el número de documento como contraseña.');
-    }
+    setIsLoading(true);
+    setError('');
+
+    // Simulate network delay
+    setTimeout(() => {
+      const user = MOCK_USERS.find(u => u.username === username);
+
+      // 🛡️ SENTINEL: Using document number as a password for mock data.
+      // This is not secure for production but removes the hardcoded password vulnerability.
+      // TODO: Implement a secure authentication mechanism (e.g., OAuth, password hashing).
+      if (user && password === user.documentNumber) {
+        onLogin(user);
+      } else {
+        setError('Credenciales inválidas. Use el número de documento como contraseña.');
+      }
+      setIsLoading(false);
+    }, 1000);
   };
 
   return (
@@ -93,9 +100,10 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
 
            <button 
              type="submit"
-             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-200 transition-all"
+             disabled={isLoading}
+             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-200 transition-all disabled:bg-blue-400 disabled:cursor-not-allowed"
            >
-             Inicio de Sesión Seguro
+             {isLoading ? 'Iniciando sesión...' : 'Inicio de Sesión Seguro'}
            </button>
            
            <div className="text-center text-xs text-slate-400 pt-4">
