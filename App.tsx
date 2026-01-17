@@ -30,7 +30,7 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     // Verify user from mock
     const user = MOCK_USERS.find(u => u.username === username);
@@ -41,6 +41,10 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
     if (user && password === user.documentNumber) {
       onLogin(user);
     } else {
+      // 🛡️ SENTINEL: Add a constant delay to mitigate timing-based user enumeration attacks.
+      // This makes it harder to distinguish between an invalid username and an invalid password
+      // by making the response time consistent for failed attempts.
+      await new Promise(resolve => setTimeout(resolve, 500));
       setError('Credenciales inválidas. Use el número de documento como contraseña.');
     }
   };
