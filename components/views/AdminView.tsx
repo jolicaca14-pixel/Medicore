@@ -104,44 +104,24 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   // --- USER HANDLERS ---
   const handleEditUser = (user: User) => { 
-      // Create a shallow copy to prevent reference issues during edit
       setCurrentUser({ ...user }); 
-      setIsUserModalOpen(true); 
   };
   
   const handleAddNewUser = () => { 
       setCurrentUser({ id: `u${Date.now()}`, roles: [UserRole.PROFESSIONAL], status: 'ACTIVE', name: '', username: '' }); 
-      setIsUserModalOpen(true); 
   };
 
-  const handleSaveUser = () => {
-    if (!currentUser.firstName || !currentUser.lastName || !currentUser.username || !currentUser.documentNumber) { alert("Complete nombres, apellidos, usuario y documento."); return; }
-    
-    // Validate Roles
-    if (!currentUser.roles || currentUser.roles.length === 0) {
-        alert("El usuario debe tener al menos un rol asignado.");
-        return;
-    }
-
-    // Role Specific Validations
-    if (currentUser.roles.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST)) {
-        if (!currentUser.professionalLicense) {
-            alert("Para roles asistenciales, el Registro Médico/Profesional es obligatorio.");
-            return;
-        }
-    }
-
+  const handleSaveUser = (userToSave: Partial<User>) => {
     // Auto-compute Full Name
-    const fullName = `${currentUser.firstName} ${currentUser.lastName}`;
-    const userToSave = { ...currentUser, name: fullName } as User;
+    const fullName = `${userToSave.firstName} ${userToSave.lastName}`;
+    const finalUser = { ...userToSave, name: fullName } as User;
 
-    // Use map to return a new array reference
-    if (users.some(u => u.id === userToSave.id)) { 
-    setUsers(prev => prev.map(u => u.id === userToSave.id ? userToSave : u));
+    if (users.some(u => u.id === finalUser.id)) {
+        setUsers(prev => prev.map(u => u.id === finalUser.id ? finalUser : u));
     } else {
-        setUsers(prev => [...prev, userToSave]);
+        setUsers(prev => [...prev, finalUser]);
     }
-    setIsUserModalOpen(false);
+    setCurrentUser({}); // Reset form
   };
 
   // --- HR HANDLERS ---
@@ -242,6 +222,63 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       if(window.confirm("¿Está seguro de RECHAZAR esta cuenta de cobro?")) {
           setPaymentRequests(prev => prev.map(req => req.id === reqId ? { ...req, status: 'REJECTED' } : req));
       }
+  };
+
+    // --- FILE MANAGEMENT HANDLERS ---
+  const handleUploadFile = () => {
+    const fileName = prompt("Ingrese el nombre del archivo (ej. nuevo_contrato.pdf):");
+    if (!fileName) return;
+
+    if (fileManagementTab === 'CONTRACTS') {
+        setUsers(prevUsers => {
+            const newUsers = [...prevUsers];
+            if (newUsers.length > 0) {
+                const newContract: Contract = {
+                    id: `c${Date.now()}`,
+                    userId: newUsers[0].id,
+                    type: ContractType.OPS,
+                    startDate: new Date().toISOString().split('T')[0],
+                    isActive: true,
+                    status: 'ACTIVE',
+                    fileUrl: fileName,
+                    auditTrail: [{ date: new Date().toISOString(), action: 'CREATED', changedBy: 'Admin', details: 'Archivo subido' }]
+                };
+                newUsers[0].contracts = [...(newUsers[0].contracts || []), newContract];
+            }
+            return newUsers;
+        });
+        alert(`Contrato "${fileName}" agregado al primer usuario.`);
+    } else { // PAYMENTS
+        const newPaymentRequest: PaymentRequest = {
+            id: `pr${Date.now()}`,
+            userId: 'u1',
+            userName: 'Elena Rodriguez',
+            period: '2024-08',
+            amount: Math.floor(Math.random() * 1000000) + 2000000,
+            status: 'PAID',
+            dateSubmitted: new Date().toISOString(),
+            attachments: [],
+            paymentReceiptUrl: fileName,
+        };
+        setPaymentRequests(prev => [...prev, newPaymentRequest]);
+        alert(`Soporte de pago "${fileName}" agregado.`);
+    }
+  };
+
+  const handleDeleteFile = (fileId: string, type: 'CONTRACT' | 'PAYMENT') => {
+      if (!window.confirm("¿Está seguro de eliminar este archivo?")) return;
+
+      if (type === 'CONTRACT') {
+          setUsers(prevUsers =>
+              prevUsers.map(user => ({
+                  ...user,
+                  contracts: user.contracts?.filter(c => c.id !== fileId)
+              }))
+          );
+      } else { // PAYMENT
+          setPaymentRequests(prev => prev.filter(p => p.id !== fileId));
+      }
+      alert("Archivo eliminado.");
   };
 
   // --- RIPS GENERATION LOGIC ---
@@ -529,7 +566,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                     <h3 className="font-bold text-lg text-slate-800">
                         {fileManagementTab === 'CONTRACTS' ? 'Archivos de Contratos' : 'Archivos de Soportes de Pago'}
                     </h3>
-                    <button onClick={() => alert('Función para subir archivo no implementada.')} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-blue-700">
+                    <button onClick={handleUploadFile} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-blue-700">
                         <Upload size={16} className="mr-2"/> Subir Archivo
                     </button>
                 </div>
@@ -544,16 +581,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {(fileManagementTab === 'CONTRACTS'
-                            ? users.flatMap(u => u.contracts?.map(c => ({ ...c, userName: u.name })))
-                            : paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl })))
+                            ? users.flatMap(u => u.contracts?.map(c => ({ ...c, userName: u.name, type: 'CONTRACT' })))
+                            : paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl, type: 'PAYMENT' })))
                             .map((file: any) => (
                                 <tr key={file.id}>
                                     <td className="p-3 font-medium text-slate-700">{file.fileUrl || `contrato_${file.id}.pdf`}</td>
                                     <td className="p-3">{file.userName}</td>
                                     <td className="p-3 text-slate-500">{new Date(file.startDate || file.dateSubmitted).toLocaleDateString()}</td>
                                     <td className="p-3 text-right">
-                                        <button onClick={() => alert('Descargando archivo...')} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Download size={14}/></button>
-                                        <button onClick={() => alert('Eliminando archivo...')} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button>
+                                        <button onClick={() => alert('Simulando descarga...')} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Download size={14}/></button>
+                                        <button onClick={() => handleDeleteFile(file.id, file.type)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button>
                                     </td>
                                 </tr>
                             ))
@@ -890,15 +927,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                               </span>
                                           </td>
                                           <td className="p-3 text-right">
-                                              {req.status === 'SUBMITTED' ? (
+                                               {req.status === 'SUBMITTED' && (
                                                   <div className="flex justify-end gap-2">
-                                                      <button onClick={() => alert("Descargando PDF...")} className="p-2 text-slate-500 hover:bg-slate-200 rounded" title="Ver Cuenta de Cobro"><Printer size={16}/></button>
                                                       <button onClick={() => handleOpenPaymentModal(req)} className="p-2 bg-green-100 text-green-600 hover:bg-green-200 rounded font-bold text-xs">Pagar</button>
                                                       <button onClick={() => handleRejectPayment(req.id)} className="p-2 bg-red-100 text-red-600 hover:bg-red-200 rounded font-bold text-xs">Rechazar</button>
-                                                  </div>
-                                              ) : (
-                                                  <div className="flex justify-end gap-2">
-                                                      <button onClick={() => alert("Descargando PDF...")} className="p-2 text-slate-500 hover:bg-slate-200 rounded" title="Ver Documento"><FileText size={16}/></button>
                                                   </div>
                                               )}
                                           </td>
@@ -956,11 +988,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                           </div>
                           
                           <div className="border rounded-lg overflow-hidden">
-                              <div className="bg-slate-100 px-4 py-2 border-b flex justify-between items-center">
+                               <div className="bg-slate-100 px-4 py-2 border-b">
                                   <span className="font-mono text-xs font-bold text-slate-600">Previsualización (Formato JSON Res. 2275/2023)</span>
-                                  <button onClick={downloadRIPS} className="text-xs flex items-center text-blue-600 font-bold hover:underline">
-                                      <Download size={14} className="mr-1"/> Descargar ZIP
-                                  </button>
                               </div>
                               <div className="bg-slate-900 text-green-400 p-4 font-mono text-xs h-64 overflow-y-auto">
                                   {JSON.stringify(generatedRips, null, 2)}
@@ -1001,25 +1030,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // 2. USERS LIST - Only Admin
   if (activeTab === 'users' && isAdmin) {
       return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {isUserModalOpen && (
-              <UserForm
-                user={currentUser}
-                onSave={handleSaveUser}
-                onCancel={() => setIsUserModalOpen(false)}
-              />
-            )}
-            
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
-                <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-slate-800">Directorio de Usuarios</h3>
-                <button onClick={handleAddNewUser} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center"><Plus size={14} className="mr-1"/> Agregar</button>
-                </div>
-                <div className="overflow-x-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full animate-in fade-in duration-500">
+            {/* User List Column */}
+            <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
+                <h3 className="font-bold text-slate-800 mb-6">Directorio de Usuarios</h3>
+                <div className="overflow-x-auto flex-1">
                     <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
+                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0">
                             <tr>
-                                <th className="py-3 px-4">Documento</th>
                                 <th className="py-3 px-4">Nombre Completo</th>
                                 <th className="py-3 px-4">Roles</th>
                                 <th className="py-3 px-4">Info Profesional</th>
@@ -1028,12 +1046,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {users.map(u => (
-                                <tr key={u.id} className="hover:bg-slate-50">
+                                <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50' : ''}`} onClick={() => handleEditUser(u)}>
                                     <td className="py-3 px-4">
-                                        <div className="font-bold text-slate-700">{u.documentNumber}</div>
+                                        <div className="font-bold text-slate-700">{u.name}</div>
                                         <div className="font-mono text-xs text-slate-400">@{u.username}</div>
                                     </td>
-                                    <td className="py-3 px-4 font-bold text-slate-700">{u.name}</td>
                                     <td className="py-3 px-4">
                                         <div className="flex flex-wrap gap-1">
                                             {u.roles?.map(r => <span key={r} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">{roleLabels[r] || r}</span>)}
@@ -1048,13 +1065,27 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                         ) : <span className="text-xs text-slate-400">-</span>}
                                     </td>
                                     <td className="py-3 px-4 text-right">
-                                        <button onClick={() => handleEditUser(u)} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
+                                        <button onClick={(e) => { e.stopPropagation(); handleEditUser(u); }} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {/* User Form Column */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                 <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-slate-800">{currentUser.id ? 'Editando Usuario' : 'Nuevo Usuario'}</h3>
+                    <button onClick={handleAddNewUser} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center"><Plus size={14} className="mr-1"/> Agregar Nuevo</button>
+                 </div>
+                 <UserForm
+                    user={currentUser}
+                    onSave={handleSaveUser}
+                    onCancel={() => setCurrentUser({})}
+                    isEmbedded={true}
+                 />
             </div>
         </div>
       );
