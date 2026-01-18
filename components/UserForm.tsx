@@ -69,10 +69,11 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
-            <label className="text-xs font-bold text-slate-500">
+            <label htmlFor="user-form-document-number" className="text-xs font-bold text-slate-500">
               Número de Documento (Cédula) <span className="text-red-500">*</span>
             </label>
             <input
+              id="user-form-document-number"
               className="w-full p-2 border rounded"
               placeholder="CC/DNI"
               value={currentUser.documentNumber || ''}
@@ -85,10 +86,11 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
             </p>
           </div>
           <div className="col-span-2 md:col-span-1">
-            <label className="text-xs font-bold text-slate-500">
+            <label htmlFor="user-form-first-name" className="text-xs font-bold text-slate-500">
               Nombres <span className="text-red-500">*</span>
             </label>
             <input
+              id="user-form-first-name"
               className="w-full p-2 border rounded"
               value={currentUser.firstName || ''}
               onChange={(e) =>
@@ -97,10 +99,11 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
             />
           </div>
           <div className="col-span-2 md:col-span-1">
-            <label className="text-xs font-bold text-slate-500">
+            <label htmlFor="user-form-last-name" className="text-xs font-bold text-slate-500">
               Apellidos <span className="text-red-500">*</span>
             </label>
             <input
+              id="user-form-last-name"
               className="w-full p-2 border rounded"
               value={currentUser.lastName || ''}
               onChange={(e) =>
@@ -109,10 +112,11 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
             />
           </div>
           <div className="col-span-2 md:col-span-1">
-            <label className="text-xs font-bold text-slate-500">
+            <label htmlFor="user-form-username" className="text-xs font-bold text-slate-500">
               Usuario (Login) <span className="text-red-500">*</span>
             </label>
             <input
+              id="user-form-username"
               className="w-full p-2 border rounded"
               value={currentUser.username || ''}
               onChange={(e) =>
@@ -121,10 +125,11 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
             />
           </div>
           <div className="col-span-2 md:col-span-1">
-            <label className="text-xs font-bold text-slate-500">
+            <label htmlFor="user-form-birth-date" className="text-xs font-bold text-slate-500">
               Fecha Nacimiento
             </label>
             <input
+              id="user-form-birth-date"
               type="date"
               className="w-full p-2 border rounded"
               value={currentUser.birthDate || ''}
@@ -172,10 +177,11 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
               </h4>
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-500">
+                  <label htmlFor="user-form-license" className="text-xs font-bold text-slate-500">
                     Registro Médico / Licencia <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="user-form-license"
                     className="w-full p-2 border rounded text-sm"
                     placeholder="Ej. MED-12345"
                     value={currentUser.professionalLicense || ''}
@@ -188,10 +194,11 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-500">
+                  <label htmlFor="user-form-specialty" className="text-xs font-bold text-slate-500">
                     Especialidad
                   </label>
                   <input
+                    id="user-form-specialty"
                     className="w-full p-2 border rounded text-sm"
                     placeholder="Ej. Medicina General"
                     value={currentUser.specialty || ''}

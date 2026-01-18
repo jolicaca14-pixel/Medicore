@@ -1,0 +1,3 @@
+## 2024-07-26 - Linking Form Labels and Inputs for Accessibility
+**Learning:** I discovered that key forms, like the one in `UserForm.tsx`, were missing explicit connections (`htmlFor`/`id`) between their `<label>` and `<input>` elements. This is a critical accessibility issue that prevents screen readers from associating labels with their corresponding inputs and also hinders usability for mouse users who expect to click a label to focus the input.
+**Action:** When working on any form components in the future, my first step will be to audit all labels and inputs to ensure they are programmatically linked. This check will be a standard part of my process for any UX or accessibility enhancement involving forms.
