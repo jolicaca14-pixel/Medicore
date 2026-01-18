@@ -41,7 +41,10 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
     if (user && password === user.documentNumber) {
       onLogin(user);
     } else {
-      setError('Credenciales inválidas. Use el número de documento como contraseña.');
+      // 🛡️ SENTINEL: Add a constant delay to mitigate timing attacks (user enumeration).
+      setTimeout(() => {
+        setError('Credenciales inválidas. Use el número de documento como contraseña.');
+      }, 500);
     }
   };
 
