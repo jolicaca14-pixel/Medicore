@@ -9,6 +9,8 @@ import {
     Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson
 } from 'lucide-react';
 import { UserForm } from '../UserForm';
+import { UserManagement } from './admin/UserManagement';
+import { FileManagement } from './admin/FileManagement';
 
 interface AdminViewProps {
   activeTab: string;
@@ -86,9 +88,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // Disciplinary
   const [newDisciplinary, setNewDisciplinary] = useState<Partial<DisciplinaryAction>>({ type: 'COMPLAINT', status: 'OPEN' });
 
-  // File Management
-  const [fileManagementTab, setFileManagementTab] = useState<'CONTRACTS' | 'PAYMENTS'>('CONTRACTS');
-
   // Settings / Templates
   const [settingsTab, setSettingsTab] = useState<'TEMPLATES' | 'SECTIONS' | 'FIELDS'>('TEMPLATES');
   const [globalFields, setGlobalFields] = useState<TemplateField[]>(MOCK_FIELD_LIBRARY);
@@ -101,48 +100,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [generatedRips, setGeneratedRips] = useState<{
       US: any[], AC: any[], AP: any[], AF: any[]
   } | null>(null);
-
-  // --- USER HANDLERS ---
-  const handleEditUser = (user: User) => { 
-      // Create a shallow copy to prevent reference issues during edit
-      setCurrentUser({ ...user }); 
-      setIsUserModalOpen(true); 
-  };
-  
-  const handleAddNewUser = () => { 
-      setCurrentUser({ id: `u${Date.now()}`, roles: [UserRole.PROFESSIONAL], status: 'ACTIVE', name: '', username: '' }); 
-      setIsUserModalOpen(true); 
-  };
-
-  const handleSaveUser = () => {
-    if (!currentUser.firstName || !currentUser.lastName || !currentUser.username || !currentUser.documentNumber) { alert("Complete nombres, apellidos, usuario y documento."); return; }
-    
-    // Validate Roles
-    if (!currentUser.roles || currentUser.roles.length === 0) {
-        alert("El usuario debe tener al menos un rol asignado.");
-        return;
-    }
-
-    // Role Specific Validations
-    if (currentUser.roles.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST)) {
-        if (!currentUser.professionalLicense) {
-            alert("Para roles asistenciales, el Registro Médico/Profesional es obligatorio.");
-            return;
-        }
-    }
-
-    // Auto-compute Full Name
-    const fullName = `${currentUser.firstName} ${currentUser.lastName}`;
-    const userToSave = { ...currentUser, name: fullName } as User;
-
-    // Use map to return a new array reference
-    if (users.some(u => u.id === userToSave.id)) { 
-    setUsers(prev => prev.map(u => u.id === userToSave.id ? userToSave : u));
-    } else {
-        setUsers(prev => [...prev, userToSave]);
-    }
-    setIsUserModalOpen(false);
-  };
 
   // --- HR HANDLERS ---
   const handleOpenContracts = (user: User) => {
@@ -510,59 +467,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
-  // FILE MANAGEMENT MODULE - ADMIN VIEW
   if (activeTab === 'files' && isAdmin) {
-    return (
-        <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-slate-800">Gestión de Archivos</h2>
-            <div className="flex space-x-1 bg-white p-1 rounded-lg border border-slate-200 w-fit">
-                <button onClick={() => setFileManagementTab('CONTRACTS')} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'CONTRACTS' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
-                    Contratos
-                </button>
-                <button onClick={() => setFileManagementTab('PAYMENTS')} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'PAYMENTS' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
-                    Soportes de Pago
-                </button>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-lg text-slate-800">
-                        {fileManagementTab === 'CONTRACTS' ? 'Archivos de Contratos' : 'Archivos de Soportes de Pago'}
-                    </h3>
-                    <button onClick={() => alert('Función para subir archivo no implementada.')} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-blue-700">
-                        <Upload size={16} className="mr-2"/> Subir Archivo
-                    </button>
-                </div>
-                <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-50 text-slate-500 font-medium">
-                        <tr>
-                            <th className="p-3">Nombre del Archivo</th>
-                            <th className="p-3">Usuario</th>
-                            <th className="p-3">Fecha de Subida</th>
-                            <th className="p-3 text-right">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {(fileManagementTab === 'CONTRACTS'
-                            ? users.flatMap(u => u.contracts?.map(c => ({ ...c, userName: u.name })))
-                            : paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl })))
-                            .map((file: any) => (
-                                <tr key={file.id}>
-                                    <td className="p-3 font-medium text-slate-700">{file.fileUrl || `contrato_${file.id}.pdf`}</td>
-                                    <td className="p-3">{file.userName}</td>
-                                    <td className="p-3 text-slate-500">{new Date(file.startDate || file.dateSubmitted).toLocaleDateString()}</td>
-                                    <td className="p-3 text-right">
-                                        <button onClick={() => alert('Descargando archivo...')} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Download size={14}/></button>
-                                        <button onClick={() => alert('Eliminando archivo...')} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button>
-                                    </td>
-                                </tr>
-                            ))
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
+    return <FileManagement />;
   }
   // HR MODULE - ADMIN VIEW
   if (activeTab === 'hr' && isAdmin) {
@@ -998,66 +904,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
-  // 2. USERS LIST - Only Admin
   if (activeTab === 'users' && isAdmin) {
-      return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {isUserModalOpen && (
-              <UserForm
-                user={currentUser}
-                onSave={handleSaveUser}
-                onCancel={() => setIsUserModalOpen(false)}
-              />
-            )}
-            
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
-                <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-slate-800">Directorio de Usuarios</h3>
-                <button onClick={handleAddNewUser} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center"><Plus size={14} className="mr-1"/> Agregar</button>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
-                            <tr>
-                                <th className="py-3 px-4">Documento</th>
-                                <th className="py-3 px-4">Nombre Completo</th>
-                                <th className="py-3 px-4">Roles</th>
-                                <th className="py-3 px-4">Info Profesional</th>
-                                <th className="py-3 px-4 text-right">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {users.map(u => (
-                                <tr key={u.id} className="hover:bg-slate-50">
-                                    <td className="py-3 px-4">
-                                        <div className="font-bold text-slate-700">{u.documentNumber}</div>
-                                        <div className="font-mono text-xs text-slate-400">@{u.username}</div>
-                                    </td>
-                                    <td className="py-3 px-4 font-bold text-slate-700">{u.name}</td>
-                                    <td className="py-3 px-4">
-                                        <div className="flex flex-wrap gap-1">
-                                            {u.roles?.map(r => <span key={r} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">{roleLabels[r] || r}</span>)}
-                                        </div>
-                                    </td>
-                                    <td className="py-3 px-4">
-                                        {u.roles.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST) ? (
-                                            <div className="text-xs">
-                                                <p><span className="font-bold">Lic:</span> {u.professionalLicense || 'N/A'}</p>
-                                                {u.digitalStampUrl && <span className="text-[9px] text-green-600 bg-green-50 px-1 rounded">Firma OK</span>}
-                                            </div>
-                                        ) : <span className="text-xs text-slate-400">-</span>}
-                                    </td>
-                                    <td className="py-3 px-4 text-right">
-                                        <button onClick={() => handleEditUser(u)} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-      );
+      return <UserManagement />;
   }
 
   // 3. SETTINGS TAB - Only Admin

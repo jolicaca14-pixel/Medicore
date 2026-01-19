@@ -53,6 +53,7 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
         ...items,
         { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
         { id: 'users', label: 'Gestión Usuarios', icon: Users },
+        { id: 'files', label: 'Gestión Archivos', icon: FileText },
         { id: 'hr', label: 'Talento Humano', icon: Briefcase }, // NEW HR MODULE
         { id: 'reports', label: 'Gestión Financiera', icon: DollarSign },
         { id: 'settings', label: 'Plantillas / Roles', icon: Settings },
