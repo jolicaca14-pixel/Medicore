@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
+import { sanitizeInput } from '../utils/security';
 import { Shield, CheckCircle, UploadCloud, Trash2 } from 'lucide-react';
 
 const roleLabels: { [key in UserRole]: string } = {
@@ -77,7 +78,7 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
               placeholder="CC/DNI"
               value={currentUser.documentNumber || ''}
               onChange={(e) =>
-                setCurrentUser({ ...currentUser, documentNumber: e.target.value })
+                setCurrentUser({ ...currentUser, documentNumber: sanitizeInput(e.target.value) })
               }
             />
             <p className="text-[10px] text-slate-400 mt-1">
@@ -92,7 +93,7 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
               className="w-full p-2 border rounded"
               value={currentUser.firstName || ''}
               onChange={(e) =>
-                setCurrentUser({ ...currentUser, firstName: e.target.value })
+                setCurrentUser({ ...currentUser, firstName: sanitizeInput(e.target.value) })
               }
             />
           </div>
@@ -104,7 +105,7 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
               className="w-full p-2 border rounded"
               value={currentUser.lastName || ''}
               onChange={(e) =>
-                setCurrentUser({ ...currentUser, lastName: e.target.value })
+                setCurrentUser({ ...currentUser, lastName: sanitizeInput(e.target.value) })
               }
             />
           </div>
@@ -116,7 +117,7 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
               className="w-full p-2 border rounded"
               value={currentUser.username || ''}
               onChange={(e) =>
-                setCurrentUser({ ...currentUser, username: e.target.value })
+                setCurrentUser({ ...currentUser, username: sanitizeInput(e.target.value) })
               }
             />
           </div>
@@ -182,7 +183,7 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
                     onChange={(e) =>
                       setCurrentUser({
                         ...currentUser,
-                        professionalLicense: e.target.value,
+                        professionalLicense: sanitizeInput(e.target.value),
                       })
                     }
                   />
@@ -196,7 +197,7 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
                     placeholder="Ej. Medicina General"
                     value={currentUser.specialty || ''}
                     onChange={(e) =>
-                      setCurrentUser({ ...currentUser, specialty: e.target.value })
+                      setCurrentUser({ ...currentUser, specialty: sanitizeInput(e.target.value) })
                     }
                   />
                 </div>
