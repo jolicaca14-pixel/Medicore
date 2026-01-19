@@ -13,12 +13,13 @@ const roleLabels: { [key in UserRole]: string } = {
 
 interface UserFormProps {
   user: Partial<User>;
-  onSave: (user: Partial<User>) => void;
+  onSave: (user: Partial<User>) => Promise<void>;
   onCancel: () => void;
 }
 
 export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) => {
   const [currentUser, setCurrentUser] = useState<Partial<User>>(user);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setCurrentUser(user);
@@ -32,7 +33,7 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
     setCurrentUser({ ...currentUser, roles: newRoles });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!currentUser.firstName || !currentUser.lastName || !currentUser.username || !currentUser.documentNumber) {
       alert('Complete nombres, apellidos, usuario y documento.');
       return;
@@ -56,7 +57,12 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
         return;
       }
     }
-    onSave(currentUser);
+    setIsSaving(true);
+    try {
+      await onSave(currentUser);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const showProfessionalFields = currentUser.roles?.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST);
@@ -69,10 +75,11 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
-            <label className="text-xs font-bold text-slate-500">
+            <label htmlFor="document-number" className="text-xs font-bold text-slate-500">
               Número de Documento (Cédula) <span className="text-red-500">*</span>
             </label>
             <input
+              id="document-number"
               className="w-full p-2 border rounded"
               placeholder="CC/DNI"
               value={currentUser.documentNumber || ''}
@@ -85,10 +92,11 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
             </p>
           </div>
           <div className="col-span-2 md:col-span-1">
-            <label className="text-xs font-bold text-slate-500">
+            <label htmlFor="first-name" className="text-xs font-bold text-slate-500">
               Nombres <span className="text-red-500">*</span>
             </label>
             <input
+              id="first-name"
               className="w-full p-2 border rounded"
               value={currentUser.firstName || ''}
               onChange={(e) =>
@@ -97,10 +105,11 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
             />
           </div>
           <div className="col-span-2 md:col-span-1">
-            <label className="text-xs font-bold text-slate-500">
+            <label htmlFor="last-name" className="text-xs font-bold text-slate-500">
               Apellidos <span className="text-red-500">*</span>
             </label>
             <input
+              id="last-name"
               className="w-full p-2 border rounded"
               value={currentUser.lastName || ''}
               onChange={(e) =>
@@ -109,10 +118,11 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
             />
           </div>
           <div className="col-span-2 md:col-span-1">
-            <label className="text-xs font-bold text-slate-500">
+            <label htmlFor="username" className="text-xs font-bold text-slate-500">
               Usuario (Login) <span className="text-red-500">*</span>
             </label>
             <input
+              id="username"
               className="w-full p-2 border rounded"
               value={currentUser.username || ''}
               onChange={(e) =>
@@ -121,10 +131,11 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
             />
           </div>
           <div className="col-span-2 md:col-span-1">
-            <label className="text-xs font-bold text-slate-500">
+            <label htmlFor="birth-date" className="text-xs font-bold text-slate-500">
               Fecha Nacimiento
             </label>
             <input
+              id="birth-date"
               type="date"
               className="w-full p-2 border rounded"
               value={currentUser.birthDate || ''}
@@ -172,10 +183,11 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
               </h4>
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-500">
+                  <label htmlFor="license" className="text-xs font-bold text-slate-500">
                     Registro Médico / Licencia <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="license"
                     className="w-full p-2 border rounded text-sm"
                     placeholder="Ej. MED-12345"
                     value={currentUser.professionalLicense || ''}
@@ -259,9 +271,14 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-slate-900 text-white rounded"
+            className="px-4 py-2 bg-slate-900 text-white rounded flex items-center justify-center w-28"
+            disabled={isSaving}
           >
-            Guardar
+            {isSaving ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            ) : (
+              'Guardar'
+            )}
           </button>
         </div>
       </div>

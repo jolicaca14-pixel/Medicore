@@ -114,34 +114,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       setIsUserModalOpen(true); 
   };
 
-  const handleSaveUser = () => {
-    if (!currentUser.firstName || !currentUser.lastName || !currentUser.username || !currentUser.documentNumber) { alert("Complete nombres, apellidos, usuario y documento."); return; }
-    
-    // Validate Roles
-    if (!currentUser.roles || currentUser.roles.length === 0) {
-        alert("El usuario debe tener al menos un rol asignado.");
-        return;
-    }
+  const handleSaveUser = (user: Partial<User>): Promise<void> => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // Auto-compute Full Name
+        const fullName = `${user.firstName} ${user.lastName}`;
+        const userToSave = { ...user, name: fullName } as User;
 
-    // Role Specific Validations
-    if (currentUser.roles.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST)) {
-        if (!currentUser.professionalLicense) {
-            alert("Para roles asistenciales, el Registro Médico/Profesional es obligatorio.");
-            return;
+        if (users.some(u => u.id === userToSave.id)) {
+          setUsers(prev => prev.map(u => u.id === userToSave.id ? userToSave : u));
+        } else {
+          setUsers(prev => [...prev, userToSave]);
         }
-    }
-
-    // Auto-compute Full Name
-    const fullName = `${currentUser.firstName} ${currentUser.lastName}`;
-    const userToSave = { ...currentUser, name: fullName } as User;
-
-    // Use map to return a new array reference
-    if (users.some(u => u.id === userToSave.id)) { 
-    setUsers(prev => prev.map(u => u.id === userToSave.id ? userToSave : u));
-    } else {
-        setUsers(prev => [...prev, userToSave]);
-    }
-    setIsUserModalOpen(false);
+        setIsUserModalOpen(false);
+        resolve();
+      }, 1500);
+    });
   };
 
   // --- HR HANDLERS ---
