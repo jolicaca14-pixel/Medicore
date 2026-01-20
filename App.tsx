@@ -6,6 +6,7 @@ import { ProfessionalView } from './components/views/ProfessionalView';
 import { AdminView } from './components/views/AdminView';
 import { SecretaryView } from './components/views/SecretaryView';
 import { DiagnosticView } from './components/views/DiagnosticView';
+import { Spinner } from './components/Spinner';
 
 const EyeIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -29,20 +30,24 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Verify user from mock
-    const user = MOCK_USERS.find(u => u.username === username);
-    
-    // 🛡️ SENTINEL: Using document number as a password for mock data.
-    // This is not secure for production but removes the hardcoded password vulnerability.
-    // TODO: Implement a secure authentication mechanism (e.g., OAuth, password hashing).
-    if (user && password === user.documentNumber) {
-      onLogin(user);
-    } else {
-      setError('Credenciales inválidas. Use el número de documento como contraseña.');
-    }
+    setLoading(true);
+    setError('');
+
+    // Simulate network delay
+    setTimeout(() => {
+      const user = MOCK_USERS.find(u => u.username === username);
+
+      if (user && password === user.documentNumber) {
+        onLogin(user);
+      } else {
+        setError('Credenciales inválidas. Use el número de documento como contraseña.');
+        setLoading(false);
+      }
+    }, 1000);
   };
 
   return (
@@ -93,9 +98,17 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
 
            <button 
              type="submit"
-             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-200 transition-all"
+             disabled={loading}
+             className="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-200 transition-all"
            >
-             Inicio de Sesión Seguro
+            {loading ? (
+              <>
+                <Spinner size={20} />
+                <span className="ml-2">Verificando...</span>
+              </>
+            ) : (
+              'Inicio de Sesión Seguro'
+            )}
            </button>
            
            <div className="text-center text-xs text-slate-400 pt-4">
