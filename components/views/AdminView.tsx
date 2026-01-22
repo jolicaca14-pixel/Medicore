@@ -9,6 +9,7 @@ import {
     Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson
 } from 'lucide-react';
 import { UserForm } from '../UserForm';
+import { useEffect } from 'react';
 
 interface AdminViewProps {
   activeTab: string;
@@ -88,6 +89,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   // File Management
   const [fileManagementTab, setFileManagementTab] = useState<'CONTRACTS' | 'PAYMENTS'>('CONTRACTS');
+  const [files, setFiles] = useState<any[]>([]); // New state for managing files
 
   // Settings / Templates
   const [settingsTab, setSettingsTab] = useState<'TEMPLATES' | 'SECTIONS' | 'FIELDS'>('TEMPLATES');
@@ -101,6 +103,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [generatedRips, setGeneratedRips] = useState<{
       US: any[], AC: any[], AP: any[], AF: any[]
   } | null>(null);
+
+  useEffect(() => {
+    setFiles(users.flatMap(u => u.contracts?.map(c => ({ ...c, userName: u.name }))));
+  }, []);
 
   // --- USER HANDLERS ---
   const handleEditUser = (user: User) => { 
@@ -382,6 +388,35 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       alert("Descargando paquete .ZIP con archivos TXT/JSON validados...");
   };
 
+  // --- FILE MANAGEMENT HANDLERS ---
+  const handleUploadFile = () => {
+    const fileName = prompt("Ingrese el nombre del archivo simulado:", "nuevo_documento.pdf");
+    if (fileName) {
+        const newFile = {
+            id: `file-${Date.now()}`,
+            fileUrl: fileName,
+            userName: currentUserSession?.name || 'Admin',
+            startDate: new Date().toISOString(),
+        };
+        const currentFiles = fileManagementTab === 'CONTRACTS'
+            ? users.flatMap(u => u.contracts?.map(c => ({ ...c, userName: u.name })))
+            : paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl }));
+
+        setFiles([...currentFiles, newFile]);
+    }
+  };
+
+  const handleDeleteFile = (fileId: string) => {
+      if (window.confirm("¿Está seguro de que desea eliminar este archivo?")) {
+          const currentFiles = fileManagementTab === 'CONTRACTS'
+              ? users.flatMap(u => u.contracts?.map(c => ({ ...c, userName: u.name })))
+              : paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl }));
+
+          const updatedFiles = currentFiles.filter(file => file.id !== fileId);
+          setFiles(updatedFiles);
+      }
+  };
+
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
@@ -516,10 +551,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-slate-800">Gestión de Archivos</h2>
             <div className="flex space-x-1 bg-white p-1 rounded-lg border border-slate-200 w-fit">
-                <button onClick={() => setFileManagementTab('CONTRACTS')} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'CONTRACTS' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
+                <button onClick={() => {
+                    setFileManagementTab('CONTRACTS');
+                    setFiles(users.flatMap(u => u.contracts?.map(c => ({ ...c, userName: u.name }))));
+                }} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'CONTRACTS' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
                     Contratos
                 </button>
-                <button onClick={() => setFileManagementTab('PAYMENTS')} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'PAYMENTS' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
+                <button onClick={() => {
+                    setFileManagementTab('PAYMENTS');
+                    setFiles(paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl })));
+                }} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'PAYMENTS' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
                     Soportes de Pago
                 </button>
             </div>
@@ -529,7 +570,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                     <h3 className="font-bold text-lg text-slate-800">
                         {fileManagementTab === 'CONTRACTS' ? 'Archivos de Contratos' : 'Archivos de Soportes de Pago'}
                     </h3>
-                    <button onClick={() => alert('Función para subir archivo no implementada.')} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-blue-700">
+                    <button onClick={handleUploadFile} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-blue-700">
                         <Upload size={16} className="mr-2"/> Subir Archivo
                     </button>
                 </div>
@@ -543,17 +584,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {(fileManagementTab === 'CONTRACTS'
-                            ? users.flatMap(u => u.contracts?.map(c => ({ ...c, userName: u.name })))
-                            : paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl })))
-                            .map((file: any) => (
+                        {files.map((file: any) => (
                                 <tr key={file.id}>
                                     <td className="p-3 font-medium text-slate-700">{file.fileUrl || `contrato_${file.id}.pdf`}</td>
                                     <td className="p-3">{file.userName}</td>
                                     <td className="p-3 text-slate-500">{new Date(file.startDate || file.dateSubmitted).toLocaleDateString()}</td>
                                     <td className="p-3 text-right">
-                                        <button onClick={() => alert('Descargando archivo...')} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Download size={14}/></button>
-                                        <button onClick={() => alert('Eliminando archivo...')} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button>
+                                        <button onClick={() => alert('La descarga de archivos simulados no está implementada.')} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Download size={14}/></button>
+                                        <button onClick={() => handleDeleteFile(file.id)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button>
                                     </td>
                                 </tr>
                             ))
