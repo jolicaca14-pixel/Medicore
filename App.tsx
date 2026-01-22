@@ -7,6 +7,9 @@ import { AdminView } from './components/views/AdminView';
 import { SecretaryView } from './components/views/SecretaryView';
 import { DiagnosticView } from './components/views/DiagnosticView';
 
+// 🛡️ SENTINEL: Utility to introduce a delay, preventing timing-based user enumeration.
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 const EyeIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
@@ -30,7 +33,7 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     // Verify user from mock
     const user = MOCK_USERS.find(u => u.username === username);
@@ -41,6 +44,9 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
     if (user && password === user.documentNumber) {
       onLogin(user);
     } else {
+      // 🛡️ SENTINEL: Add a delay to make timing attacks for user enumeration harder.
+      // A real system would have a more robust solution (e.g., rate limiting).
+      await delay(500);
       setError('Credenciales inválidas. Use el número de documento como contraseña.');
     }
   };
