@@ -15,9 +15,10 @@ interface UserFormProps {
   user: Partial<User>;
   onSave: (user: Partial<User>) => void;
   onCancel: () => void;
+  isEmbedded?: boolean;
 }
 
-export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) => {
+export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEmbedded = false }) => {
   const [currentUser, setCurrentUser] = useState<Partial<User>>(user);
 
   useEffect(() => {
@@ -61,13 +62,9 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
 
   const showProfessionalFields = currentUser.roles?.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST);
 
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-        <h3 className="text-xl font-bold mb-4">
-          {currentUser.id ? 'Editar Usuario' : 'Nuevo Usuario'}
-        </h3>
-        <div className="grid grid-cols-2 gap-4">
+  const FormContent = () => (
+    <>
+      <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
             <label className="text-xs font-bold text-slate-500">
               Número de Documento (Cédula) <span className="text-red-500">*</span>
@@ -264,6 +261,20 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel }) =>
             Guardar
           </button>
         </div>
+    </>
+  );
+
+  if (isEmbedded) {
+    return <FormContent />;
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+         <h3 className="text-xl font-bold mb-4">
+          {currentUser.id ? 'Editar Usuario' : 'Nuevo Usuario'}
+        </h3>
+        <FormContent />
       </div>
     </div>
   );
