@@ -1,8 +1,7 @@
-# BOLT'S JOURNAL - CRITICAL LEARNINGS ONLY
+# Bolt's Journal ⚡
 
-This journal is for CRITICAL learnings that will help Bolt avoid mistakes or make better decisions in this specific codebase.
+This journal is for CRITICAL, codebase-specific performance learnings ONLY.
 
-**Format:**
-`## YYYY-MM-DD - [Title]`
-`**Learning:** [Insight]`
-`**Action:** [How to apply next time]`
+## YYYY-MM-DD - [Title]
+**Learning:** [Insight]
+**Action:** [How to apply next time]
