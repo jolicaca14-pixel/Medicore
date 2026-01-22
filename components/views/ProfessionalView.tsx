@@ -199,45 +199,60 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   };
 
   // --- AUTOMATIC CALCULATORS (TFG, FRAMINGHAM, BMI, TAM) ---
+  // Bolt ⚡: Split monolithic useEffect into four targeted hooks.
+  // This prevents all calculators from re-running on every single data change.
+  // Each calculator now only runs when its specific dependencies change, improving form responsiveness.
+
+  // 1. BMI (IMC) Calculator
+  useEffect(() => {
+    if (viewMode !== 'CREATE' || !selectedPatient) return;
+    const w = parseFloat(dynamicData['global_weight']);
+    const h = parseFloat(dynamicData['global_height']);
+    if (w && h) {
+        const bmi = (w / (h * h)).toFixed(2);
+        if (dynamicData['global_bmi'] !== bmi) {
+            setDynamicData(prev => ({ ...prev, global_bmi: bmi }));
+        }
+    }
+  }, [dynamicData.global_weight, dynamicData.global_height, selectedPatient, viewMode]);
+
+  // 2. TAM (Mean Arterial Pressure) Calculator
   useEffect(() => {
       if (viewMode !== 'CREATE' || !selectedPatient) return;
-
-      const newData = { ...dynamicData };
-      let changed = false;
-
-      // 1. BMI (IMC)
-      const w = parseFloat(newData['global_weight']);
-      const h = parseFloat(newData['global_height']);
-      if (w && h) {
-          const bmi = (w / (h * h)).toFixed(2);
-          if (newData['global_bmi'] !== bmi) { newData['global_bmi'] = bmi; changed = true; }
-      }
-
-      // 2. TAM (Mean Arterial Pressure)
-      const sys = parseFloat(newData['global_sys_bp']);
-      const dia = parseFloat(newData['global_dia_bp']);
+      const sys = parseFloat(dynamicData['global_sys_bp']);
+      const dia = parseFloat(dynamicData['global_dia_bp']);
       if (sys && dia) {
           const tam = Math.round((2 * dia + sys) / 3).toString();
-          if (newData['v_tam'] !== tam) { newData['v_tam'] = tam; changed = true; }
+          if (dynamicData['v_tam'] !== tam) {
+              setDynamicData(prev => ({ ...prev, v_tam: tam }));
+          }
       }
+  }, [dynamicData.global_sys_bp, dynamicData.global_dia_bp, selectedPatient, viewMode]);
 
-      // 3. TFG (Cockcroft-Gault)
-      // (140 - Age) * Weight / (72 * Creatinine) (* 0.85 if female)
-      const creat = parseFloat(newData['global_creatinine']);
+  // 3. TFG (Cockcroft-Gault) Calculator
+  useEffect(() => {
+      if (viewMode !== 'CREATE' || !selectedPatient) return;
+      const w = parseFloat(dynamicData['global_weight']);
+      const creat = parseFloat(dynamicData['global_creatinine']);
       if (w && creat) {
           const age = new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear();
           let tfg = ((140 - age) * w) / (72 * creat);
           if (selectedPatient.gender === 'F') tfg *= 0.85;
           const tfgStr = tfg.toFixed(1);
-          if (newData['calc_tfg'] !== tfgStr) { newData['calc_tfg'] = tfgStr; changed = true; }
+          if (dynamicData['calc_tfg'] !== tfgStr) {
+              setDynamicData(prev => ({ ...prev, calc_tfg: tfgStr }));
+          }
       }
+  }, [dynamicData.global_weight, dynamicData.global_creatinine, selectedPatient, viewMode]);
 
-      // 4. FRAMINGHAM RISK (Simplified Mock Logic for Demo)
-      // Uses: Age, Gender, Smoker, SBP, Total Chol, HDL
-      const chol = parseFloat(newData['global_chol_total']);
-      const hdl = parseFloat(newData['global_chol_hdl']);
-      const smoker = newData['global_smoker'];
-      
+  // 4. FRAMINGHAM RISK Calculator (Simplified)
+  useEffect(() => {
+      if (viewMode !== 'CREATE' || !selectedPatient) return;
+      const sys = parseFloat(dynamicData['global_sys_bp']);
+      const chol = parseFloat(dynamicData['global_chol_total']);
+      const hdl = parseFloat(dynamicData['global_chol_hdl']);
+      const smoker = dynamicData['global_smoker'];
+
       if (chol && hdl && sys && smoker) {
           const age = new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear();
           // Simplified Scoring (Not clinically accurate, for demo visualization only)
@@ -249,14 +264,13 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           if(chol > 240) points += 2;
           if(hdl < 40) points += 1;
           
-          const risk = points * 1.5; // Mock percentage
+          const risk = points * 1.5;
           const riskStr = risk > 30 ? '>30' : risk.toFixed(1);
-          if (newData['calc_framingham'] !== riskStr) { newData['calc_framingham'] = riskStr; changed = true; }
+          if (dynamicData['calc_framingham'] !== riskStr) {
+              setDynamicData(prev => ({ ...prev, calc_framingham: riskStr }));
+          }
       }
-
-      if (changed) setDynamicData(newData);
-
-  }, [dynamicData, selectedPatient, viewMode]);
+  }, [dynamicData.global_sys_bp, dynamicData.global_chol_total, dynamicData.global_chol_hdl, dynamicData.global_smoker, selectedPatient, viewMode]);
 
   // --- HELPERS FOR HISTORY ---
   // Bolt ⚡: Memoize top medications to prevent re-calculation on every render.
