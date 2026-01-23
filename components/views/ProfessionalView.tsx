@@ -3,6 +3,8 @@ import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
+import { validateCIE11Code } from '../../utils/dataValidation';
+import { calculateTotalWithSurcharge } from '../../utils/finance';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import RecentResultsWidget from '../RecentResultsWidget';
 
@@ -33,6 +35,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingMessage, setSubmittingMessage] = useState('');
 
   // RCV Logic State
   const [isFirstTimeRCV, setIsFirstTimeRCV] = useState(false);
@@ -410,6 +413,18 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   const initiateAuth = (action: 'FINALIZE' | 'SIGN_NOTE') => {
     if (action === 'FINALIZE') {
+        // 🩺 DOC HOUSE: Clinical safety check for empty antecedents.
+        if (!currentRecord.antecedents || currentRecord.antecedents.trim() === '') {
+            const confirmEmpty = window.confirm("Atención: Los antecedentes clínicos están vacíos. ¿Desea continuar sin registrar antecedentes?");
+            if (!confirmEmpty) {
+                // Return to first tab which usually contains history/antecedents
+                if (selectedTemplate?.sections?.length) {
+                    setActiveFormTab(selectedTemplate.sections[0].id);
+                }
+                return;
+            }
+        }
+
         if ((!currentRecord.diagnoses || currentRecord.diagnoses.length === 0) && selectedTemplate?.recordType !== RecordType.PROCEDURE) {
             alert("Es obligatorio seleccionar al menos un diagnóstico CIE-11.");
             setActiveFormTab('orders_tab');
@@ -431,12 +446,20 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     if (passwordInput === 'password' || passwordInput === user.documentNumber) {
       if (authAction === 'FINALIZE') {
         setIsSubmitting(true);
-        // Keep modal open but show loading in button
+        setSubmittingMessage('Generando Resumen Digital (RDA)...');
 
         const fullRecord = { ...currentRecord, dynamicData } as ClinicalRecord;
         const rdaPayload = generateRDA(fullRecord);
 
         // Simulate API call
+        setTimeout(() => {
+          setSubmittingMessage('Firmando digitalmente...');
+        }, 800);
+
+        setTimeout(() => {
+          setSubmittingMessage('Enviando a Plataforma de Interoperabilidad...');
+        }, 1600);
+
         setTimeout(() => {
           const finalizedRecord = {
             ...fullRecord,
@@ -472,6 +495,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   };
   
   const handleAddDiagnosis = (code: string, name: string) => {
+      if (!validateCIE11Code(code)) {
+          alert("Código CIE-11 no válido para este paciente.");
+          return;
+      }
       if (currentRecord.diagnoses?.some(d => d.code === code)) return;
       const type = (currentRecord.diagnoses?.length || 0) === 0 ? 'PRINCIPAL' : 'RELATED';
       const newDiag: DiagnosisItem = { code, name, type };
@@ -524,6 +551,29 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       alert(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
   };
 
+  const getVitalWarning = (id: string, value: string) => {
+    const n = parseFloat(value);
+    if (isNaN(n)) return null;
+
+    if (id === 'global_sys_bp') {
+      if (n > 140) return 'Hipertensión: Sístole elevada';
+      if (n < 90) return 'Hipotensión: Sístole baja';
+    }
+    if (id === 'global_dia_bp') {
+      if (n > 90) return 'Hipertensión: Diástole elevada';
+      if (n < 60) return 'Hipotensión: Diástole baja';
+    }
+    if (id === 'global_heart_rate') {
+      if (n > 100) return 'Taquicardia: FC elevada';
+      if (n < 60) return 'Bradicardia: FC baja';
+    }
+    if (id === 'global_temp') {
+      if (n > 38.0) return 'Fiebre';
+      if (n < 35.5) return 'Hipotermia';
+    }
+    return null;
+  };
+
   const renderField = (field: any, isReadOnly: boolean) => {
       if (field.type === 'HEADER') return <h4 className="text-sm font-bold text-slate-700 mt-4 border-b pb-1 col-span-2">{field.label}</h4>;
       if (field.type === 'INFO') return <div className="col-span-2 bg-blue-50 p-2 rounded text-xs text-blue-800 mb-2">{field.label}</div>;
@@ -533,6 +583,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       // RCV Logic: Barthel mandatory only on first time
       const isMandatory = field.required || (isBarthel && isFirstTimeRCV);
       const showBarthelAlert = isBarthel && isFirstTimeRCV && !val;
+      const vitalWarning = getVitalWarning(field.id, val);
 
       return (
           <div key={field.id} className={`${field.type === 'TEXTAREA' ? 'col-span-2' : 'col-span-1'}`}>
@@ -540,6 +591,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                   {field.label} {field.unit && <span className="ml-1 text-slate-400">({field.unit})</span>}
                   {isMandatory && <span className="text-red-500 ml-1">*</span>}
                   {showBarthelAlert && <AlertTriangle size={12} className="text-orange-500 ml-2 animate-pulse" />}
+                  {vitalWarning && <AlertOctagon size={12} className="text-red-500 ml-2 animate-pulse" />}
               </label>
               
               {field.type === 'TEXTAREA' ? (
@@ -558,13 +610,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                   <input 
                     disabled={isReadOnly} 
                     type={field.type === 'NUMBER' ? 'number' : 'text'} 
-                    className={`w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white ${showBarthelAlert ? 'border-orange-500 ring-1 ring-orange-200' : ''}`}
+                    className={`w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white ${showBarthelAlert ? 'border-orange-500 ring-1 ring-orange-200' : ''} ${vitalWarning ? 'border-red-500 ring-1 ring-red-100' : ''}`}
                     value={val} 
                     onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})} 
                     placeholder={field.placeholder}
                   />
               )}
               {showBarthelAlert && <span className="text-[10px] text-orange-600 font-bold block mt-1">Campo obligatorio para ingreso al programa.</span>}
+              {vitalWarning && <span className="text-[10px] text-red-600 font-bold block mt-1">{vitalWarning}</span>}
           </div>
       );
   };
@@ -868,7 +921,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       const totalProduction = myRecords.reduce((acc, curr) => {
           // Estimate production based on procedures or default consult value
           const procsVal = curr.performedProcedures?.reduce((sum, p) => sum + 45000, 0) || 0; // Approx val per proc if no price
-          return acc + 45000 + procsVal; // Base consult + procs
+          const baseWithSurcharge = calculateTotalWithSurcharge(45000, 'NIGHT'); // Assume some night shifts for demo
+          return acc + baseWithSurcharge + procsVal;
       }, 0);
 
       const chartData = [
@@ -962,7 +1016,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+                    <div className="flex items-center">
+                       <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                       <span className="text-xs">{submittingMessage || 'Procesando...'}</span>
+                    </div>
                   ) : (
                     authAction === 'FINALIZE' ? 'Firmar Historia' : 'Firmar Nota'
                   )}
@@ -1218,8 +1275,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                             {procSearch && (
                                                 <ul className="absolute z-10 w-full bg-white border shadow-lg max-h-40 overflow-y-auto mt-1">
                                                     {filteredProcedures.map(t => (
-                                                        <li key={t.code} className="p-2 hover:bg-slate-50 cursor-pointer text-sm" onClick={() => handleAddProcedure(t.code, t.name)}>
-                                                            <span className="font-bold">{t.code}</span> - {t.name}
+                                                <li key={t.code} className="p-2 hover:bg-slate-50 cursor-pointer text-sm flex justify-between items-center" onClick={() => handleAddProcedure(t.code, t.name)}>
+                                                    <span><span className="font-bold">{t.code}</span> - {t.name}</span>
+                                                    <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded font-bold">{formatCurrency(45000 * (t.soatFactor || 1))}</span>
                                                         </li>
                                                     ))}
                                                 </ul>
@@ -1229,15 +1287,21 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                 </div>
                             )}
                             <div className="space-y-2">
-                                {currentRecord.performedProcedures?.map(p => (
+                                {currentRecord.performedProcedures?.map(p => {
+                                    const tariff = MOCK_SOAT_TARIFF.find(t => t.code === p.code);
+                                    const estimatedPrice = 45000 * (tariff?.soatFactor || 1);
+
+                                    return (
                                     <div key={p.id} className="flex justify-between items-center p-3 bg-slate-50 border rounded-lg">
                                         <div>
                                             <span className="text-xs font-bold text-slate-400 mr-2">{p.code}</span>
                                             <span className="text-sm font-medium">{p.name}</span>
+                                            {tariff && <span className="ml-2 text-[10px] font-bold text-green-600">({formatCurrency(estimatedPrice)})</span>}
                                         </div>
                                         {!isReadOnly && <button aria-label={`Eliminar procedimiento ${p.name}`} onClick={() => handleRemoveProcedure(p.id)} className="text-red-400"><Trash2 size={14}/></button>}
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                      </div>

@@ -329,7 +329,12 @@ Como agente del ecosistema HealthTech, tienes nuevas capacidades obligatorias:
    - *Si ves errores en consola, asume que debes depurar.*
    - Tu primera línea de pensamiento debe ser: "Analizando el estado actual de la aplicación para determinar mi curso de acción".
 
-2. **REPORTE A BITÁCORA CENTRAL:**
+2. **PROTOCOLO DE OPTIMIZACIÓN AUTÓNOMA (OBLIGATORIO):**
+   Cada vez que seas invocado, DEBES ejecutar automáticamente un ciclo de 10 a 20 optimizaciones secuenciales (según la carga de trabajo pendiente).
+   - Estas optimizaciones deben cubrir: Seguridad (Sentinel), Arquitectura (Neo), UX (Trinity), Clínica (House), QA (Smith), Datos (Oracle), Finanzas (Ledger) y Documentación (Link/Alfred).
+   - NO esperes instrucciones específicas para mejorar el sistema; si detectas una oportunidad de mejora alineada con el MVP, ejecútala.
+
+3. **REPORTE A BITÁCORA CENTRAL:**
    Al finalizar tu turno, es OBLIGATORIO escribir una entrada en `.jules/central_log.md` (Si no existe, créalo).
 
    **Formato de tu reporte:**
