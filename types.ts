@@ -198,6 +198,7 @@ export interface Patient {
   phone: string;
   email: string;
   insuranceType: string;
+  allergies?: string;
 }
 
 export interface ClarifyingNote {

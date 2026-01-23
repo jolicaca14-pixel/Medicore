@@ -666,7 +666,8 @@ export const MOCK_PATIENTS: Patient[] = [
     gender: 'M',
     phone: '300-555-0101',
     email: 'juan.perez@ejemplo.com',
-    insuranceType: 'EPS Sura - Contributivo'
+    insuranceType: 'EPS Sura - Contributivo',
+    allergies: 'Penicilina, AINES'
   },
   {
     id: 'p2',
