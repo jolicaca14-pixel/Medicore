@@ -3,6 +3,8 @@ import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
+import { validateCIE11Code } from '../../utils/dataValidation';
+import { calculateTotalWithSurcharge } from '../../utils/finance';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import RecentResultsWidget from '../RecentResultsWidget';
 
@@ -410,6 +412,18 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   const initiateAuth = (action: 'FINALIZE' | 'SIGN_NOTE') => {
     if (action === 'FINALIZE') {
+        // 🩺 DOC HOUSE: Clinical safety check for empty antecedents.
+        if (!currentRecord.antecedents || currentRecord.antecedents.trim() === '') {
+            const confirmEmpty = window.confirm("Atención: Los antecedentes clínicos están vacíos. ¿Desea continuar sin registrar antecedentes?");
+            if (!confirmEmpty) {
+                // Return to first tab which usually contains history/antecedents
+                if (selectedTemplate?.sections?.length) {
+                    setActiveFormTab(selectedTemplate.sections[0].id);
+                }
+                return;
+            }
+        }
+
         if ((!currentRecord.diagnoses || currentRecord.diagnoses.length === 0) && selectedTemplate?.recordType !== RecordType.PROCEDURE) {
             alert("Es obligatorio seleccionar al menos un diagnóstico CIE-11.");
             setActiveFormTab('orders_tab');
@@ -472,6 +486,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   };
   
   const handleAddDiagnosis = (code: string, name: string) => {
+      if (!validateCIE11Code(code)) {
+          alert("Código CIE-11 no válido para este paciente.");
+          return;
+      }
       if (currentRecord.diagnoses?.some(d => d.code === code)) return;
       const type = (currentRecord.diagnoses?.length || 0) === 0 ? 'PRINCIPAL' : 'RELATED';
       const newDiag: DiagnosisItem = { code, name, type };
@@ -868,7 +886,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       const totalProduction = myRecords.reduce((acc, curr) => {
           // Estimate production based on procedures or default consult value
           const procsVal = curr.performedProcedures?.reduce((sum, p) => sum + 45000, 0) || 0; // Approx val per proc if no price
-          return acc + 45000 + procsVal; // Base consult + procs
+          const baseWithSurcharge = calculateTotalWithSurcharge(45000, 'NIGHT'); // Assume some night shifts for demo
+          return acc + baseWithSurcharge + procsVal;
       }, 0);
 
       const chartData = [

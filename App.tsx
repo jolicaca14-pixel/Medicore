@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserRole } from './types';
 import { MOCK_USERS } from './constants';
+import { useAuth } from './hooks/useAuth';
 import { Layout } from './components/Layout';
 import { ProfessionalView } from './components/views/ProfessionalView';
 import { AdminView } from './components/views/AdminView';
@@ -39,8 +40,6 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
     const user = MOCK_USERS.find(u => u.username === username);
     
     // 🛡️ SENTINEL: Using document number as a password for mock data.
-    // This is not secure for production but removes the hardcoded password vulnerability.
-    // TODO: Implement a secure authentication mechanism (e.g., OAuth, password hashing).
     if (user && password === user.documentNumber) {
       onLogin(user);
     } else {
@@ -71,6 +70,7 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
                value={username}
                onChange={(e) => setUsername(e.target.value)}
                placeholder="ej. doc_elena, admin, sarah_sec"
+               aria-required="true"
              />
            </div>
            <div>
@@ -95,7 +95,9 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
              </div>
            </div>
            
-           {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
+           <div aria-live="polite" className="min-h-[20px]">
+             {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
+           </div>
 
            <button 
              type="submit"
@@ -116,6 +118,7 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
                  <button
                    key={demo.u}
                    type="button"
+                   aria-label={`Acceso rápido como ${demo.label}`}
                    onClick={() => { setUsername(demo.u); setPassword(demo.p); }}
                    className="text-[10px] bg-slate-50 hover:bg-slate-100 text-slate-600 py-1.5 rounded border border-slate-200 transition-colors"
                  >
@@ -131,7 +134,7 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
 };
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const { user, login, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
 
   // API Key Check
@@ -155,22 +158,22 @@ const App: React.FC = () => {
   }
 
   if (!user) {
-    return <Login onLogin={setUser} />;
+    return <Login onLogin={login} />;
   }
 
   // If user is Secretary, bypass standard layout logic in some cases or use a specialized one
   if (user.roles.includes(UserRole.SECRETARY)) {
-      return <SecretaryView user={user} onLogout={() => setUser(null)} />
+      return <SecretaryView user={user} onLogout={logout} />
   }
 
   return (
-    <Layout user={user} onLogout={() => setUser(null)} activeTab={activeTab} setActiveTab={setActiveTab}>
-      {user.roles.includes(UserRole.PROFESSIONAL) && <ProfessionalView user={user} onLogout={() => setUser(null)} activeTab={activeTab} />}
+    <Layout user={user} onLogout={logout} activeTab={activeTab} setActiveTab={setActiveTab}>
+      {user.roles.includes(UserRole.PROFESSIONAL) && <ProfessionalView user={user} onLogout={logout} activeTab={activeTab} />}
       
       {/* Pass activeTab and setter to AdminView for navigation control */}
       {user.roles.includes(UserRole.ADMIN) && <AdminView activeTab={activeTab} setActiveTab={setActiveTab} currentUserSession={user} />}
       
-      {(user.roles.includes(UserRole.BACTERIOLOGIST) || user.roles.includes(UserRole.RADIOLOGIST)) && <DiagnosticView user={user} onLogout={() => setUser(null)} />}
+      {(user.roles.includes(UserRole.BACTERIOLOGIST) || user.roles.includes(UserRole.RADIOLOGIST)) && <DiagnosticView user={user} onLogout={logout} />}
     </Layout>
   );
 };
