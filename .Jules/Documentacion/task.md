@@ -1,0 +1,56 @@
+# Lista de Tareas - Sistema de Gestión de Historias Clínicas (HealthTech PWA)
+
+- [x] Diseño de Arquitectura Técnica <!-- id: 0 -->
+    - [x] Definir Stack Tecnológico (PERN) y Estrategia PWA <!-- id: 1 -->
+    - [x] Estrategia de Seguridad (RBAC, JWT, Encriptación) <!-- id: 2 -->
+    - [x] Cumplimiento Normativo (Ley 2015 de 2020, Res. 1995 de 1999) <!-- id: 3 -->
+- [x] Diseño de Arquitectura Técnica <!-- id: 0 -->
+    - [x] Definir Stack Tecnológico (PERN) y Estrategia PWA <!-- id: 1 -->
+    - [x] Estrategia de Seguridad (RBAC, JWT, Encriptación) <!-- id: 2 -->
+    - [x] Cumplimiento Normativo (Ley 2015 de 2020, Res. 1995 de 1999) <!-- id: 3 -->
+- [x] Incorporación de Feedback Fase 1 (RIPS, CUPS, Roles) <!-- id: 17 -->
+    - [x] Actualizar Requisitos: Roles Profesionales Dinámicos y Seguridad Cierre <!-- id: 18 -->
+    - [x] Actualizar Requisitos: Nuevas Plantillas (Psicología, Nutrición, PyP) <!-- id: 19 -->
+    - [x] Actualizar Funcionalidad Secretaria: Laboratorios y CUPS <!-- id: 20 -->
+    - [x] Nuevo Módulo: RIPS Automáticos y Reportes <!-- id: 21 -->
+- [x] Incorporación de Feedback Fase 2 (Email, PDF, Persistencia) <!-- id: 22 -->
+    - [x] Requisitos: Persistencia de Antecedentes y Visión Histórica <!-- id: 23 -->
+    - [x] Requisitos: Automatización Email y Exportación PDF <!-- id: 24 -->
+    - [x] Requisitos: Gestión de Firmas (Imagen Sello) y Plantillas Custom <!-- id: 25 -->
+    - [x] UI/UX: Semántica de Colores (Verde/Rojo) <!-- id: 26 -->
+- [x] Incorporación de Feedback Fase 3 (Labs, Imágenes, Minimalismo) <!-- id: 27 -->
+    - [x] Nuevos Módulos: Laboratorio (Microbiología) e Imagenología (Radiología) <!-- id: 28 -->
+    - [x] DB: Tablas para resultados de exámenes y URLs de imágenes <!-- id: 29 -->
+    - [x] UI: Refinamiento de paleta hacia tonos minimalistas <!-- id: 30 -->
+- [x] Refinamiento Normativo (Res. 412) <!-- id: 31 -->
+    - [x] Requisitos: Ajuste de Plantillas PyP según Guías de Atención Res. 412 <!-- id: 32 -->
+- [x] Refinamiento de Relaciones (Notas Aclaratorias) <!-- id: 33 -->
+    - [x] DB: Permitir nuevas Órdenes/Recetas desde Notas Aclaratorias <!-- id: 34 -->
+- [x] Incorporación de Feedback Final (Agenda Visual, Seguridad Notas, PyP Completo) <!-- id: 35 -->
+    - [x] UI/Funcional: Tablero de Agenda Profesional con códigos de color y acceso directo <!-- id: 36 -->
+    - [x] Seguridad: Exigir contraseña para Notas Aclaratorias <!-- id: 37 -->
+    - [x] Requisitos: Agregar Puerperio y Recién Nacido a PyP <!-- id: 38 -->
+- [x] Módulo Financiero y Facturación <!-- id: 39 -->
+    - [x] Requisitos: Facturación Automática vs Manual y Tarifarios SOAT <!-- id: 40 -->
+    - [x] DB: Tablas de Facturación, Servicios y Configuración de Tarifas <!-- id: 41 -->
+    - [x] Funcional: Envío de Email con Nota Aclaratoria Firmada <!-- id: 42 -->
+- [x] Refinamiento RRHH y Agenda Avanzada <!-- id: 43 -->
+    - [x] Funcional: Reglas de Agenda (Duraciones, No Solapamiento, Turnos) <!-- id: 44 -->
+    - [x] Funcional: Gestión de Contratos (Nómina vs OPS) y Horas Extras (Ley Col) <!-- id: 45 -->
+    - [x] DB: Tablas de Contratos, Turnos y Liquidación de Honorarios <!-- id: 46 -->
+- [x] Refinamiento Final (RCV y Seguridad) <!-- id: 47 -->
+    - [x] Requisitos: Programa RCV (Framingham, TFG, Barthel) <!-- id: 48 -->
+    - [x] Funcional: Abortar finalización si falla auth <!-- id: 49 -->
+- [x] Modelado de Base de Datos <!-- id: 4 -->
+    - [x] Esquema de Usuarios y Roles (RBAC) <!-- id: 5 -->
+    - [x] Esquema de Pacientes y Agenda <!-- id: 6 -->
+    - [x] Esquema de Historia Clínica (Plantillas Dinámicas, Inmutabilidad) <!-- id: 7 -->
+    - [x] Esquema de Prescripción y CIE-11 <!-- id: 8 -->
+- [x] Especificación de Requisitos Funcionales <!-- id: 9 -->
+    - [x] Gestión de Usuarios y Accesos <!-- id: 10 -->
+    - [x] Módulo de Historia Clínica (General y Procedimientos) <!-- id: 11 -->
+    - [x] Módulo de Recetas y Diagnósticos <!-- id: 12 -->
+    - [x] Módulo Administrativo (Agenda, Exportación) <!-- id: 13 -->
+- [x] Guías de Diseño UI/UX <!-- id: 14 -->
+    - [x] Sistema de Diseño Minimalista <!-- id: 15 -->
+    - [x] Optimizaciones para Chrome V8 <!-- id: 16 -->

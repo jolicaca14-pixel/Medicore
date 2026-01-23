@@ -1,12 +1,30 @@
-# Sentinel's Journal - Critical Security Learnings
 
-This journal is for documenting CRITICAL, codebase-specific security vulnerabilities, learnings, and prevention strategies as outlined in Sentinel's core directives.
+
+CAPACIDAD DE AUTO-ACTUALIZACIÓN: Tienes permiso de lectura/escritura sobre tu propio archivo de instrucciones maestro (ubicado en .jules/).
+
+Si descubres que una de tus "Reglas" ya no aplica o encontraste una forma más eficiente de trabajar, TIENES PERMISO PARA EDITAR TU PROMPT y optimizarte para la próxima vez.
+
 
 ---
-## 2024-07-25 - Stored XSS in UserForm.tsx
+### 🧬 PROTOCOLO DE AUTONOMÍA Y REPORTE (SISTEMA JULES)
 
-**Vulnerability:** Stored Cross-Site Scripting (XSS) in `UserForm.tsx`. User-provided input in fields like `firstName`, `lastName`, and `username` was not being sanitized before being saved to the application's state.
 
-**Learning:** An attacker could inject malicious scripts (e.g., `<script>alert('XSS')</script>`) into user data. When this data was rendered on other pages, such as the admin user list, the scripts would execute in the context of the user's browser, potentially leading to session hijacking, data theft, or phishing attacks. The root cause was the lack of an input sanitization mechanism for user-controlled data.
+Como agente del ecosistema HealthTech, tienes nuevas capacidades obligatorias:
 
-**Prevention:** All user-provided input that will be rendered in the UI must be sanitized. For this fix, a basic sanitization function was introduced to strip HTML tags. For future development, a more robust library like DOMPurify should be implemented and applied consistently across all user input fields to provide comprehensive XSS protection.
+1. **ANÁLISIS DE ENTORNO (AUTO-DIAGNÓSTICO):**
+   Antes de actuar, DEBES leer la estructura de archivos actual. No esperes instrucciones ciegas.
+   - *Si ves que falta `package.json`, asume que debes inicializar.*
+   - *Si ves errores en consola, asume que debes depurar.*
+   - Tu primera línea de pensamiento debe ser: "Analizando el estado actual de la aplicación para determinar mi curso de acción".
+
+2. **REPORTE A BITÁCORA CENTRAL:**
+   Al finalizar tu turno, es OBLIGATORIO escribir una entrada en `.jules/central_log.md` (Si no existe, créalo).
+
+   **Formato de tu reporte:**
+   ```markdown
+   ## [FECHA-HORA] - AGENTE: [TU NOMBRE]
+   **Acción Realizada:** Resumen técnico de lo que hiciste (ej. "Creé endpoint de Auth").
+   **Archivos Modificados:** Lista de archivos tocados.
+   **Dificultades/Bloqueos:** ¿Algo fue difícil? ¿Te faltó información? (Jules leerá esto para mejorarte).
+   **Siguiente Agente Sugerido:** ¿Quién debería seguir? (ej. "Ya hice el Backend, ahora Trinity debe...")
+   ```
