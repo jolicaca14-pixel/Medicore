@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
-import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip } from 'lucide-react';
+import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
+import { sanitizeInput } from '../../utils/security';
+import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor } from '../../utils/clinicalLogic';
+import { logAuditEvent } from '../../utils/auditLogger';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import RecentResultsWidget from '../RecentResultsWidget';
 
@@ -36,6 +39,38 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [authError, setAuthError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittingMessage, setSubmittingMessage] = useState('');
+
+  // UX States
+  const [patientSearch, setPatientSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // ⚡ NEO: Debounce search to optimize performance and audit logging
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(patientSearch), 300);
+    return () => clearTimeout(timer);
+  }, [patientSearch]);
+
+  // ⚡ NEO: Auto-save draft to localStorage
+  useEffect(() => {
+    if (viewMode === 'CREATE' && currentRecord.id) {
+        const draft = { currentRecord, dynamicData };
+        localStorage.setItem(`medicore_draft_${currentRecord.id}`, JSON.stringify(draft));
+    }
+  }, [currentRecord, dynamicData, viewMode]);
+
+  const filteredPatients = useMemo(() => {
+      // 🛡️ MORPHEUS: Sanitize input and log search action
+      const cleanSearch = sanitizeInput(debouncedSearch).toLowerCase();
+
+      if (cleanSearch.length > 2) {
+          logAuditEvent(user.id, 'PATIENT_SEARCH', 'PatientList', `Searched for term: ${cleanSearch}`);
+      }
+
+      return patients.filter(p =>
+          p.fullName.toLowerCase().includes(cleanSearch) ||
+          p.identification.toLowerCase().includes(cleanSearch)
+      );
+  }, [patients, debouncedSearch, user.id]);
 
   // RCV Logic State
   const [isFirstTimeRCV, setIsFirstTimeRCV] = useState(false);
@@ -139,6 +174,17 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   };
 
   // PAYMENT REQUEST HELPERS
+  const handleCopyId = (id: string) => {
+      navigator.clipboard.writeText(id);
+      alert(`Identificación ${id} copiada al portapapeles.`);
+  };
+
+  const handleDownloadContract = () => {
+      // 🛡️ MORPHEUS: Audit log for contract download
+      logAuditEvent(user.id, 'DOWNLOAD_CONTRACT', 'Contract', `User downloaded a copy of their contract`);
+      alert('Descargando PDF del contrato...');
+  };
+
   const handleOpenPaymentModal = () => {
       const activeContract = hrUser.contracts?.find(c => c.isActive && c.type === ContractType.OPS);
       if (!activeContract) return alert("Solo disponible para contratos OPS Activos.");
@@ -169,6 +215,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
               { name: 'Informe_Actividades.pdf', type: 'ACTIVITY_REPORT' }
           ]
       };
+
+      // 🛡️ MORPHEUS: Audit log for payment request
+      logAuditEvent(user.id, 'GENERATE_PAYMENT_REQUEST', 'PaymentRequest', `Generated payment request for period ${newPayment.period}`);
 
       setPaymentRequests([request, ...paymentRequests]);
       setShowPaymentModal(false);
@@ -212,7 +261,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     const w = parseFloat(dynamicData['global_weight']);
     const h = parseFloat(dynamicData['global_height']);
     if (w && h) {
-        const bmi = (w / (h * h)).toFixed(2);
+        const bmi = calculateBMI(w, h);
         if (dynamicData['global_bmi'] !== bmi) {
             setDynamicData(prev => ({ ...prev, global_bmi: bmi }));
         }
@@ -413,6 +462,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   const initiateAuth = (action: 'FINALIZE' | 'SIGN_NOTE') => {
     if (action === 'FINALIZE') {
+        // 🩺 DOC HOUSE: Gender-based clinical validation
+        if (selectedPatient.gender === 'M' && (selectedTemplate?.recordType === RecordType.PYP_PREGNANCY || selectedTemplate?.recordType === RecordType.PYP_PUERPERIUM)) {
+            alert("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.");
+            return;
+        }
+
         // 🩺 DOC HOUSE: Clinical safety check for empty antecedents.
         if (!currentRecord.antecedents || currentRecord.antecedents.trim() === '') {
             const confirmEmpty = window.confirm("Atención: Los antecedentes clínicos están vacíos. ¿Desea continuar sin registrar antecedentes?");
@@ -443,13 +498,24 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   const confirmAuth = async () => {
     setAuthError('');
-    if (passwordInput === 'password' || passwordInput === user.documentNumber) {
+
+    // 🛡️ MORPHEUS: Digital signature image verification (mock check)
+    if (authAction === 'FINALIZE' && !user.digitalStampUrl) {
+        setAuthError('Error: No se encontró firma digital configurada para su usuario.');
+        return;
+    }
+
+    // 🛡️ NEO: Security alignment - removed hardcoded 'password'
+    if (passwordInput === user.documentNumber) {
       if (authAction === 'FINALIZE') {
         setIsSubmitting(true);
         setSubmittingMessage('Generando Resumen Digital (RDA)...');
 
         const fullRecord = { ...currentRecord, dynamicData } as ClinicalRecord;
         const rdaPayload = generateRDA(fullRecord);
+
+        // 🛡️ MORPHEUS: Audit log for record finalization
+        logAuditEvent(user.id, 'FINALIZE_RECORD', 'ClinicalRecord', `Finalized record ${currentRecord.id} for patient ${currentRecord.patientId}`);
 
         // Simulate API call
         setTimeout(() => {
@@ -551,29 +617,6 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       alert(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
   };
 
-  const getVitalWarning = (id: string, value: string) => {
-    const n = parseFloat(value);
-    if (isNaN(n)) return null;
-
-    if (id === 'global_sys_bp') {
-      if (n > 140) return 'Hipertensión: Sístole elevada';
-      if (n < 90) return 'Hipotensión: Sístole baja';
-    }
-    if (id === 'global_dia_bp') {
-      if (n > 90) return 'Hipertensión: Diástole elevada';
-      if (n < 60) return 'Hipotensión: Diástole baja';
-    }
-    if (id === 'global_heart_rate') {
-      if (n > 100) return 'Taquicardia: FC elevada';
-      if (n < 60) return 'Bradicardia: FC baja';
-    }
-    if (id === 'global_temp') {
-      if (n > 38.0) return 'Fiebre';
-      if (n < 35.5) return 'Hipotermia';
-    }
-    return null;
-  };
-
   const renderField = (field: any, isReadOnly: boolean) => {
       if (field.type === 'HEADER') return <h4 className="text-sm font-bold text-slate-700 mt-4 border-b pb-1 col-span-2">{field.label}</h4>;
       if (field.type === 'INFO') return <div className="col-span-2 bg-blue-50 p-2 rounded text-xs text-blue-800 mb-2">{field.label}</div>;
@@ -583,7 +626,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       // RCV Logic: Barthel mandatory only on first time
       const isMandatory = field.required || (isBarthel && isFirstTimeRCV);
       const showBarthelAlert = isBarthel && isFirstTimeRCV && !val;
-      const vitalWarning = getVitalWarning(field.id, val);
+
+      const age = selectedPatient ? new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear() : undefined;
+      const vitalWarning = getVitalWarning(field.id, val, age);
 
       return (
           <div key={field.id} className={`${field.type === 'TEXTAREA' ? 'col-span-2' : 'col-span-1'}`}>
@@ -595,7 +640,18 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
               </label>
               
               {field.type === 'TEXTAREA' ? (
-                  <textarea disabled={isReadOnly} className="w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white" rows={2} value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})} />
+                  <div className="relative">
+                      <textarea
+                        disabled={isReadOnly}
+                        className="w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white pr-10"
+                        rows={2}
+                        value={val}
+                        onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}
+                      />
+                      <span className="absolute bottom-2 right-2 text-[10px] text-slate-400">
+                          {val.length}
+                      </span>
+                  </div>
               ) : field.type === 'SELECT' ? (
                   <select disabled={isReadOnly} className="w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white" value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}>
                       <option value="">-</option>
@@ -603,8 +659,21 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                   </select>
               ) : field.type === 'CALCULATED' ? (
                   <div className="relative">
-                      <input disabled className="w-full p-2 border rounded text-sm bg-purple-50 text-purple-800 font-bold border-purple-100" value={val} placeholder="Calculando..."/>
+                      <input
+                        disabled
+                        className={`w-full p-2 border rounded text-sm font-bold border-purple-100 ${
+                            field.id === 'calc_framingham' ? getFraminghamColor(val) :
+                            (field.id === 'calc_tfg' ? classifyCKD(parseFloat(val)).color : 'text-purple-800')
+                        } bg-purple-50`}
+                        value={val}
+                        placeholder="Calculando..."
+                      />
                       <Calculator size={14} className="absolute right-2 top-2.5 text-purple-400"/>
+                      {field.id === 'calc_tfg' && val && (
+                          <span className="text-[9px] block mt-0.5 text-slate-500 italic">
+                              Estadio: {classifyCKD(parseFloat(val)).stage} - {classifyCKD(parseFloat(val)).description}
+                          </span>
+                      )}
                   </div>
               ) : (
                   <input 
@@ -788,7 +857,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                           <p className="font-medium text-sm">{activeContract.endDate || 'Indefinido'}</p>
                                       </div>
                                   </div>
-                                  <button onClick={() => alert('Descargando PDF del contrato...')} className="w-full mt-4 text-xs text-blue-600 font-bold border border-blue-200 rounded py-2 hover:bg-blue-50">
+                                  <button onClick={handleDownloadContract} className="w-full mt-4 text-xs text-blue-600 font-bold border border-blue-200 rounded py-2 hover:bg-blue-50">
                                       Descargar Copia PDF
                                   </button>
                               </div>
@@ -979,6 +1048,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       <div className="flex flex-col h-[calc(100vh-100px)] relative">
          
          {showRDAModal && <RDAViewerModal />}
+
+         {selectedPatient.allergies && (
+             <div className="mb-4 bg-red-600 text-white p-2 rounded-lg flex items-center justify-center animate-pulse shadow-lg">
+                 <AlertOctagon size={20} className="mr-2"/>
+                 <span className="font-bold text-sm">ALERGIAS REPORTADAS: {selectedPatient.allergies}</span>
+             </div>
+         )}
+
          {showAuthModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full">
@@ -1075,14 +1152,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                          <button
                            key={s.id}
                            onClick={() => setActiveFormTab(s.id)}
-                           className={`px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors ${activeFormTab === s.id ? 'border-blue-600 text-blue-700 bg-blue-50/50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                           className={`px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors ${activeFormTab === s.id ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
                          >
                            {s.title}
                          </button>
                      ))}
                      <button
                        onClick={() => setActiveFormTab('orders_tab')}
-                       className={`px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors flex items-center ${activeFormTab === 'orders_tab' ? 'border-purple-600 text-purple-700 bg-purple-50/50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                       className={`px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors flex items-center ${activeFormTab === 'orders_tab' ? 'border-purple-600 text-purple-700 bg-purple-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
                      >
                        <Stethoscope size={16} className="mr-2" />
                        Codificación y Órdenes
@@ -1324,9 +1401,46 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // --- LIST VIEW ---
   return (
     <div className="p-6">
-        <h2 className="text-2xl font-bold text-slate-800 mb-6">Mis Pacientes</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {patients.map(p => {
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+            <h2 className="text-2xl font-bold text-slate-800">Mis Pacientes</h2>
+            <div className="relative w-full md:w-72">
+                <Search size={18} className="absolute left-3 top-[50%] translate-y-[-50%] text-slate-400" />
+                <input
+                    type="text"
+                    placeholder="Buscar por nombre o ID..."
+                    className="w-full pl-10 pr-10 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                    value={patientSearch}
+                    onChange={(e) => setPatientSearch(e.target.value)}
+                />
+                {patientSearch && (
+                    <button
+                        onClick={() => setPatientSearch('')}
+                        className="absolute right-3 top-[50%] translate-y-[-50%] text-slate-400 hover:text-slate-600"
+                        aria-label="Limpiar búsqueda"
+                    >
+                        <X size={16} />
+                    </button>
+                )}
+            </div>
+        </div>
+
+        {filteredPatients.length === 0 ? (
+            <div className="bg-white p-12 rounded-2xl border border-dashed border-slate-300 text-center">
+                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Search size={32} className="text-slate-300" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-700">No se encontraron pacientes</h3>
+                <p className="text-slate-500 mt-1">Intente con otro nombre o número de identificación.</p>
+                <button
+                    onClick={() => setPatientSearch('')}
+                    className="mt-4 text-blue-600 font-bold text-sm hover:underline"
+                >
+                    Ver todos los pacientes
+                </button>
+            </div>
+        ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredPatients.map(p => {
                 // CHECK APPOINTMENT STATUS
                 const today = new Date().toISOString().split('T')[0];
                 const appt = MOCK_APPOINTMENTS.find(a => a.patientId === p.id && a.date === today && a.status === 'WAITING');
@@ -1345,14 +1459,29 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                             <button className="bg-slate-900 text-white px-3 py-1 rounded-full text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Atender</button>
                         </div>
                         <h3 className="font-bold text-slate-800">{p.fullName}</h3>
-                        <p className="text-sm text-slate-500 mb-2">{p.identification}</p>
+                        <div className="flex items-center text-sm text-slate-500 mb-1 group">
+                            <span>{p.identification}</span>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleCopyId(p.identification); }}
+                                className="ml-2 p-1 text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Copiar ID"
+                            >
+                                <Copy size={12} />
+                            </button>
+                        </div>
+                        {p.allergies && (
+                            <div className="flex items-center text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full w-fit mb-2">
+                                <AlertTriangle size={10} className="mr-1"/> ALERGIAS
+                            </div>
+                        )}
                         <div className="flex items-center text-xs text-slate-400">
                             <Activity size={12} className="mr-1"/> Última atención: 10 Oct 2023
                         </div>
                     </div>
                 );
             })}
-        </div>
+            </div>
+        )}
     </div>
   );
 };

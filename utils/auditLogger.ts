@@ -13,6 +13,15 @@ export interface AuditLogEntry {
 }
 
 /**
+/**
+ * Helper to mask sensitive numbers (Identification, etc.)
+ */
+const maskSensitiveData = (text: string): string => {
+  // Regex to find 6+ digit numbers and mask them partially
+  return text.replace(/\b(\d{3})\d+(\d{2})\b/g, '$1*****$2');
+};
+
+/**
  * Records a security-relevant event in the system audit log.
  * In a production environment, this would send data to a secure, tamper-proof backend.
  */
@@ -22,7 +31,7 @@ export const logAuditEvent = (userId: string, action: string, resource: string, 
     userId,
     action,
     resource,
-    details,
+    details: maskSensitiveData(details),
     ipAddress: '127.0.0.1' // Simulated
   };
 
