@@ -28,3 +28,10 @@ Como agente del ecosistema HealthTech, tienes nuevas capacidades obligatorias:
    **Dificultades/Bloqueos:** ¿Algo fue difícil? ¿Te faltó información? (Jules leerá esto para mejorarte).
    **Siguiente Agente Sugerido:** ¿Quién debería seguir? (ej. "Ya hice el Backend, ahora Trinity debe...")
    ```
+
+---
+
+### 🎨 BITÁCORA DE PALETTE (UX & ACCESIBILIDAD)
+
+* **[2026-01-23] Acceso Rápido para Demos:** En aplicaciones de Salud con múltiples roles, es vital facilitar la navegación durante pruebas. Se implementaron botones de auto-completado en el Login.
+* **[2026-01-23] Feedback Contextual en Firmas:** Al solicitar una re-autenticación para firmar, el modal DEBE indicar qué se está firmando (Ej. "Firmar Historia" vs "Firmar Nota") para evitar errores de omisión o confusión.
