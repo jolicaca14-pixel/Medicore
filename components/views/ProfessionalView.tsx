@@ -928,8 +928,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
          {showAuthModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full">
-              <h3 className="text-xl font-bold mb-2 text-slate-800">Confirmar Identidad</h3>
-              <p className="text-sm text-slate-500 mb-6">Por seguridad, ingrese su contraseña o documento para firmar y finalizar el registro.</p>
+              <h3 className="text-xl font-bold mb-2 text-slate-800">
+                {authAction === 'FINALIZE' ? 'Firmar y Finalizar' : 'Firmar Nota Aclaratoria'}
+              </h3>
+              <p className="text-sm text-slate-500 mb-6">
+                {authAction === 'FINALIZE'
+                  ? 'Para finalizar y enviar el RDA al MinSalud, ingrese su contraseña.'
+                  : 'Para registrar su nota aclaratoria en la historia, ingrese su contraseña.'}
+              </p>
 
               <label className="text-xs font-bold text-slate-600">Contraseña</label>
               <input
@@ -958,7 +964,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                   {isSubmitting ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
                   ) : (
-                    'Confirmar'
+                    authAction === 'FINALIZE' ? 'Firmar Historia' : 'Firmar Nota'
                   )}
                 </button>
               </div>

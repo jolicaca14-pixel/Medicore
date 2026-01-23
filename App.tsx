@@ -104,9 +104,25 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
              Inicio de Sesión Seguro
            </button>
            
-           <div className="text-center text-xs text-slate-400 pt-4">
-             'doc_elena' (Médico) | 'psicologa' (Psi)<br/>
-             'admin' (Admin) | 'sarah_sec' (Sec)
+           <div className="pt-4 border-t border-slate-100">
+             <p className="text-center text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">Acceso Rápido (Demo)</p>
+             <div className="grid grid-cols-2 gap-2">
+               {[
+                 { u: 'doc_elena', label: 'Médico', p: '1098765432' },
+                 { u: 'psicologa', label: 'Psicóloga', p: '55667788' },
+                 { u: 'admin', label: 'Admin', p: '80123456' },
+                 { u: 'sarah_sec', label: 'Secr.', p: '1122334455' }
+               ].map(demo => (
+                 <button
+                   key={demo.u}
+                   type="button"
+                   onClick={() => { setUsername(demo.u); setPassword(demo.p); }}
+                   className="text-[10px] bg-slate-50 hover:bg-slate-100 text-slate-600 py-1.5 rounded border border-slate-200 transition-colors"
+                 >
+                   {demo.label}
+                 </button>
+               ))}
+             </div>
            </div>
         </form>
       </div>
