@@ -1,4 +1,4 @@
-import { MOCK_CIE11 } from '../constants';
+import { MOCK_CIE11, MOCK_SOAT_TARIFF } from '../constants';
 
 /**
  * 🔮 The Oracle: Data Validation Utility
@@ -25,4 +25,15 @@ export const validateCIE11Code = (code: string): boolean => {
 export const getCIE11Name = (code: string): string | null => {
   const item = MOCK_CIE11.find(item => item.code === code);
   return item ? item.name : null;
+};
+
+/**
+ * Validates if a given CUPS/SOAT procedure code exists.
+ *
+ * @param code The CUPS/SOAT code.
+ * @returns boolean
+ */
+export const validateCUPSCode = (code: string): boolean => {
+  if (!code) return false;
+  return MOCK_SOAT_TARIFF.some(item => item.code === code);
 };
