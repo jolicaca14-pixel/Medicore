@@ -111,9 +111,13 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
              <div className="grid grid-cols-2 gap-2">
                {[
                  { u: 'doc_elena', label: 'Médico', p: '1098765432' },
-                 { u: 'psicologa', label: 'Psicóloga', p: '55667788' },
+                 { u: 'doc_house', label: 'Doc House', p: '12345678' },
+                 { u: 'pedro_psi', label: 'Psicólogo', p: '87654321' },
+                 { u: 'carla_nutri', label: 'Nutricionista', p: '13572468' },
                  { u: 'admin', label: 'Admin', p: '80123456' },
-                 { u: 'sarah_sec', label: 'Secr.', p: '1122334455' }
+                 { u: 'sandra_sec', label: 'Secr.', p: '24681357' },
+                 { u: 'contador_demo', label: 'Contador', p: '11224455' },
+                 { u: 'gerente_demo', label: 'Gerente', p: '55442211' }
                ].map(demo => (
                  <button
                    key={demo.u}
@@ -171,7 +175,8 @@ const App: React.FC = () => {
       {user.roles.includes(UserRole.PROFESSIONAL) && <ProfessionalView user={user} onLogout={logout} activeTab={activeTab} />}
       
       {/* Pass activeTab and setter to AdminView for navigation control */}
-      {user.roles.includes(UserRole.ADMIN) && <AdminView activeTab={activeTab} setActiveTab={setActiveTab} currentUserSession={user} />}
+      {(user.roles.includes(UserRole.ADMIN) || user.roles.includes(UserRole.ACCOUNTANT) || user.roles.includes(UserRole.MANAGER)) &&
+        <AdminView activeTab={activeTab} setActiveTab={setActiveTab} currentUserSession={user} />}
       
       {(user.roles.includes(UserRole.BACTERIOLOGIST) || user.roles.includes(UserRole.RADIOLOGIST)) && <DiagnosticView user={user} onLogout={logout} />}
     </Layout>
