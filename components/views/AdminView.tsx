@@ -91,6 +91,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   // File Management
   const [fileManagementTab, setFileManagementTab] = useState<'CONTRACTS' | 'PAYMENTS'>('CONTRACTS');
+  const [isFileUploadModalOpen, setIsFileUploadModalOpen] = useState(false);
+  const [newFileName, setNewFileName] = useState('');
 
   // Settings / Templates
   const [settingsTab, setSettingsTab] = useState<'TEMPLATES' | 'SECTIONS' | 'FIELDS'>('TEMPLATES');
@@ -229,8 +231,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
     // --- FILE MANAGEMENT HANDLERS ---
   const handleUploadFile = () => {
-    const fileName = prompt("Ingrese el nombre del archivo (ej. nuevo_contrato.pdf):");
-    if (!fileName) return;
+      setNewFileName('');
+      setIsFileUploadModalOpen(true);
+  };
+
+  const handleConfirmUpload = () => {
+    if (!newFileName) {
+        alert("Por favor, ingrese un nombre de archivo.");
+        return;
+    }
 
     if (fileManagementTab === 'CONTRACTS') {
         setUsers(prevUsers => {
@@ -243,14 +252,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                     startDate: new Date().toISOString().split('T')[0],
                     isActive: true,
                     status: 'ACTIVE',
-                    fileUrl: fileName,
+                    fileUrl: newFileName,
                     auditTrail: [{ date: new Date().toISOString(), action: 'CREATED', changedBy: 'Admin', details: 'Archivo subido' }]
                 };
                 newUsers[0].contracts = [...(newUsers[0].contracts || []), newContract];
             }
             return newUsers;
         });
-        alert(`Contrato "${fileName}" agregado al primer usuario.`);
+        alert(`Contrato "${newFileName}" agregado al primer usuario.`);
     } else { // PAYMENTS
         const newPaymentRequest: PaymentRequest = {
             id: `pr${Date.now()}`,
@@ -262,11 +271,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
             status: 'PAID',
             dateSubmitted: new Date().toISOString(),
             attachments: [],
-            paymentReceiptUrl: fileName,
+            paymentReceiptUrl: newFileName,
         };
         setPaymentRequests(prev => [...prev, newPaymentRequest]);
-        alert(`Soporte de pago "${fileName}" agregado.`);
+        alert(`Soporte de pago "${newFileName}" agregado.`);
     }
+    setIsFileUploadModalOpen(false);
+    setNewFileName('');
   };
 
   const handleDeleteFile = (fileId: string, type: 'CONTRACT' | 'PAYMENT') => {
@@ -555,6 +566,39 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'files' && isAdmin) {
     return (
         <div className="space-y-6">
+            {/* File Upload Modal */}
+            {isFileUploadModalOpen && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                            <UploadCloud className="mr-2 text-blue-600"/> Subir Nuevo Archivo
+                        </h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label htmlFor="file-name-input" className="block text-sm font-bold text-slate-700 mb-1">Nombre del Archivo</label>
+                                <input
+                                    id="file-name-input"
+                                    type="text"
+                                    value={newFileName}
+                                    onChange={(e) => setNewFileName(e.target.value)}
+                                    placeholder="Ej: contrato_firmado.pdf"
+                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center text-center">
+                                <p className="text-sm font-bold text-slate-600">Simulación de Carga</p>
+                                <p className="text-xs text-slate-400">Ingrese un nombre de archivo para simular la carga.</p>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsFileUploadModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                            <button onClick={handleConfirmUpload} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700">
+                                Confirmar Subida
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             <h2 className="text-2xl font-bold text-slate-800">Gestión de Archivos</h2>
             <div className="flex space-x-1 bg-white p-1 rounded-lg border border-slate-200 w-fit">
                 <button onClick={() => setFileManagementTab('CONTRACTS')} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'CONTRACTS' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
@@ -1126,7 +1170,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                               <h3 className="font-bold text-lg text-slate-800">Plantillas de Historia Clínica</h3>
                               <p className="text-sm text-slate-500">Define qué ven los profesionales según su rol.</p>
                           </div>
-                          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-blue-700">
+                           <button
+                                className="bg-slate-400 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center cursor-not-allowed"
+                                disabled
+                            >
                               <Plus size={16} className="mr-2"/> Nueva Plantilla
                           </button>
                       </div>
@@ -1176,7 +1223,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                               <h3 className="font-bold text-lg text-slate-800">Biblioteca de Secciones</h3>
                               <p className="text-sm text-slate-500">Bloques reutilizables de información clínica.</p>
                           </div>
-                          <button className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-slate-800">
+                           <button
+                                className="bg-slate-400 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center cursor-not-allowed"
+                                disabled
+                            >
                               <Plus size={16} className="mr-2"/> Nueva Sección
                           </button>
                       </div>
@@ -1215,7 +1265,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                               <h3 className="font-bold text-lg text-slate-800">Campos Globales y Variables</h3>
                               <p className="text-sm text-slate-500">Definición de tipos de datos, unidades y cálculos automáticos.</p>
                           </div>
-                          <button className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-green-700">
+                           <button
+                                className="bg-slate-400 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center cursor-not-allowed"
+                                disabled
+                            >
                               <Plus size={16} className="mr-2"/> Nuevo Campo
                           </button>
                       </div>
