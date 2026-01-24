@@ -28,16 +28,15 @@ export class AuthService {
             [username]
         );
 
-        if (result.rows.length === 0) {
-            throw new Error('Credenciales inválidas');
-        }
-
         const usuario = result.rows[0];
 
-        // Verificar contraseña con bcrypt
-        const passwordValida = await bcrypt.compare(password, usuario.password_hash);
+        // 🛡️ NEO: Comparación fantasma para mitigar ataques de temporización (Timing Attacks)
+        // Si el usuario no existe, comparamos contra un hash ficticio para mantener el tiempo de respuesta constante.
+        const dummyHash = '$2b$12$K8VfS.Z.M1xG9B1.X1.X1.X1.X1.X1.X1.X1.X1.X1.X1.X1.X1.';
+        const hashToCompare = usuario ? usuario.password_hash : dummyHash;
+        const passwordValida = await bcrypt.compare(password, hashToCompare);
 
-        if (!passwordValida) {
+        if (!usuario || !passwordValida) {
             throw new Error('Credenciales inválidas');
         }
 
