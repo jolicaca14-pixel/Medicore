@@ -435,10 +435,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   // 0. ACCESS CONTROL CHECK
   const hasAccess = isAdmin || isManager ||
-    (isAccountant && (activeTab === 'reports' || activeTab === 'hr' || activeTab === 'dashboard')) ||
-    (isTreasurer && (activeTab === 'hr' || activeTab === 'files' || activeTab === 'dashboard')) ||
-    (isHR && (activeTab === 'hr' || activeTab === 'users' || activeTab === 'dashboard')) ||
-    (isAssistant && (activeTab === 'hr' || activeTab === 'files' || activeTab === 'dashboard'));
+    (isAccountant && (activeTab === 'financial_mgmt' || activeTab === 'hr_mgmt' || activeTab === 'admin_dashboard')) ||
+    (isTreasurer && (activeTab === 'hr_mgmt' || activeTab === 'files_mgmt' || activeTab === 'admin_dashboard')) ||
+    (isHR && (activeTab === 'hr_mgmt' || activeTab === 'users' || activeTab === 'admin_dashboard')) ||
+    (isAssistant && (activeTab === 'hr_mgmt' || activeTab === 'files_mgmt' || activeTab === 'admin_dashboard'));
 
   if (!hasAccess) {
       return (
@@ -451,7 +451,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // 1. DASHBOARD (Dynamic & Actionable)
-  if (activeTab === 'dashboard' && hasAccess) {
+  if (activeTab === 'admin_dashboard' && hasAccess) {
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
@@ -566,7 +566,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // FILE MANAGEMENT MODULE
-  if (activeTab === 'files' && hasAccess) {
+  if (activeTab === 'files_mgmt' && hasAccess) {
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-slate-800">Gestión de Archivos</h2>
@@ -620,7 +620,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
     );
   }
   // HR MODULE
-  if (activeTab === 'hr' && hasAccess) {
+  if (activeTab === 'hr_mgmt' && hasAccess) {
       return (
           <div className="space-y-6">
               {/* MODALS */}
@@ -965,7 +965,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // 4. REPORTS TAB - NEW RIPS GENERATION
-  if (activeTab === 'reports' && hasAccess) {
+  if (activeTab === 'financial_mgmt' && hasAccess) {
       return (
           <div className="space-y-8 animate-in fade-in duration-500">
               <h2 className="text-2xl font-bold text-slate-800 mb-2">Reportes y Analítica</h2>

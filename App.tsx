@@ -171,18 +171,25 @@ const App: React.FC = () => {
       return <SecretaryView user={user} onLogout={logout} />
   }
 
+  const isProfessional = user.roles.some(r => [UserRole.PROFESSIONAL, UserRole.PSYCHOLOGIST, UserRole.NUTRITIONIST].includes(r));
+  const isAdminLike = user.roles.some(r => [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.TREASURER, UserRole.HR_MANAGER, UserRole.CONTRACT_ASSISTANT, UserRole.MANAGER].includes(r));
+  const isDiagnostic = user.roles.some(r => [UserRole.BACTERIOLOGIST, UserRole.RADIOLOGIST].includes(r));
+
+  // Determine priority view to resolve rendering conflicts for multi-role users
+  // If the active tab is specifically an Admin tab, show AdminView. Otherwise, favor Professional/Clinical view.
+  const isAdminTab = ['users', 'settings', 'files_mgmt', 'financial_mgmt', 'hr_mgmt', 'admin_dashboard'].includes(activeTab);
+
   return (
     <Layout user={user} onLogout={logout} activeTab={activeTab} setActiveTab={setActiveTab}>
-      {(user.roles.includes(UserRole.PROFESSIONAL) || user.roles.includes(UserRole.PSYCHOLOGIST) || user.roles.includes(UserRole.NUTRITIONIST)) &&
+      {isProfessional && !isAdminTab && (
         <ProfessionalView user={user} onLogout={logout} activeTab={activeTab} />
-      }
+      )}
       
-      {/* Pass activeTab and setter to AdminView for navigation control */}
-      {(user.roles.includes(UserRole.ADMIN) || user.roles.includes(UserRole.ACCOUNTANT) || user.roles.includes(UserRole.TREASURER) || user.roles.includes(UserRole.HR_MANAGER) || user.roles.includes(UserRole.CONTRACT_ASSISTANT) || user.roles.includes(UserRole.MANAGER)) &&
+      {isAdminLike && isAdminTab && (
         <AdminView activeTab={activeTab} setActiveTab={setActiveTab} currentUserSession={user} />
-      }
+      )}
       
-      {(user.roles.includes(UserRole.BACTERIOLOGIST) || user.roles.includes(UserRole.RADIOLOGIST)) && <DiagnosticView user={user} onLogout={logout} />}
+      {isDiagnostic && !isProfessional && !isAdminLike && <DiagnosticView user={user} onLogout={logout} />}
     </Layout>
   );
 };

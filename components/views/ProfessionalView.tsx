@@ -139,7 +139,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   // Handle Tab Change from Sidebar (e.g. My Production or HR)
   useEffect(() => {
-    if (activeTab === 'reports' || activeTab === 'hr') {
+    if (activeTab === 'my_production' || activeTab === 'my_hr') {
         setViewMode('LIST'); // Reset any patient view
         setSelectedPatient(null);
     }
@@ -719,7 +719,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   );
 
   // --- HR & TALENT MODULE ---
-  if (activeTab === 'hr') {
+  if (activeTab === 'my_hr') {
       const activeContract = hrUser.contracts?.find(c => c.isActive);
       const auditTrail = activeContract?.auditTrail || [];
       const disciplinary = hrUser.disciplinaryHistory || [];
@@ -988,7 +988,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   }
 
   // --- FINANCIAL DASHBOARD COMPONENT ---
-  if (activeTab === 'reports') {
+  if (activeTab === 'my_production') {
       const myRecords = records.filter(r => r.professionalId === user.id && r.status === RecordStatus.FINALIZED);
       const totalProduction = myRecords.reduce((acc, curr) => {
           // Estimate production based on procedures or default consult value
@@ -1402,6 +1402,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   }
 
   // --- LIST VIEW ---
+  if (activeTab !== 'dashboard' && activeTab !== 'appointments' && activeTab !== 'records') {
+    return null;
+  }
+
   return (
     <div className="p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">

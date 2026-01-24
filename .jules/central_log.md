@@ -41,6 +41,7 @@ Conducted 30 simulations across 6 specialized personas (5 iterations each) to ve
 - **BUG-001 [ACCESSIBILITY]:** Missing `id`/`htmlFor` in `ProfessionalView.tsx` dynamic fields. (Fixed)
 - **BUG-002 [ACCESSIBILITY]:** Missing `id`/`htmlFor` in `SecretaryView.tsx` appointment form. (Fixed)
 - **BUG-003 [CONFIG]:** Missing `.env.local` prevented initial load. (Environment setup)
+- **BUG-004 [UI CONFLICT]:** Visual conflict for multi-role users (e.g. Doctor + Admin) due to double view rendering and overlapping Tab IDs. (Fixed via unique IDs and exclusive domain rendering in App.tsx)
 
 ### Signed
 Jules / Palette 🎨
