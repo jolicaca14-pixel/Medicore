@@ -703,7 +703,11 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                   <input 
                     disabled={isReadOnly} 
                     type={field.type === 'NUMBER' ? 'number' : 'text'} 
-                    className={`w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white ${showBarthelAlert ? 'border-orange-500 ring-1 ring-orange-200' : ''} ${vitalWarning ? 'border-red-500 ring-1 ring-red-100' : ''}`}
+                    className={`w-full p-2 border rounded text-sm transition-colors ${
+                        showBarthelAlert ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-200' :
+                        vitalWarning ? 'bg-red-50 border-red-500 ring-1 ring-red-100 text-red-900 font-bold' :
+                        'bg-slate-50 focus:bg-white border-slate-200'
+                    }`}
                     value={val} 
                     onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})} 
                     placeholder={field.placeholder}
