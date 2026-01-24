@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy } from 'lucide-react';
@@ -40,9 +40,33 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittingMessage, setSubmittingMessage] = useState('');
 
+  // AI Suggestion State
+  const [isSuggestingCIE, setIsSuggestingCIE] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<string>('');
+
   // UX States
   const [patientSearch, setPatientSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // ⚡ NEO: Keyboard Shortcuts (Ctrl+S for Save)
+  // Use a Ref to ensure the listener always has access to the latest state without re-adding it constantly
+  const saveRef = useRef(handleSaveDraft);
+  useEffect(() => {
+      saveRef.current = handleSaveDraft;
+  }, [handleSaveDraft]);
+
+  useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+              if (viewMode === 'CREATE') {
+                  e.preventDefault();
+                  saveRef.current();
+              }
+          }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewMode]);
 
   // ⚡ NEO: Debounce search to optimize performance and audit logging
   useEffect(() => {
@@ -1186,7 +1210,33 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                          {/* DIAGNOSIS MODULE */}
                          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                            <h3 className="font-bold text-slate-700 mb-4 flex items-center"><Activity size={18} className="mr-2 text-purple-600"/> Diagnósticos (CIE-11)</h3>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="font-bold text-slate-700 flex items-center"><Activity size={18} className="mr-2 text-purple-600"/> Diagnósticos (CIE-11)</h3>
+                                {!isReadOnly && (
+                                    <button
+                                        onClick={async () => {
+                                            setIsSuggestingCIE(true);
+                                            const textForAI = `${currentRecord.chiefComplaint} ${currentRecord.historyOfPresentIllness} ${dynamicData['d_analisis'] || ''}`;
+                                            const result = await suggestICDCodes(textForAI);
+                                            setAiSuggestions(result);
+                                            setIsSuggestingCIE(false);
+                                        }}
+                                        disabled={isSuggestingCIE}
+                                        className="text-[10px] bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200 font-bold flex items-center transition-all"
+                                    >
+                                        <Bot size={12} className="mr-1"/> {isSuggestingCIE ? 'Analizando...' : 'Sugerir CIE-11 (AI)'}
+                                    </button>
+                                )}
+                            </div>
+
+                            {aiSuggestions && !isReadOnly && (
+                                <div className="mb-4 p-3 bg-purple-50 border border-purple-100 rounded-lg relative">
+                                    <button onClick={() => setAiSuggestions('')} className="absolute top-2 right-2 text-purple-400 hover:text-purple-600"><X size={14}/></button>
+                                    <p className="text-[10px] font-bold text-purple-800 uppercase mb-2">Sugerencias de Doc House (AI):</p>
+                                    <div className="text-xs text-slate-600 whitespace-pre-wrap">{aiSuggestions}</div>
+                                </div>
+                            )}
+
                             {!isReadOnly && (
                                 <div className="relative mb-4">
                                     <input className="w-full p-2 border rounded text-sm" placeholder="Buscar código o nombre CIE-11..." value={diagSearch} onChange={e => setDiagSearch(e.target.value)} />

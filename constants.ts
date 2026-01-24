@@ -144,6 +144,81 @@ export const MOCK_USERS: User[] = [
     digitalStampUrl: 'https://via.placeholder.com/150x80?text=Firma+Sofia',
     contracts: [],
     status: 'ACTIVE'
+  },
+  {
+    id: 'u7',
+    documentNumber: '12345678',
+    name: 'Dr. Gregory House',
+    firstName: 'Gregory',
+    lastName: 'House',
+    username: 'doc_house',
+    roles: [UserRole.PROFESSIONAL],
+    professionalLicense: 'MED-HOUSE-1',
+    specialty: 'Diagnóstico / Nefrología',
+    digitalStampUrl: 'https://via.placeholder.com/150x80?text=Firma+House',
+    contracts: [],
+    status: 'ACTIVE'
+  },
+  {
+    id: 'u8',
+    documentNumber: '87654321',
+    name: 'Lic. Pedro Psi',
+    firstName: 'Pedro',
+    lastName: 'Psicólogo',
+    username: 'pedro_psi',
+    roles: [UserRole.PSYCHOLOGIST, UserRole.PROFESSIONAL],
+    professionalLicense: 'PSI-99881',
+    specialty: 'Psicología Cognitiva',
+    digitalStampUrl: 'https://via.placeholder.com/150x80?text=Firma+Pedro',
+    contracts: [],
+    status: 'ACTIVE'
+  },
+  {
+    id: 'u9',
+    documentNumber: '13572468',
+    name: 'Nutr. Carla Dieta',
+    firstName: 'Carla',
+    lastName: 'Dieta',
+    username: 'carla_nutri',
+    roles: [UserRole.NUTRITIONIST, UserRole.PROFESSIONAL],
+    professionalLicense: 'NUT-44332',
+    specialty: 'Nutrición Clínica',
+    digitalStampUrl: 'https://via.placeholder.com/150x80?text=Firma+Carla',
+    contracts: [],
+    status: 'ACTIVE'
+  },
+  {
+    id: 'u10',
+    documentNumber: '24681357',
+    name: 'Sandra Secretaria',
+    firstName: 'Sandra',
+    lastName: 'Secretaria',
+    username: 'sandra_sec',
+    roles: [UserRole.SECRETARY],
+    contracts: [],
+    status: 'ACTIVE'
+  },
+  {
+    id: 'u11',
+    documentNumber: '11224455',
+    name: 'Contador',
+    firstName: 'Roberto',
+    lastName: 'Contador',
+    username: 'contador_demo',
+    roles: [UserRole.ACCOUNTANT],
+    contracts: [],
+    status: 'ACTIVE'
+  },
+  {
+    id: 'u12',
+    documentNumber: '55442211',
+    name: 'Gerente',
+    firstName: 'Victoria',
+    lastName: 'Gerente',
+    username: 'gerente_demo',
+    roles: [UserRole.MANAGER, UserRole.ADMIN],
+    contracts: [],
+    status: 'ACTIVE'
   }
 ];
 
@@ -502,7 +577,7 @@ export const MOCK_TEMPLATES: RoleTemplate[] = [
       name: 'Historia Nutrición',
       description: 'Valoración antropométrica y dietaria.',
       active: true,
-      allowedRoles: [UserRole.PROFESSIONAL], 
+      allowedRoles: [UserRole.NUTRITIONIST, UserRole.PROFESSIONAL],
       recordType: RecordType.NUTRITION,
       sections: [ MOCK_SECTION_LIBRARY[0], MOCK_SECTION_LIBRARY[10], MOCK_SECTION_LIBRARY[3] ]
   },

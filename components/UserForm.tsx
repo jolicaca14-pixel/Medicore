@@ -9,7 +9,10 @@ const roleLabels: { [key in UserRole]: string } = {
   [UserRole.BACTERIOLOGIST]: 'Bacteriólogo/a',
   [UserRole.RADIOLOGIST]: 'Radiólogo/a',
   [UserRole.SECRETARY]: 'Secretaría',
-  [UserRole.PSYCHOLOGIST]: 'Psicólogo/a'
+  [UserRole.PSYCHOLOGIST]: 'Psicólogo/a',
+  [UserRole.NUTRITIONIST]: 'Nutricionista',
+  [UserRole.ACCOUNTANT]: 'Contador/a',
+  [UserRole.MANAGER]: 'Gerente'
 };
 
 interface UserFormProps {

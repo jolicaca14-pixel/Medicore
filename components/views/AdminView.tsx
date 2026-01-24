@@ -51,7 +51,10 @@ const roleLabels: Record<UserRole, string> = {
     [UserRole.BACTERIOLOGIST]: 'Bacteriólogo (Lab)',
     [UserRole.RADIOLOGIST]: 'Radiólogo (Img)',
     [UserRole.SECRETARY]: 'Secretaria / Admisiones',
-    [UserRole.PSYCHOLOGIST]: 'Psicólogo'
+    [UserRole.PSYCHOLOGIST]: 'Psicólogo',
+    [UserRole.NUTRITIONIST]: 'Nutricionista',
+    [UserRole.ACCOUNTANT]: 'Contador',
+    [UserRole.MANAGER]: 'Gerente'
 };
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
@@ -253,6 +256,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
             id: `pr${Date.now()}`,
             userId: 'u1',
             userName: 'Elena Rodriguez',
+            contractId: 'c1',
             period: '2024-08',
             amount: Math.floor(Math.random() * 1000000) + 2000000,
             status: 'PAID',
@@ -1077,7 +1081,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
             {/* User Form Column */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-slate-800">{currentUser.id ? 'Editando Usuario' : 'Nuevo Usuario'}</h3>
+                    <h3 className="font-bold text-slate-800">
+                        {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
+                    </h3>
                     <button onClick={handleAddNewUser} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center"><Plus size={14} className="mr-1"/> Agregar Nuevo</button>
                  </div>
                  <UserForm
