@@ -82,12 +82,12 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
 
     if (roles.includes(UserRole.BACTERIOLOGIST)) {
        if(!items.some(i => i.id === 'dashboard')) items.push({ id: 'dashboard', label: 'Laboratorio', icon: TestTube });
-       if(!items.some(i => i.id === 'hr')) items.push({ id: 'hr', label: 'Mi Contrato / RRHH', icon: Briefcase });
+       items.push({ id: 'my_hr', label: 'Mi Contrato / RRHH', icon: Briefcase });
     }
 
     if (roles.includes(UserRole.RADIOLOGIST)) {
        if(!items.some(i => i.id === 'dashboard')) items.push({ id: 'dashboard', label: 'Imagenología', icon: Image });
-       if(!items.some(i => i.id === 'hr')) items.push({ id: 'hr', label: 'Mi Contrato / RRHH', icon: Briefcase });
+       items.push({ id: 'my_hr', label: 'Mi Contrato / RRHH', icon: Briefcase });
     }
     
     // Deduplicate by ID

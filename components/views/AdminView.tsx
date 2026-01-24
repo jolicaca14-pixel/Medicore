@@ -69,6 +69,23 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const isAssistant = roles.includes(UserRole.CONTRACT_ASSISTANT);
   const isManager = roles.includes(UserRole.MANAGER);
 
+  // 0. ACCESS CONTROL CHECK
+  const hasAccess = isAdmin || isManager ||
+    (isAccountant && (activeTab === 'financial_mgmt' || activeTab === 'hr_mgmt' || activeTab === 'admin_dashboard')) ||
+    (isTreasurer && (activeTab === 'hr_mgmt' || activeTab === 'files_mgmt' || activeTab === 'admin_dashboard')) ||
+    (isHR && (activeTab === 'hr_mgmt' || activeTab === 'users' || activeTab === 'admin_dashboard')) ||
+    (isAssistant && (activeTab === 'hr_mgmt' || activeTab === 'files_mgmt' || activeTab === 'admin_dashboard'));
+
+  if (!hasAccess) {
+      return (
+          <div className="flex flex-col items-center justify-center h-full text-slate-400">
+              <Ban size={64} className="mb-4 text-red-400"/>
+              <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
+              <p className="text-sm">No tiene permisos suficientes para acceder a este módulo.</p>
+          </div>
+      );
+  }
+
   // --- STATE MANAGEMENT ---
   
   // Users
@@ -434,18 +451,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  const hasAccess = isAdmin || isManager ||
-    (isAccountant && (activeTab === 'financial_mgmt' || activeTab === 'hr_mgmt' || activeTab === 'admin_dashboard')) ||
-    (isTreasurer && (activeTab === 'hr_mgmt' || activeTab === 'files_mgmt' || activeTab === 'admin_dashboard')) ||
-    (isHR && (activeTab === 'hr_mgmt' || activeTab === 'users' || activeTab === 'admin_dashboard')) ||
-    (isAssistant && (activeTab === 'hr_mgmt' || activeTab === 'files_mgmt' || activeTab === 'admin_dashboard'));
-
-  if (!hasAccess) {
+  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr') && !isAdmin) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
               <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
-              <p className="text-sm">No tiene permisos suficientes para acceder a este módulo.</p>
+              <p className="text-sm">Se requieren permisos de ADMINISTRADOR para acceder a este módulo.</p>
           </div>
       );
   }
@@ -1045,8 +1056,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
-  // 2. USERS LIST - Only Admin
-  if (activeTab === 'users' && isAdmin) {
+  // 2. USERS LIST
+  if (activeTab === 'users' && hasAccess) {
       return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full animate-in fade-in duration-500">
             {/* User List Column */}
@@ -1109,8 +1120,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
-  // 3. SETTINGS TAB - Only Admin
-  if (activeTab === 'settings' && isAdmin) {
+  // 3. SETTINGS TAB
+  if (activeTab === 'settings' && hasAccess) {
       return (
           <div className="space-y-6 animate-in fade-in duration-500">
               <div className="flex justify-between items-center mb-4">
