@@ -315,26 +315,26 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                               <div className="space-y-3">
                                   <div className="grid grid-cols-2 gap-3">
                                       <div className="col-span-2">
-                                          <label className="text-xs font-bold text-slate-500">Paciente</label>
-                                          <select disabled={!!newAppt.id} className="w-full border p-2 rounded text-sm disabled:bg-slate-100" value={newAppt.patientId || ''} onChange={e => setNewAppt({...newAppt, patientId: e.target.value})}>
+                                          <label htmlFor="patientSelect" className="text-xs font-bold text-slate-500">Paciente</label>
+                                          <select id="patientSelect" disabled={!!newAppt.id} className="w-full border p-2 rounded text-sm disabled:bg-slate-100" value={newAppt.patientId || ''} onChange={e => setNewAppt({...newAppt, patientId: e.target.value})}>
                                               <option value="">Seleccione...</option>
                                               {patients.map(p => <option key={p.id} value={p.id}>{p.fullName}</option>)}
                                           </select>
                                       </div>
                                       <div className="col-span-2">
-                                          <label className="text-xs font-bold text-slate-500">Profesional</label>
-                                          <select className="w-full border p-2 rounded text-sm" value={newAppt.professionalId || ''} onChange={e => setNewAppt({...newAppt, professionalId: e.target.value})}>
+                                          <label htmlFor="profSelect" className="text-xs font-bold text-slate-500">Profesional</label>
+                                          <select id="profSelect" className="w-full border p-2 rounded text-sm" value={newAppt.professionalId || ''} onChange={e => setNewAppt({...newAppt, professionalId: e.target.value})}>
                                               <option value="">Seleccione Médico/a...</option>
                                               {professionals.map(p => <option key={p.id} value={p.id}>{p.name} - {p.specialty}</option>)}
                                           </select>
                                       </div>
                                       <div>
-                                          <label className="text-xs font-bold text-slate-500">Hora</label>
-                                          <input type="time" className="w-full border p-2 rounded text-sm" value={newAppt.time} onChange={e => setNewAppt({...newAppt, time: e.target.value})} />
+                                          <label htmlFor="apptTime" className="text-xs font-bold text-slate-500">Hora</label>
+                                          <input id="apptTime" type="time" className="w-full border p-2 rounded text-sm" value={newAppt.time} onChange={e => setNewAppt({...newAppt, time: e.target.value})} />
                                       </div>
                                       <div>
-                                          <label className="text-xs font-bold text-slate-500">Motivo</label>
-                                          <input type="text" className="w-full border p-2 rounded text-sm" value={newAppt.reason} onChange={e => setNewAppt({...newAppt, reason: e.target.value})} placeholder="Ej. Control"/>
+                                          <label htmlFor="apptReason" className="text-xs font-bold text-slate-500">Motivo</label>
+                                          <input id="apptReason" type="text" className="w-full border p-2 rounded text-sm" value={newAppt.reason} onChange={e => setNewAppt({...newAppt, reason: e.target.value})} placeholder="Ej. Control"/>
                                       </div>
                                   </div>
 

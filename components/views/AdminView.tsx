@@ -51,11 +51,23 @@ const roleLabels: Record<UserRole, string> = {
     [UserRole.BACTERIOLOGIST]: 'Bacteriólogo (Lab)',
     [UserRole.RADIOLOGIST]: 'Radiólogo (Img)',
     [UserRole.SECRETARY]: 'Secretaria / Admisiones',
-    [UserRole.PSYCHOLOGIST]: 'Psicólogo'
+    [UserRole.PSYCHOLOGIST]: 'Psicólogo',
+    [UserRole.NUTRITIONIST]: 'Nutricionista',
+    [UserRole.ACCOUNTANT]: 'Contador',
+    [UserRole.TREASURER]: 'Tesorero',
+    [UserRole.HR_MANAGER]: 'RRHH',
+    [UserRole.CONTRACT_ASSISTANT]: 'Auxiliar Cont.',
+    [UserRole.MANAGER]: 'Gerente'
 };
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
-  const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
+  const roles = currentUserSession?.roles || [];
+  const isAdmin = roles.includes(UserRole.ADMIN);
+  const isAccountant = roles.includes(UserRole.ACCOUNTANT);
+  const isTreasurer = roles.includes(UserRole.TREASURER);
+  const isHR = roles.includes(UserRole.HR_MANAGER);
+  const isAssistant = roles.includes(UserRole.CONTRACT_ASSISTANT);
+  const isManager = roles.includes(UserRole.MANAGER);
 
   // --- STATE MANAGEMENT ---
   
@@ -422,18 +434,24 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr') && !isAdmin) {
+  const hasAccess = isAdmin || isManager ||
+    (isAccountant && (activeTab === 'reports' || activeTab === 'hr' || activeTab === 'dashboard')) ||
+    (isTreasurer && (activeTab === 'hr' || activeTab === 'files' || activeTab === 'dashboard')) ||
+    (isHR && (activeTab === 'hr' || activeTab === 'users' || activeTab === 'dashboard')) ||
+    (isAssistant && (activeTab === 'hr' || activeTab === 'files' || activeTab === 'dashboard'));
+
+  if (!hasAccess) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
               <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
-              <p className="text-sm">Se requieren permisos de ADMINISTRADOR para acceder a este módulo.</p>
+              <p className="text-sm">No tiene permisos suficientes para acceder a este módulo.</p>
           </div>
       );
   }
 
-  // 1. DASHBOARD (Dynamic & Actionable) - Only for Admins
-  if (activeTab === 'dashboard' && isAdmin) {
+  // 1. DASHBOARD (Dynamic & Actionable)
+  if (activeTab === 'dashboard' && hasAccess) {
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
@@ -547,8 +565,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
-  // FILE MANAGEMENT MODULE - ADMIN VIEW
-  if (activeTab === 'files' && isAdmin) {
+  // FILE MANAGEMENT MODULE
+  if (activeTab === 'files' && hasAccess) {
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-slate-800">Gestión de Archivos</h2>
@@ -601,8 +619,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
         </div>
     );
   }
-  // HR MODULE - ADMIN VIEW
-  if (activeTab === 'hr' && isAdmin) {
+  // HR MODULE
+  if (activeTab === 'hr' && hasAccess) {
       return (
           <div className="space-y-6">
               {/* MODALS */}
@@ -947,7 +965,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // 4. REPORTS TAB - NEW RIPS GENERATION
-  if (activeTab === 'reports' && isAdmin) {
+  if (activeTab === 'reports' && hasAccess) {
       return (
           <div className="space-y-8 animate-in fade-in duration-500">
               <h2 className="text-2xl font-bold text-slate-800 mb-2">Reportes y Analítica</h2>

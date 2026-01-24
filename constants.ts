@@ -144,6 +144,86 @@ export const MOCK_USERS: User[] = [
     digitalStampUrl: 'https://via.placeholder.com/150x80?text=Firma+Sofia',
     contracts: [],
     status: 'ACTIVE'
+  },
+  {
+    id: 'u7',
+    documentNumber: '11224455',
+    name: 'Don Cuentas',
+    firstName: 'Don',
+    lastName: 'Cuentas',
+    username: 'contador_demo',
+    roles: [UserRole.ACCOUNTANT],
+    contracts: [],
+    status: 'ACTIVE'
+  },
+  {
+    id: 'u8',
+    documentNumber: '13572468',
+    name: 'Nutri Audit',
+    firstName: 'Nutri',
+    lastName: 'Audit',
+    username: 'nutri_demo',
+    roles: [UserRole.NUTRITIONIST, UserRole.PROFESSIONAL],
+    contracts: [],
+    status: 'ACTIVE',
+    specialty: 'Nutrición y Dietética'
+  },
+  {
+    id: 'u9',
+    documentNumber: '55442211',
+    name: 'Tesorero Fiel',
+    firstName: 'Tesorero',
+    lastName: 'Fiel',
+    username: 'tesorero_demo',
+    roles: [UserRole.TREASURER],
+    contracts: [],
+    status: 'ACTIVE'
+  },
+  {
+    id: 'u10',
+    documentNumber: '12341234',
+    name: 'Gestor Humano',
+    firstName: 'Gestor',
+    lastName: 'Humano',
+    username: 'hr_demo',
+    roles: [UserRole.HR_MANAGER],
+    contracts: [],
+    status: 'ACTIVE'
+  },
+  {
+    id: 'u11',
+    documentNumber: '43214321',
+    name: 'Aux Contractual',
+    firstName: 'Aux',
+    lastName: 'Contractual',
+    username: 'aux_demo',
+    roles: [UserRole.CONTRACT_ASSISTANT],
+    contracts: [],
+    status: 'ACTIVE'
+  },
+  {
+    id: 'u12',
+    documentNumber: '99998888',
+    name: 'Gerente General',
+    firstName: 'Gerente',
+    lastName: 'General',
+    username: 'gerente_demo',
+    roles: [UserRole.MANAGER],
+    contracts: [],
+    status: 'ACTIVE'
+  },
+  {
+    id: 'u13',
+    documentNumber: '12345678',
+    name: 'Dr. Gregory House',
+    firstName: 'Gregory',
+    lastName: 'House',
+    username: 'doc_house',
+    roles: [UserRole.PROFESSIONAL, UserRole.ADMIN],
+    contracts: [],
+    status: 'ACTIVE',
+    specialty: 'Diagnóstico Clínico',
+    professionalLicense: 'MED-HOUSE-001'
   }
 ];
 

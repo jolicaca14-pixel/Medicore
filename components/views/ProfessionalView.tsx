@@ -632,7 +632,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
       return (
           <div key={field.id} className={`${field.type === 'TEXTAREA' ? 'col-span-2' : 'col-span-1'}`}>
-              <label className="block text-xs font-bold text-slate-500 mb-1 flex items-center">
+              <label htmlFor={field.id} className="block text-xs font-bold text-slate-500 mb-1 flex items-center">
                   {field.label} {field.unit && <span className="ml-1 text-slate-400">({field.unit})</span>}
                   {isMandatory && <span className="text-red-500 ml-1">*</span>}
                   {showBarthelAlert && <AlertTriangle size={12} className="text-orange-500 ml-2 animate-pulse" />}
@@ -642,6 +642,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
               {field.type === 'TEXTAREA' ? (
                   <div className="relative">
                       <textarea
+                        id={field.id}
                         disabled={isReadOnly}
                         className="w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white pr-10"
                         rows={2}
@@ -653,13 +654,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                       </span>
                   </div>
               ) : field.type === 'SELECT' ? (
-                  <select disabled={isReadOnly} className="w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white" value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}>
+                  <select id={field.id} disabled={isReadOnly} className="w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white" value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}>
                       <option value="">-</option>
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'CALCULATED' ? (
                   <div className="relative">
                       <input
+                        id={field.id}
                         disabled
                         className={`w-full p-2 border rounded text-sm font-bold border-purple-100 ${
                             field.id === 'calc_framingham' ? getFraminghamColor(val) :
@@ -677,6 +679,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                   </div>
               ) : (
                   <input 
+                    id={field.id}
                     disabled={isReadOnly} 
                     type={field.type === 'NUMBER' ? 'number' : 'text'} 
                     className={`w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white ${showBarthelAlert ? 'border-orange-500 ring-1 ring-orange-200' : ''} ${vitalWarning ? 'border-red-500 ring-1 ring-red-100' : ''}`}

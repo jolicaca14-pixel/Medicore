@@ -59,7 +59,7 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
       ];
     }
     
-    if (roles.includes(UserRole.PROFESSIONAL) || roles.includes(UserRole.PSYCHOLOGIST)) {
+    if (roles.includes(UserRole.PROFESSIONAL) || roles.includes(UserRole.PSYCHOLOGIST) || roles.includes(UserRole.NUTRITIONIST)) {
        // Avoid duplicates if admin already added dashboard
        if(!items.some(i => i.id === 'dashboard')) items.push({ id: 'dashboard', label: 'Mis Pacientes', icon: Users });
        items.push({ id: 'appointments', label: 'Agenda de Hoy', icon: Calendar });
@@ -67,6 +67,13 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
        // NEW: Allow Professional to see their own reports and HR
        if(!items.some(i => i.id === 'reports')) items.push({ id: 'reports', label: 'Mi Producción', icon: DollarSign });
        if(!items.some(i => i.id === 'hr')) items.push({ id: 'hr', label: 'Mi Contrato / RRHH', icon: Briefcase });
+    }
+
+    if (roles.includes(UserRole.ACCOUNTANT) || roles.includes(UserRole.TREASURER) || roles.includes(UserRole.HR_MANAGER) || roles.includes(UserRole.CONTRACT_ASSISTANT) || roles.includes(UserRole.MANAGER)) {
+       if(!items.some(i => i.id === 'dashboard')) items.push({ id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard });
+       if(roles.includes(UserRole.ACCOUNTANT) || roles.includes(UserRole.MANAGER)) items.push({ id: 'reports', label: 'Gestión Financiera', icon: DollarSign });
+       if(roles.includes(UserRole.HR_MANAGER) || roles.includes(UserRole.CONTRACT_ASSISTANT) || roles.includes(UserRole.MANAGER) || roles.includes(UserRole.TREASURER) || roles.includes(UserRole.ACCOUNTANT)) items.push({ id: 'hr', label: 'Talento Humano', icon: Briefcase });
+       if(roles.includes(UserRole.TREASURER) || roles.includes(UserRole.CONTRACT_ASSISTANT) || roles.includes(UserRole.MANAGER)) items.push({ id: 'files', label: 'Gestión Archivos', icon: Image });
     }
 
     if (roles.includes(UserRole.SECRETARY)) {
@@ -100,6 +107,12 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
             case UserRole.BACTERIOLOGIST: return 'Bact.';
             case UserRole.RADIOLOGIST: return 'Rad.';
             case UserRole.PSYCHOLOGIST: return 'Psi.';
+            case UserRole.NUTRITIONIST: return 'Nutri.';
+            case UserRole.ACCOUNTANT: return 'Contador';
+            case UserRole.TREASURER: return 'Tesorero';
+            case UserRole.HR_MANAGER: return 'RRHH';
+            case UserRole.CONTRACT_ASSISTANT: return 'Aux. Cont.';
+            case UserRole.MANAGER: return 'Gerente';
             default: return r;
         }
       }).join(' / ');
