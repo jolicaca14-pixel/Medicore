@@ -28,7 +28,7 @@ const EyeOffIcon = () => (
 );
 
 // Simple Login Component
-const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
+const Login: React.FC<{ onLogin: (u: string, p: string) => Promise<any>, isLoading: boolean }> = ({ onLogin, isLoading }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -36,17 +36,16 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Verify user from mock
-    const user = MOCK_USERS.find(u => u.username === username);
+    setError('');
     
-    // 🛡️ SENTINEL: Using document number as a password for mock data.
-    if (user && password === user.documentNumber) {
-      onLogin(user);
-    } else {
-      // 🛡️ SENTINEL: Add a delay to make timing attacks for user enumeration harder.
-      // A real system would have a more robust solution (e.g., rate limiting).
-      await delay(500);
-      setError('Credenciales inválidas. Use el número de documento como contraseña.');
+    try {
+      await onLogin(username, password);
+      // 🛡️ SENTINEL: Delay success too to normalize response time (Anti-enumeration)
+      await delay(300);
+    } catch (err: any) {
+      // 🛡️ SENTINEL: Constant delay on failure to mitigate timing attacks
+      await delay(800);
+      setError(err.message || 'Error al iniciar sesión');
     }
   };
 
@@ -101,9 +100,10 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
 
            <button 
              type="submit"
-             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-200 transition-all"
+             disabled={isLoading}
+             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-200 transition-all disabled:opacity-50"
            >
-             Inicio de Sesión Seguro
+             {isLoading ? 'Verificando...' : 'Inicio de Sesión Seguro'}
            </button>
            
            <div className="pt-4 border-t border-slate-100">
@@ -134,7 +134,7 @@ const Login: React.FC<{ onLogin: (u: User) => void }> = ({ onLogin }) => {
 };
 
 const App: React.FC = () => {
-  const { user, login, logout } = useAuth();
+  const { user, isLoading, login, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
 
   // API Key Check
@@ -158,7 +158,7 @@ const App: React.FC = () => {
   }
 
   if (!user) {
-    return <Login onLogin={login} />;
+    return <Login onLogin={login} isLoading={isLoading} />;
   }
 
   // If user is Secretary, bypass standard layout logic in some cases or use a specialized one
