@@ -48,6 +48,21 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [patientSearch, setPatientSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
+  const handleSaveDraft = () => {
+    if (!currentRecord.id) return;
+    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+    setRecords(prev => {
+      const existing = prev.findIndex(r => r.id === currentRecord.id);
+      if (existing >= 0) {
+        const updated = [...prev];
+        updated[existing] = recordToSave;
+        return updated;
+      }
+      return [...prev, recordToSave];
+    });
+    alert("Borrador guardado exitosamente.");
+  };
+
   // ⚡ NEO: Keyboard Shortcuts (Ctrl+S for Save)
   // Use a Ref to ensure the listener always has access to the latest state without re-adding it constantly
   const saveRef = useRef(handleSaveDraft);
@@ -436,21 +451,6 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       }
   };
 
-  const handleSaveDraft = () => {
-    if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
-    setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = recordToSave;
-        return updated;
-      }
-      return [...prev, recordToSave];
-    });
-    alert("Borrador guardado exitosamente.");
-  };
-  
   const generateRDA = (record: ClinicalRecord) => {
       const rda = {
           header: {
@@ -1243,7 +1243,16 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
                             {!isReadOnly && (
                                 <div className="relative mb-4">
-                                    <input className="w-full p-2 border rounded text-sm" placeholder="Buscar código o nombre CIE-11..." value={diagSearch} onChange={e => setDiagSearch(e.target.value)} />
+                                    <input className="w-full p-2 border rounded text-sm pr-10" placeholder="Buscar código o nombre CIE-11..." value={diagSearch} onChange={e => setDiagSearch(e.target.value)} />
+                                    {diagSearch && (
+                                        <button
+                                            onClick={() => setDiagSearch('')}
+                                            className="absolute right-3 top-[50%] translate-y-[-50%] text-slate-400 hover:text-slate-600"
+                                            aria-label="Limpiar búsqueda de diagnóstico"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    )}
                                     {diagSearch && (
                                         <ul className="absolute z-10 w-full bg-white border shadow-lg max-h-40 overflow-y-auto mt-1">
                                             {filteredDiagnoses.map(t => (
@@ -1402,7 +1411,16 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                         </div>
                                     ) : (
                                         <div className="relative">
-                                            <input className="w-full p-2 border rounded text-sm" placeholder="Buscar CUPS..." value={procSearch} onChange={e => setProcSearch(e.target.value)} />
+                                            <input className="w-full p-2 border rounded text-sm pr-10" placeholder="Buscar CUPS..." value={procSearch} onChange={e => setProcSearch(e.target.value)} />
+                                            {procSearch && (
+                                                <button
+                                                    onClick={() => setProcSearch('')}
+                                                    className="absolute right-3 top-[50%] translate-y-[-50%] text-slate-400 hover:text-slate-600"
+                                                    aria-label="Limpiar búsqueda de procedimiento"
+                                                >
+                                                    <X size={16} />
+                                                </button>
+                                            )}
                                             {procSearch && (
                                                 <ul className="absolute z-10 w-full bg-white border shadow-lg max-h-40 overflow-y-auto mt-1">
                                                     {filteredProcedures.map(t => (
