@@ -428,3 +428,63 @@ Asigno a **MORPHEUS** para la auditoría final de los cambios realizados.
 **Cierre**: Ciclo de 5 ejecuciones completado por orden del Joven Amo Van-sama.
 
 ---
+
+## [2026-01-25 10:00] - AGENTE: JULES
+**Acción Realizada**: Inicio de Fase 8 - Protocolo de 5 ejecuciones de optimización.
+**Análisis**:
+- El sistema es estable pero tiene oportunidades de mejora en Micro-UX y seguridad clínica.
+- Se requiere alineación de IDs para validaciones de signos vitales.
+- Se busca eliminar interrupciones innecesarias (alerts) en el flujo clínico.
+
+**Decisión Autónoma**:
+Ejecutar 5 ciclos enfocados en Robustez y Refinamiento.
+
+---
+
+## [2026-01-25 10:05] - AGENTE: PALETTE
+**Acción Realizada**: Mejora de feedback visual en guardado de borradores.
+**Archivos Modificados**: `components/views/ProfessionalView.tsx`
+**Detalles**:
+- Se reemplazó el `alert()` por un estado `isSaved` que cambia el texto del botón a "¡Guardado!" con estilos verdes durante 2 segundos.
+- Esto mejora la fluidez del profesional al no tener que cerrar un popup cada vez que guarda.
+
+---
+
+## [2026-01-25 10:10] - AGENTE: DOC HOUSE
+**Acción Realizada**: Fortalecimiento de Seguridad Clínica y Alineación de IDs.
+**Archivos Modificados**: `utils/clinicalLogic.ts`, `constants.ts`
+**Detalles**:
+- Se agregó soporte para alertas de Saturación de Oxígeno (SpO2) con umbral crítico < 90%.
+- Se alinearon los IDs de campos vitales para que coincidan entre la UI, los constantes y la lógica de validación (soporte para `v_fc` y `v_sat`).
+
+---
+
+## [2026-01-25 10:15] - AGENTE: PALETTE
+**Acción Realizada**: Auditoría de Accesibilidad en Buscadores.
+**Archivos Modificados**: `components/views/ProfessionalView.tsx`
+**Detalles**:
+- Se añadieron asociaciones explícitas `id` / `htmlFor` con labels `sr-only` para los buscadores de Pacientes, CIE-11 y CUPS.
+- Esto garantiza compatibilidad con lectores de pantalla y facilita el testing automatizado.
+
+---
+
+## [2026-01-25 10:20] - AGENTE: PALETTE
+**Acción Realizada**: Implementación de Micro-UX "Clear Search".
+**Archivos Modificados**: `components/views/ProfessionalView.tsx`
+**Detalles**:
+- Se añadieron botones de limpieza (X) a los buscadores de diagnósticos y procedimientos.
+- Mejora la eficiencia del usuario al permitir resetear búsquedas con un solo clic.
+
+---
+
+## [2026-01-25 10:25] - AGENTE: JULES
+**Acción Realizada**: Cierre de Fase 8 y Reporte Final.
+**Análisis**:
+- Se completaron exitosamente los 5 ciclos de optimización.
+- El sistema es ahora más accesible, clínicamente más seguro y tiene una UX más refinada.
+- No se detectaron bloqueos durante la ejecución.
+
+**Resultado**: Fase 8 completada.
+**Siguiente Paso**: Verificación de regresión mediante E2E.
+
+---
