@@ -29,9 +29,13 @@ export const getVitalWarning = (id: string, value: string, age?: number): string
     if (n > 90) return 'Hipertensión: Diástole elevada';
     if (n < 60) return 'Hipotensión: Diástole baja';
   }
-  if (id === 'global_heart_rate') {
+  if (id === 'global_heart_rate' || id === 'v_fc') {
     if (n > 100) return 'Taquicardia: FC elevada';
     if (n < 60) return 'Bradicardia: FC baja';
+  }
+  if (id === 'v_sat' || id === 'global_sat') {
+    if (n < 90) return 'Alerta: Saturación de Oxígeno (SpO2) Crítica (<90%)';
+    if (n < 94) return 'Precaución: Saturación de Oxígeno (SpO2) Baja';
   }
   if (id === 'global_temp') {
     if (n > 38.0) return 'Fiebre';

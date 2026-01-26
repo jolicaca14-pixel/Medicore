@@ -259,6 +259,9 @@ export const MOCK_FIELD_LIBRARY: TemplateField[] = [
     // VISUAL
     { id: 'vis_av_od', label: 'Agudeza Visual O.D.', type: 'TEXT', required: true, isGlobal: true, placeholder: 'Ej. 20/20' },
     { id: 'vis_av_oi', label: 'Agudeza Visual O.I.', type: 'TEXT', required: true, isGlobal: true, placeholder: 'Ej. 20/20' },
+    { id: 'v_fc', label: 'Frec. Cardíaca', type: 'NUMBER', required: true, isGlobal: true, unit: 'lpm' },
+    { id: 'v_fr', label: 'Frec. Respiratoria', type: 'NUMBER', required: true, isGlobal: true, unit: 'rpm' },
+    { id: 'v_sat', label: 'Saturación O2', type: 'NUMBER', required: false, isGlobal: true, unit: '%' },
 ];
 
 // --- GLOBAL SECTION LIBRARY ---
@@ -295,9 +298,9 @@ export const MOCK_SECTION_LIBRARY: TemplateSection[] = [
       MOCK_FIELD_LIBRARY[3], // Sys BP
       MOCK_FIELD_LIBRARY[4], // Dia BP
       { id: 'v_tam', label: 'Tensión Media', type: 'CALCULATED', required: false, formula: '(2 * global_dia_bp + global_sys_bp) / 3', unit: 'mmHg' },
-      { id: 'v_fc', label: 'Frec. Cardíaca', type: 'NUMBER', required: true, unit: 'lpm' },
-      { id: 'v_fr', label: 'Frec. Respiratoria', type: 'NUMBER', required: true, unit: 'rpm' },
-      { id: 'v_sat', label: 'Saturación O2', type: 'NUMBER', required: false, unit: '%' }
+      MOCK_FIELD_LIBRARY[17], // FC
+      MOCK_FIELD_LIBRARY[18], // FR
+      MOCK_FIELD_LIBRARY[19]  // SAT
     ]
   },
   // 3. DX & PLAN
