@@ -44,7 +44,9 @@ export const authService = {
       if (!response.ok) return null;
       return response.json();
     } catch (e) {
-      return null;
+      // Fallback: Trust session storage if backend is unreachable
+      const savedUser = sessionStorage.getItem('medicore_session');
+      return savedUser ? JSON.parse(savedUser) : null;
     }
   },
 

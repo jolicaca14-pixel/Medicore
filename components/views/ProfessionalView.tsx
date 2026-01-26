@@ -1257,11 +1257,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                     <input id="diag-search" className="w-full p-2 border rounded text-sm pr-8" placeholder="Buscar código o nombre CIE-11..." value={diagSearch} onChange={e => setDiagSearch(e.target.value)} />
                                     {diagSearch && (
                                         <button
+                                            type="button"
                                             onClick={() => setDiagSearch('')}
                                             className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
                                             aria-label="Limpiar búsqueda de diagnóstico"
                                         >
-                                            <X size={16} />
+                                            <X size={16} aria-hidden="true" />
                                         </button>
                                     )}
                                     {diagSearch && (
@@ -1426,11 +1427,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                             <input id="proc-search" className="w-full p-2 border rounded text-sm pr-8" placeholder="Buscar CUPS..." value={procSearch} onChange={e => setProcSearch(e.target.value)} />
                                             {procSearch && (
                                                 <button
+                                                    type="button"
                                                     onClick={() => setProcSearch('')}
                                                     className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
                                                     aria-label="Limpiar búsqueda de procedimiento"
                                                 >
-                                                    <X size={16} />
+                                                    <X size={16} aria-hidden="true" />
                                                 </button>
                                             )}
                                             {procSearch && (
@@ -1500,11 +1502,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                 />
                 {patientSearch && (
                     <button
+                        type="button"
                         onClick={() => setPatientSearch('')}
                         className="absolute right-3 top-[50%] translate-y-[-50%] text-slate-400 hover:text-slate-600"
-                        aria-label="Limpiar búsqueda"
+                        aria-label="Limpiar búsqueda de paciente"
                     >
-                        <X size={16} />
+                        <X size={16} aria-hidden="true" />
                     </button>
                 )}
             </div>
