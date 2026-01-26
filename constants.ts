@@ -298,9 +298,9 @@ export const MOCK_SECTION_LIBRARY: TemplateSection[] = [
       MOCK_FIELD_LIBRARY[3], // Sys BP
       MOCK_FIELD_LIBRARY[4], // Dia BP
       { id: 'v_tam', label: 'Tensión Media', type: 'CALCULATED', required: false, formula: '(2 * global_dia_bp + global_sys_bp) / 3', unit: 'mmHg' },
-      MOCK_FIELD_LIBRARY[17], // FC
-      MOCK_FIELD_LIBRARY[18], // FR
-      MOCK_FIELD_LIBRARY[19]  // SAT
+      MOCK_FIELD_LIBRARY[16], // FC
+      MOCK_FIELD_LIBRARY[17], // FR
+      MOCK_FIELD_LIBRARY[18]  // SAT
     ]
   },
   // 3. DX & PLAN
