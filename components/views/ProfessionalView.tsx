@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
+import { patientService } from '../../services/patientService';
+import { clinicalRecordService } from '../../services/clinicalRecordService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
@@ -18,7 +20,7 @@ interface ProfessionalViewProps {
 }
 
 export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, activeTab = 'dashboard' }) => {
-  const [patients] = useState<Patient[]>(MOCK_PATIENTS);
+  const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
   const [records, setRecords] = useState<ClinicalRecord[]>(MOCK_RECORDS);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   
@@ -48,9 +50,21 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [patientSearch, setPatientSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     if (!currentRecord.id) return;
     const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+
+    // ⚡ TRINITY: Persist draft to backend
+    try {
+        const savedRecord = await clinicalRecordService.create(recordToSave);
+        // Update local state with the ID from backend if it changed (e.g. from temp to UUID)
+        if (savedRecord.id !== currentRecord.id) {
+            setCurrentRecord(prev => ({ ...prev, id: savedRecord.id }));
+        }
+    } catch (e) {
+        console.warn("No se pudo persistir en backend, usando local storage");
+    }
+
     setRecords(prev => {
       const existing = prev.findIndex(r => r.id === currentRecord.id);
       if (existing >= 0) {
@@ -147,6 +161,19 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   // Expand State for Result Widget
   const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
+
+  // ⚡ TRINITY: Fetch patients from API with fallback to MOCK
+  useEffect(() => {
+    const fetchPatients = async () => {
+        try {
+            const data = await patientService.getAll();
+            if (data && data.length > 0) setPatients(data);
+        } catch (error) {
+            console.warn("Usando datos locales de pacientes (Servidor no disponible)");
+        }
+    };
+    fetchPatients();
+  }, []);
 
   // Bolt ⚡: Memoize filtered results to prevent re-calculating on every render.
   // This is a crucial optimization for search inputs within large components.
@@ -540,6 +567,13 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
         // 🛡️ MORPHEUS: Audit log for record finalization
         logAuditEvent(user.id, 'FINALIZE_RECORD', 'ClinicalRecord', `Finalized record ${currentRecord.id} for patient ${currentRecord.patientId}`);
+
+        // ⚡ TRINITY: Call real backend to finalize
+        try {
+            await clinicalRecordService.finalize(currentRecord.id!, passwordInput);
+        } catch (e) {
+            console.error("Finalización en backend falló");
+        }
 
         // Simulate API call
         setTimeout(() => {
@@ -1140,7 +1174,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                 <button aria-label="Volver a la lista de pacientes" onClick={() => { setViewMode('LIST'); setSelectedPatient(null); }} className="mr-4 p-2 hover:bg-slate-100 rounded-full"><ChevronRight className="rotate-180" size={20}/></button>
                 <div>
                     <h2 className="text-xl font-bold text-slate-800">{selectedPatient.fullName}</h2>
-                    <p className="text-xs text-slate-500">{selectedPatient.insuranceType} | {new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear()} años</p>
+                    <p className="text-xs text-slate-500">
+                        {selectedPatient.insuranceType} | {new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear()} años
+                        {selectedPatient.bloodType && <span className="ml-2 font-bold text-red-600">| Rh: {selectedPatient.bloodType}</span>}
+                    </p>
                 </div>
             </div>
             {!isReadOnly ? (
