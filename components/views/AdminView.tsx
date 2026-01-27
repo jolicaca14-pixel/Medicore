@@ -93,6 +93,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [fileManagementTab, setFileManagementTab] = useState<'CONTRACTS' | 'PAYMENTS'>('CONTRACTS');
   const [isFileUploadModalOpen, setIsFileUploadModalOpen] = useState(false);
   const [newFileName, setNewFileName] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [fileSearchTerm, setFileSearchTerm] = useState('');
+  const [selectedUserIdForUpload, setSelectedUserIdForUpload] = useState<string | undefined>(MOCK_USERS[0]?.id);
 
   // Settings / Templates
   const [settingsTab, setSettingsTab] = useState<'TEMPLATES' | 'SECTIONS' | 'FIELDS'>('TEMPLATES');
@@ -241,43 +244,63 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
         return;
     }
 
-    if (fileManagementTab === 'CONTRACTS') {
-        setUsers(prevUsers => {
-            const newUsers = [...prevUsers];
-            if (newUsers.length > 0) {
-                const newContract: Contract = {
-                    id: `c${Date.now()}`,
-                    userId: newUsers[0].id,
-                    type: ContractType.OPS,
-                    startDate: new Date().toISOString().split('T')[0],
-                    isActive: true,
-                    status: 'ACTIVE',
-                    fileUrl: newFileName,
-                    auditTrail: [{ date: new Date().toISOString(), action: 'CREATED', changedBy: 'Admin', details: 'Archivo subido' }]
-                };
-                newUsers[0].contracts = [...(newUsers[0].contracts || []), newContract];
+    // Simulate upload progress
+    setUploadProgress(0);
+    const interval = setInterval(() => {
+        setUploadProgress(prev => {
+            if (prev >= 100) {
+                clearInterval(interval);
+
+                // --- ACTUAL LOGIC (RUNS AFTER PROGRESS COMPLETES) ---
+                if (fileManagementTab === 'CONTRACTS') {
+                    setUsers(prevUsers => {
+                        const userIndex = prevUsers.findIndex(u => u.id === selectedUserIdForUpload);
+                        if (userIndex === -1) return prevUsers;
+
+                        const newUsers = [...prevUsers];
+                        const newContract: Contract = {
+                            id: `c${Date.now()}`,
+                            userId: selectedUserIdForUpload!,
+                            type: ContractType.OPS,
+                            startDate: new Date().toISOString().split('T')[0],
+                                isActive: true,
+                                status: 'ACTIVE',
+                                fileUrl: newFileName,
+                                auditTrail: [{ date: new Date().toISOString(), action: 'CREATED', changedBy: 'Admin', details: 'Archivo subido' }]
+                            };
+                        newUsers[userIndex].contracts = [...(newUsers[userIndex].contracts || []), newContract];
+                        return newUsers;
+                    });
+                    alert(`Contrato "${newFileName}" agregado al usuario seleccionado.`);
+                } else { // PAYMENTS
+                    const user = users.find(u => u.id === selectedUserIdForUpload);
+                    if (!user) return;
+
+                    const newPaymentRequest: PaymentRequest = {
+                        id: `pr${Date.now()}`,
+                        userId: user.id,
+                        userName: user.name,
+                        contractId: user.contracts?.[0]?.id || `c-${user.id}`,
+                        period: '2024-08',
+                        amount: Math.floor(Math.random() * 1000000) + 2000000,
+                        status: 'PAID',
+                        dateSubmitted: new Date().toISOString(),
+                        attachments: [],
+                        paymentReceiptUrl: newFileName,
+                    };
+                    setPaymentRequests(prev => [...prev, newPaymentRequest]);
+                    alert(`Soporte de pago "${newFileName}" agregado.`);
+                }
+                // --- END OF LOGIC ---
+
+                setIsFileUploadModalOpen(false);
+                setNewFileName('');
+                setUploadProgress(0);
+                return 100;
             }
-            return newUsers;
+            return prev + 10;
         });
-        alert(`Contrato "${newFileName}" agregado al primer usuario.`);
-    } else { // PAYMENTS
-        const newPaymentRequest: PaymentRequest = {
-            id: `pr${Date.now()}`,
-            userId: 'u1',
-            userName: 'Elena Rodriguez',
-            contractId: 'c1',
-            period: '2024-08',
-            amount: Math.floor(Math.random() * 1000000) + 2000000,
-            status: 'PAID',
-            dateSubmitted: new Date().toISOString(),
-            attachments: [],
-            paymentReceiptUrl: newFileName,
-        };
-        setPaymentRequests(prev => [...prev, newPaymentRequest]);
-        alert(`Soporte de pago "${newFileName}" agregado.`);
-    }
-    setIsFileUploadModalOpen(false);
-    setNewFileName('');
+    }, 100);
   };
 
   const handleDeleteFile = (fileId: string, type: 'CONTRACT' | 'PAYMENT') => {
@@ -575,6 +598,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         </h3>
                         <div className="space-y-4">
                             <div>
+                                <label htmlFor="user-select-input" className="block text-sm font-bold text-slate-700 mb-1">Asociar a Usuario</label>
+                                <select
+                                    id="user-select-input"
+                                    value={selectedUserIdForUpload}
+                                    onChange={(e) => setSelectedUserIdForUpload(e.target.value)}
+                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                                    disabled={uploadProgress > 0}
+                                >
+                                    {users.map(user => (
+                                        <option key={user.id} value={user.id}>{user.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
                                 <label htmlFor="file-name-input" className="block text-sm font-bold text-slate-700 mb-1">Nombre del Archivo</label>
                                 <input
                                     id="file-name-input"
@@ -583,17 +620,27 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                     onChange={(e) => setNewFileName(e.target.value)}
                                     placeholder="Ej: contrato_firmado.pdf"
                                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    disabled={uploadProgress > 0}
                                 />
                             </div>
-                            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center text-center">
-                                <p className="text-sm font-bold text-slate-600">Simulación de Carga</p>
-                                <p className="text-xs text-slate-400">Ingrese un nombre de archivo para simular la carga.</p>
-                            </div>
+                            {uploadProgress > 0 ? (
+                                <div>
+                                    <p className="text-sm font-bold text-slate-600 mb-2">Cargando...</p>
+                                    <div className="w-full bg-slate-200 rounded-full h-2.5">
+                                        <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center text-center">
+                                    <p className="text-sm font-bold text-slate-600">Simulación de Carga</p>
+                                    <p className="text-xs text-slate-400">Ingrese un nombre de archivo para simular la carga.</p>
+                                </div>
+                            )}
                         </div>
                         <div className="flex justify-end gap-2 mt-6">
-                            <button onClick={() => setIsFileUploadModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
-                            <button onClick={handleConfirmUpload} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700">
-                                Confirmar Subida
+                            <button onClick={() => setIsFileUploadModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm" disabled={uploadProgress > 0}>Cancelar</button>
+                            <button onClick={handleConfirmUpload} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700" disabled={uploadProgress > 0}>
+                                {uploadProgress > 0 ? `Cargando... ${uploadProgress}%` : 'Confirmar Subida'}
                             </button>
                         </div>
                     </div>
@@ -611,9 +658,21 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-lg text-slate-800">
-                        {fileManagementTab === 'CONTRACTS' ? 'Archivos de Contratos' : 'Archivos de Soportes de Pago'}
-                    </h3>
+                    <div>
+                        <h3 className="font-bold text-lg text-slate-800">
+                            {fileManagementTab === 'CONTRACTS' ? 'Archivos de Contratos' : 'Archivos de Soportes de Pago'}
+                        </h3>
+                        <div className="relative mt-2">
+                           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                           <input
+                               type="text"
+                               placeholder="Buscar por nombre o usuario..."
+                               value={fileSearchTerm}
+                               onChange={(e) => setFileSearchTerm(e.target.value)}
+                               className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm"
+                           />
+                        </div>
+                    </div>
                     <button onClick={handleUploadFile} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-blue-700">
                         <Upload size={16} className="mr-2"/> Subir Archivo
                     </button>
@@ -631,13 +690,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         {(fileManagementTab === 'CONTRACTS'
                             ? users.flatMap(u => u.contracts?.map(c => ({ ...c, userName: u.name, type: 'CONTRACT' })))
                             : paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl, type: 'PAYMENT' })))
+                            .filter(file =>
+                                (file.fileUrl?.toLowerCase().includes(fileSearchTerm.toLowerCase()) ||
+                                file.userName?.toLowerCase().includes(fileSearchTerm.toLowerCase()))
+                            )
                             .map((file: any) => (
                                 <tr key={file.id}>
                                     <td className="p-3 font-medium text-slate-700">{file.fileUrl || `contrato_${file.id}.pdf`}</td>
                                     <td className="p-3">{file.userName}</td>
                                     <td className="p-3 text-slate-500">{new Date(file.startDate || file.dateSubmitted).toLocaleDateString()}</td>
                                     <td className="p-3 text-right">
-                                        <button onClick={() => alert('Simulando descarga...')} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Download size={14}/></button>
                                         <button onClick={() => handleDeleteFile(file.id, file.type)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button>
                                     </td>
                                 </tr>
@@ -1170,12 +1232,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                               <h3 className="font-bold text-lg text-slate-800">Plantillas de Historia Clínica</h3>
                               <p className="text-sm text-slate-500">Define qué ven los profesionales según su rol.</p>
                           </div>
-                           <button
-                                className="bg-slate-400 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center cursor-not-allowed"
-                                disabled
-                            >
-                              <Plus size={16} className="mr-2"/> Nueva Plantilla
-                          </button>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1223,12 +1279,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                               <h3 className="font-bold text-lg text-slate-800">Biblioteca de Secciones</h3>
                               <p className="text-sm text-slate-500">Bloques reutilizables de información clínica.</p>
                           </div>
-                           <button
-                                className="bg-slate-400 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center cursor-not-allowed"
-                                disabled
-                            >
-                              <Plus size={16} className="mr-2"/> Nueva Sección
-                          </button>
                       </div>
                       <div className="space-y-3">
                           {globalSections.map(sec => (
@@ -1265,12 +1315,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                               <h3 className="font-bold text-lg text-slate-800">Campos Globales y Variables</h3>
                               <p className="text-sm text-slate-500">Definición de tipos de datos, unidades y cálculos automáticos.</p>
                           </div>
-                           <button
-                                className="bg-slate-400 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center cursor-not-allowed"
-                                disabled
-                            >
-                              <Plus size={16} className="mr-2"/> Nuevo Campo
-                          </button>
                       </div>
                       <div className="overflow-x-auto">
                           <table className="w-full text-sm text-left">
