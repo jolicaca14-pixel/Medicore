@@ -37,3 +37,16 @@ export const validateCUPSCode = (code: string): boolean => {
   if (!code) return false;
   return MOCK_SOAT_TARIFF.some(item => item.code === code);
 };
+
+/**
+ * Validates a patient identification number.
+ * Ensures it only contains numbers and has a reasonable length (5-15 characters).
+ *
+ * @param id The identification number string.
+ * @returns boolean
+ */
+export const validateIdentification = (id: string): boolean => {
+  if (!id) return false;
+  const idRegex = /^[0-9]{5,15}$/;
+  return idRegex.test(id);
+};

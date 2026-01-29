@@ -202,6 +202,8 @@ export interface Patient {
   email: string;
   insuranceType: string;
   allergies?: string;
+  bloodType?: string; // e.g., 'A', 'B', 'AB', 'O'
+  rhFactor?: string; // e.g., '+', '-'
 }
 
 export interface ClarifyingNote {

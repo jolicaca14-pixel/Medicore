@@ -24,6 +24,42 @@ CREATE TABLE IF NOT EXISTS sesiones (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Tabla de Pacientes
+CREATE TABLE IF NOT EXISTS pacientes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    identification VARCHAR(20) UNIQUE NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    birth_date DATE NOT NULL,
+    gender VARCHAR(1) CHECK (gender IN ('M', 'F', 'O')),
+    insurance_type VARCHAR(50),
+    allergies TEXT,
+    blood_type VARCHAR(5),
+    rh_factor VARCHAR(1),
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla de Citas (Agenda)
+CREATE TABLE IF NOT EXISTS citas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    professional_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    time TIME NOT NULL,
+    reason TEXT,
+    status VARCHAR(20) DEFAULT 'SCHEDULED' CHECK (status IN ('SCHEDULED', 'WAITING', 'COMPLETED', 'CANCELLED')),
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insertar pacientes de prueba
+INSERT INTO pacientes (identification, full_name, birth_date, gender, insurance_type, allergies, blood_type, rh_factor)
+VALUES
+('10101010', 'Juan Pérez', '1985-05-15', 'M', 'Sura EPS', 'Penicilina', 'O', '+'),
+('20202020', 'Maria Garcia', '1992-08-22', 'F', 'Sanitas', NULL, 'A', '+'),
+('30303030', 'Carlos Ruiz', '1970-01-10', 'M', 'Particular', 'Aspirina', 'B', '-')
+ON CONFLICT (identification) DO NOTHING;
+
 -- Índices para optimizar búsquedas
 CREATE INDEX IF NOT EXISTS idx_usuarios_username ON usuarios(username);
 CREATE INDEX IF NOT EXISTS idx_usuarios_documento ON usuarios(documento);

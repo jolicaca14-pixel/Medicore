@@ -745,7 +745,9 @@ export const MOCK_PATIENTS: Patient[] = [
     phone: '300-555-0101',
     email: 'juan.perez@ejemplo.com',
     insuranceType: 'EPS Sura - Contributivo',
-    allergies: 'Penicilina, AINES'
+    allergies: 'Penicilina, AINES',
+    bloodType: 'O',
+    rhFactor: '+'
   },
   {
     id: 'p2',
@@ -755,7 +757,9 @@ export const MOCK_PATIENTS: Patient[] = [
     gender: 'F',
     phone: '300-555-0102',
     email: 'maria.gonzalez@ejemplo.com',
-    insuranceType: 'Sanitas - Subsidiado'
+    insuranceType: 'Sanitas - Subsidiado',
+    bloodType: 'A',
+    rhFactor: '+'
   }
 ];
 

@@ -3,6 +3,7 @@ import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
+import { patientService } from '../../services/patientService';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
 import { sanitizeInput } from '../../utils/security';
@@ -18,12 +19,32 @@ interface ProfessionalViewProps {
 }
 
 export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, activeTab = 'dashboard' }) => {
-  const [patients] = useState<Patient[]>(MOCK_PATIENTS);
+  const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
+  const [isLoadingPatients, setIsLoadingPatients] = useState(false);
   const [records, setRecords] = useState<ClinicalRecord[]>(MOCK_RECORDS);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   
   // UI Modes
   const [viewMode, setViewMode] = useState<'LIST' | 'CREATE' | 'VIEW'>('LIST');
+
+  // ⚡ TRINITY: Load patients from API
+  useEffect(() => {
+    const loadPatients = async () => {
+        setIsLoadingPatients(true);
+        try {
+            const data = await patientService.getAll();
+            if (data && data.length > 0) {
+                setPatients(data);
+            }
+        } catch (error) {
+            console.error("Failed to load patients from API, using mocks:", error);
+            // Keep MOCK_PATIENTS as fallback
+        } finally {
+            setIsLoadingPatients(false);
+        }
+    };
+    loadPatients();
+  }, []);
   const [showRDAModal, setShowRDAModal] = useState(false);
   const [activeFormTab, setActiveFormTab] = useState<string>(''); 
 
@@ -1145,7 +1166,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                 <button aria-label="Volver a la lista de pacientes" onClick={() => { setViewMode('LIST'); setSelectedPatient(null); }} className="mr-4 p-2 hover:bg-slate-100 rounded-full"><ChevronRight className="rotate-180" size={20}/></button>
                 <div>
                     <h2 className="text-xl font-bold text-slate-800">{selectedPatient.fullName}</h2>
-                    <p className="text-xs text-slate-500">{selectedPatient.insuranceType} | {new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear()} años</p>
+                    <p className="text-xs text-slate-500">
+                        {selectedPatient.insuranceType} | {new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear()} años
+                        {selectedPatient.bloodType && ` | GS: ${selectedPatient.bloodType}${selectedPatient.rhFactor || ''}`}
+                    </p>
                 </div>
             </div>
             {!isReadOnly ? (
@@ -1488,7 +1512,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   return (
     <div className="p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-            <h2 className="text-2xl font-bold text-slate-800">Mis Pacientes</h2>
+            <div className="flex items-center">
+                <h2 className="text-2xl font-bold text-slate-800">Mis Pacientes</h2>
+                {isLoadingPatients && <div className="ml-4 animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-600"></div>}
+            </div>
             <div className="relative w-full md:w-72">
                 <Search size={18} className="absolute left-3 top-[50%] translate-y-[-50%] text-slate-400" />
                 <label htmlFor="patient-search" className="sr-only">Buscar pacientes</label>
