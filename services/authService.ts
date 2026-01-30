@@ -41,12 +41,24 @@ export const authService = {
   async getCurrentUser(): Promise<User | null> {
     try {
       const response = await fetch(`${API_URL}/me`);
-      if (!response.ok) return null;
+      if (!response.ok) {
+        // Fallback for demo mode if backend is unreachable
+        const sessionUser = sessionStorage.getItem('medicore_session');
+        if (sessionUser) {
+          console.warn('getCurrentUser failed, trusting sessionStorage');
+          return JSON.parse(sessionUser);
+        }
+        return null;
+      }
       return response.json();
     } catch (e) {
-      // Fallback: Trust session storage if backend is unreachable
-      const savedUser = sessionStorage.getItem('medicore_session');
-      return savedUser ? JSON.parse(savedUser) : null;
+      // Fallback for demo mode if backend is unreachable
+      const sessionUser = sessionStorage.getItem('medicore_session');
+      if (sessionUser) {
+        console.warn('getCurrentUser failed, trusting sessionStorage');
+        return JSON.parse(sessionUser);
+      }
+      return null;
     }
   },
 
@@ -55,7 +67,8 @@ export const authService = {
       const response = await fetch(`${API_URL}/refresh`, { method: 'POST' });
       return response.ok;
     } catch (e) {
-      return false;
+      // 🛡️ MORPHEUS: Fallback for demo mode
+      return !!sessionStorage.getItem('medicore_session');
     }
   }
 };

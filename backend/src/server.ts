@@ -3,6 +3,8 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import authRoutes from './modulos/auth/routes';
+import patientRoutes from './modulos/pacientes/routes';
+import clinicalRoutes from './modulos/historias-clinicas/routes';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -21,6 +23,8 @@ app.use(cookieParser());
 
 // Rutas
 app.use('/api/auth', authRoutes);
+app.use('/api/pacientes', patientRoutes);
+app.use('/api/historias', clinicalRoutes);
 
 // Ruta de health check
 app.get('/health', (req: Request, res: Response) => {
@@ -39,6 +43,8 @@ app.get('/', (req: Request, res: Response) => {
         endpoints: {
             health: '/health',
             auth: '/api/auth',
+            pacientes: '/api/pacientes',
+            historias: '/api/historias',
         }
     });
 });

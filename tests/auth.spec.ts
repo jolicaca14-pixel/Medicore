@@ -18,7 +18,6 @@ test.describe('MediCore Authentication Flow', () => {
     await page.getByRole('button', { name: 'Inicio de Sesión Seguro' }).click();
 
     // Verify successful navigation to dashboard
-    // Use a more flexible heading check
     await expect(page.getByRole('heading', { name: /Mis Pacientes|Panel Principal/ }).first()).toBeVisible();
 
     // Verify session persistence after reload

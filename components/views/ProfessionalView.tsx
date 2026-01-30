@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
+import { patientService } from '../../services/patientService';
+import { clinicalRecordService } from '../../services/clinicalRecordService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
 import { sanitizeInput } from '../../utils/security';
-import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor } from '../../utils/clinicalLogic';
+import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calculateTFG, calculateFramingham } from '../../utils/clinicalLogic';
 import { logAuditEvent } from '../../utils/auditLogger';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import RecentResultsWidget from '../RecentResultsWidget';
@@ -18,7 +20,7 @@ interface ProfessionalViewProps {
 }
 
 export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, activeTab = 'dashboard' }) => {
-  const [patients] = useState<Patient[]>(MOCK_PATIENTS);
+  const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
   const [records, setRecords] = useState<ClinicalRecord[]>(MOCK_RECORDS);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   
@@ -48,11 +50,54 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [patientSearch, setPatientSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isSaved, setIsSaved] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // ⚡ HANDLERS (Defined early to avoid hoisting issues in hooks)
+  // ⚡ NEO: Memoized calculators to replace useEffect anti-pattern
+  const age = useMemo(() => {
+    if (!selectedPatient) return 0;
+    return new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear();
+  }, [selectedPatient]);
+
+  const bmiValue = useMemo(() => {
+    const w = parseFloat(dynamicData['global_weight']);
+    const h = parseFloat(dynamicData['global_height']);
+    return calculateBMI(w, h);
+  }, [dynamicData.global_weight, dynamicData.global_height]);
+
+  const tamValue = useMemo(() => {
+    const sys = parseFloat(dynamicData['global_sys_bp']);
+    const dia = parseFloat(dynamicData['global_dia_bp']);
+    return (sys && dia) ? Math.round((2 * dia + sys) / 3).toString() : '';
+  }, [dynamicData.global_sys_bp, dynamicData.global_dia_bp]);
+
+  const tfgValue = useMemo(() => {
+    const w = parseFloat(dynamicData['global_weight']);
+    const creat = parseFloat(dynamicData['global_creatinine']);
+    if (!w || !creat || !selectedPatient) return '';
+    return calculateTFG(age, w, creat, selectedPatient.gender as 'M' | 'F').toFixed(1);
+  }, [age, dynamicData.global_weight, dynamicData.global_creatinine, selectedPatient]);
+
+  const framinghamValue = useMemo(() => {
+    const sys = parseFloat(dynamicData['global_sys_bp']);
+    const chol = parseFloat(dynamicData['global_chol_total']);
+    const hdl = parseFloat(dynamicData['global_chol_hdl']);
+    const smoker = dynamicData['global_smoker'] === 'SI';
+    if (!sys || !chol || !hdl || !selectedPatient) return '';
+    const risk = calculateFramingham(age, selectedPatient.gender as 'M' | 'F', sys, chol, hdl, smoker);
+    return risk > 30 ? '>30' : risk.toFixed(1);
+  }, [age, dynamicData.global_sys_bp, dynamicData.global_chol_total, dynamicData.global_chol_hdl, dynamicData.global_smoker, selectedPatient]);
+
+  const allCalculatedValues = useMemo(() => ({
+      global_bmi: bmiValue,
+      v_tam: tamValue,
+      calc_tfg: tfgValue,
+      calc_framingham: framinghamValue
+  }), [bmiValue, tamValue, tfgValue, framinghamValue]);
+
   const handleSaveDraft = () => {
     if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
     setRecords(prev => {
       const existing = prev.findIndex(r => r.id === currentRecord.id);
       if (existing >= 0) {
@@ -66,6 +111,33 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     // 🎨 Palette: Non-blocking feedback for draft saving
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
+  };
+
+  const handleSaveDraft = async () => {
+    if (!currentRecord.id) return;
+    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+
+    // ⚡ TRINITY: Persist draft to backend
+    try {
+        const savedRecord = await clinicalRecordService.create(recordToSave);
+        // Update local state with the ID from backend if it changed (e.g. from temp to UUID)
+        if (savedRecord.id !== currentRecord.id) {
+            setCurrentRecord(prev => ({ ...prev, id: savedRecord.id }));
+        }
+    } catch (e) {
+        console.warn("No se pudo persistir en backend, usando local storage");
+    }
+
+    setRecords(prev => {
+      const existing = prev.findIndex(r => r.id === currentRecord.id);
+      if (existing >= 0) {
+        const updated = [...prev];
+        updated[existing] = recordToSave;
+        return updated;
+      }
+      return [...prev, recordToSave];
+    });
+    alert("Borrador guardado exitosamente.");
   };
 
   // ⚡ NEO: Keyboard Shortcuts (Ctrl+S for Save)
@@ -153,6 +225,19 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // Expand State for Result Widget
   const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
 
+  // ⚡ TRINITY: Fetch patients from API with fallback to MOCK
+  useEffect(() => {
+    const fetchPatients = async () => {
+        try {
+            const data = await patientService.getAll();
+            if (data && data.length > 0) setPatients(data);
+        } catch (error) {
+            console.warn("Usando datos locales de pacientes (Servidor no disponible)");
+        }
+    };
+    fetchPatients();
+  }, []);
+
   // Bolt ⚡: Memoize filtered results to prevent re-calculating on every render.
   // This is a crucial optimization for search inputs within large components.
   // The filter operation runs only when the search term changes, not on every keystroke that causes a re-render.
@@ -220,7 +305,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // PAYMENT REQUEST HELPERS
   const handleCopyId = (id: string) => {
       navigator.clipboard.writeText(id);
-      alert(`Identificación ${id} copiada al portapapeles.`);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
   };
 
   const handleDownloadContract = () => {
@@ -294,79 +380,6 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       alert("Cuenta de cobro generada y notificada a Administración.");
   };
 
-  // --- AUTOMATIC CALCULATORS (TFG, FRAMINGHAM, BMI, TAM) ---
-  // Bolt ⚡: Split monolithic useEffect into four targeted hooks.
-  // This prevents all calculators from re-running on every single data change.
-  // Each calculator now only runs when its specific dependencies change, improving form responsiveness.
-
-  // 1. BMI (IMC) Calculator
-  useEffect(() => {
-    if (viewMode !== 'CREATE' || !selectedPatient) return;
-    const w = parseFloat(dynamicData['global_weight']);
-    const h = parseFloat(dynamicData['global_height']);
-    if (w && h) {
-        const bmi = calculateBMI(w, h);
-        if (dynamicData['global_bmi'] !== bmi) {
-            setDynamicData(prev => ({ ...prev, global_bmi: bmi }));
-        }
-    }
-  }, [dynamicData.global_weight, dynamicData.global_height, selectedPatient, viewMode]);
-
-  // 2. TAM (Mean Arterial Pressure) Calculator
-  useEffect(() => {
-      if (viewMode !== 'CREATE' || !selectedPatient) return;
-      const sys = parseFloat(dynamicData['global_sys_bp']);
-      const dia = parseFloat(dynamicData['global_dia_bp']);
-      if (sys && dia) {
-          const tam = Math.round((2 * dia + sys) / 3).toString();
-          if (dynamicData['v_tam'] !== tam) {
-              setDynamicData(prev => ({ ...prev, v_tam: tam }));
-          }
-      }
-  }, [dynamicData.global_sys_bp, dynamicData.global_dia_bp, selectedPatient, viewMode]);
-
-  // 3. TFG (Cockcroft-Gault) Calculator
-  useEffect(() => {
-      if (viewMode !== 'CREATE' || !selectedPatient) return;
-      const w = parseFloat(dynamicData['global_weight']);
-      const creat = parseFloat(dynamicData['global_creatinine']);
-      if (w && creat) {
-          const age = new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear();
-          let tfg = ((140 - age) * w) / (72 * creat);
-          if (selectedPatient.gender === 'F') tfg *= 0.85;
-          const tfgStr = tfg.toFixed(1);
-          if (dynamicData['calc_tfg'] !== tfgStr) {
-              setDynamicData(prev => ({ ...prev, calc_tfg: tfgStr }));
-          }
-      }
-  }, [dynamicData.global_weight, dynamicData.global_creatinine, selectedPatient, viewMode]);
-
-  // 4. FRAMINGHAM RISK Calculator (Simplified)
-  useEffect(() => {
-      if (viewMode !== 'CREATE' || !selectedPatient) return;
-      const sys = parseFloat(dynamicData['global_sys_bp']);
-      const chol = parseFloat(dynamicData['global_chol_total']);
-      const hdl = parseFloat(dynamicData['global_chol_hdl']);
-      const smoker = dynamicData['global_smoker'];
-
-      if (chol && hdl && sys && smoker) {
-          const age = new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear();
-          // Simplified Scoring (Not clinically accurate, for demo visualization only)
-          let points = 0;
-          if(age > 40) points += 2; if(age > 60) points += 3;
-          if(selectedPatient.gender === 'M') points += 1;
-          if(smoker === 'SI') points += 2;
-          if(sys > 140) points += 2;
-          if(chol > 240) points += 2;
-          if(hdl < 40) points += 1;
-          
-          const risk = points * 1.5;
-          const riskStr = risk > 30 ? '>30' : risk.toFixed(1);
-          if (dynamicData['calc_framingham'] !== riskStr) {
-              setDynamicData(prev => ({ ...prev, calc_framingham: riskStr }));
-          }
-      }
-  }, [dynamicData.global_sys_bp, dynamicData.global_chol_total, dynamicData.global_chol_hdl, dynamicData.global_smoker, selectedPatient, viewMode]);
 
   // --- HELPERS FOR HISTORY ---
   // Bolt ⚡: Memoize top medications to prevent re-calculation on every render.
@@ -455,7 +468,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           setDynamicData({}); 
       }
   };
-  
+
   const generateRDA = (record: ClinicalRecord) => {
       const rda = {
           header: {
@@ -540,11 +553,18 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         setIsSubmitting(true);
         setSubmittingMessage('Generando Resumen Digital (RDA)...');
 
-        const fullRecord = { ...currentRecord, dynamicData } as ClinicalRecord;
+        const fullRecord = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
         const rdaPayload = generateRDA(fullRecord);
 
         // 🛡️ MORPHEUS: Audit log for record finalization
         logAuditEvent(user.id, 'FINALIZE_RECORD', 'ClinicalRecord', `Finalized record ${currentRecord.id} for patient ${currentRecord.patientId}`);
+
+        // ⚡ TRINITY: Call real backend to finalize
+        try {
+            await clinicalRecordService.finalize(currentRecord.id!, passwordInput);
+        } catch (e) {
+            console.error("Finalización en backend falló");
+        }
 
         // Simulate API call
         setTimeout(() => {
@@ -650,7 +670,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       if (field.type === 'HEADER') return <h4 className="text-sm font-bold text-slate-700 mt-4 border-b pb-1 col-span-2">{field.label}</h4>;
       if (field.type === 'INFO') return <div className="col-span-2 bg-blue-50 p-2 rounded text-xs text-blue-800 mb-2">{field.label}</div>;
 
-      const val = dynamicData[field.id] || '';
+      const val = field.type === 'CALCULATED' ? (allCalculatedValues[field.id as keyof typeof allCalculatedValues] || '') : (dynamicData[field.id] || '');
       const isBarthel = field.id === 'global_barthel';
       // RCV Logic: Barthel mandatory only on first time
       const isMandatory = field.required || (isBarthel && isFirstTimeRCV);
@@ -661,7 +681,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
       return (
           <div key={field.id} className={`${field.type === 'TEXTAREA' ? 'col-span-2' : 'col-span-1'}`}>
-              <label className="block text-xs font-bold text-slate-500 mb-1 flex items-center">
+              <label htmlFor={field.id} className="block text-xs font-bold text-slate-500 mb-1 flex items-center">
                   {field.label} {field.unit && <span className="ml-1 text-slate-400">({field.unit})</span>}
                   {isMandatory && <span className="text-red-500 ml-1">*</span>}
                   {showBarthelAlert && <AlertTriangle size={12} className="text-orange-500 ml-2 animate-pulse" />}
@@ -671,6 +691,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
               {field.type === 'TEXTAREA' ? (
                   <div className="relative">
                       <textarea
+                        id={field.id}
                         disabled={isReadOnly}
                         className="w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white pr-10"
                         rows={2}
@@ -682,13 +703,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                       </span>
                   </div>
               ) : field.type === 'SELECT' ? (
-                  <select disabled={isReadOnly} className="w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white" value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}>
+                  <select id={field.id} disabled={isReadOnly} className="w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white" value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}>
                       <option value="">-</option>
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'CALCULATED' ? (
                   <div className="relative">
                       <input
+                        id={field.id}
                         disabled
                         className={`w-full p-2 border rounded text-sm font-bold border-purple-100 ${
                             field.id === 'calc_framingham' ? getFraminghamColor(val) :
@@ -706,6 +728,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                   </div>
               ) : (
                   <input 
+                    id={field.id}
                     disabled={isReadOnly} 
                     type={field.type === 'NUMBER' ? 'number' : 'text'} 
                     className={`w-full p-2 border rounded text-sm transition-colors ${
@@ -1145,7 +1168,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                 <button aria-label="Volver a la lista de pacientes" onClick={() => { setViewMode('LIST'); setSelectedPatient(null); }} className="mr-4 p-2 hover:bg-slate-100 rounded-full"><ChevronRight className="rotate-180" size={20}/></button>
                 <div>
                     <h2 className="text-xl font-bold text-slate-800">{selectedPatient.fullName}</h2>
-                    <p className="text-xs text-slate-500">{selectedPatient.insuranceType} | {new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear()} años</p>
+                    <p className="text-xs text-slate-500">
+                        {selectedPatient.insuranceType} | {new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear()} años
+                        {selectedPatient.bloodType && <span className="ml-2 font-bold text-red-600">| Rh: {selectedPatient.bloodType}</span>}
+                    </p>
                 </div>
             </div>
             {!isReadOnly ? (
@@ -1253,16 +1279,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
                             {!isReadOnly && (
                                 <div className="relative mb-4">
-                                    <label htmlFor="diag-search" className="sr-only">Buscar Diagnóstico CIE-11</label>
-                                    <input id="diag-search" className="w-full p-2 border rounded text-sm pr-8" placeholder="Buscar código o nombre CIE-11..." value={diagSearch} onChange={e => setDiagSearch(e.target.value)} />
+                                    <input className="w-full p-2 border rounded text-sm pr-10" placeholder="Buscar código o nombre CIE-11..." value={diagSearch} onChange={e => setDiagSearch(e.target.value)} />
                                     {diagSearch && (
                                         <button
-                                            type="button"
                                             onClick={() => setDiagSearch('')}
-                                            className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+                                            className="absolute right-3 top-[50%] translate-y-[-50%] text-slate-400 hover:text-slate-600"
                                             aria-label="Limpiar búsqueda de diagnóstico"
                                         >
-                                            <X size={16} aria-hidden="true" />
+                                            <X size={16} />
                                         </button>
                                     )}
                                     {diagSearch && (
@@ -1424,15 +1448,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                         </div>
                                     ) : (
                                         <div className="relative">
-                                            <input id="proc-search" className="w-full p-2 border rounded text-sm pr-8" placeholder="Buscar CUPS..." value={procSearch} onChange={e => setProcSearch(e.target.value)} />
+                                            <input className="w-full p-2 border rounded text-sm pr-10" placeholder="Buscar CUPS..." value={procSearch} onChange={e => setProcSearch(e.target.value)} />
                                             {procSearch && (
                                                 <button
-                                                    type="button"
                                                     onClick={() => setProcSearch('')}
-                                                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+                                                    className="absolute right-3 top-[50%] translate-y-[-50%] text-slate-400 hover:text-slate-600"
                                                     aria-label="Limpiar búsqueda de procedimiento"
                                                 >
-                                                    <X size={16} aria-hidden="true" />
+                                                    <X size={16} />
                                                 </button>
                                             )}
                                             {procSearch && (
@@ -1552,11 +1575,13 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                             <span>{p.identification}</span>
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleCopyId(p.identification); }}
-                                className="ml-2 p-1 text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                title="Copiar ID"
+                                className={`ml-2 p-1 transition-all ${copiedId === p.identification ? 'text-green-500 scale-110' : 'text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100'}`}
+                                aria-label="Copiar ID"
+                                title={copiedId === p.identification ? "¡Copiado!" : "Copiar ID"}
                             >
-                                <Copy size={12} />
+                                {copiedId === p.identification ? <FileCheck size={12} /> : <Copy size={12} />}
                             </button>
+                            {copiedId === p.identification && <span className="text-[10px] text-green-600 font-bold animate-in fade-in zoom-in duration-200">¡Copiado!</span>}
                         </div>
                         {p.allergies && (
                             <div className="flex items-center text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full w-fit mb-2">

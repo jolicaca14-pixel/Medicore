@@ -31,3 +31,12 @@ export const calculateSurcharge = (baseAmount: number, type: keyof typeof SURCHA
 export const calculateTotalWithSurcharge = (baseAmount: number, type: keyof typeof SURCHARGE_RATES): number => {
   return baseAmount + calculateSurcharge(baseAmount, type);
 };
+
+/**
+ * Calculates total liquidated pay for a set of hours or events.
+ */
+export const calculateLiquidatedPay = (baseRate: number, quantity: number, surchargeType?: keyof typeof SURCHARGE_RATES): number => {
+  const base = baseRate * quantity;
+  if (!surchargeType) return base;
+  return base + (base * SURCHARGE_RATES[surchargeType]);
+};

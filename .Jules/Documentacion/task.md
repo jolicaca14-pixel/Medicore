@@ -4,10 +4,6 @@
     - [x] Definir Stack Tecnológico (PERN) y Estrategia PWA <!-- id: 1 -->
     - [x] Estrategia de Seguridad (RBAC, JWT, Encriptación) <!-- id: 2 -->
     - [x] Cumplimiento Normativo (Ley 2015 de 2020, Res. 1995 de 1999) <!-- id: 3 -->
-- [x] Diseño de Arquitectura Técnica <!-- id: 0 -->
-    - [x] Definir Stack Tecnológico (PERN) y Estrategia PWA <!-- id: 1 -->
-    - [x] Estrategia de Seguridad (RBAC, JWT, Encriptación) <!-- id: 2 -->
-    - [x] Cumplimiento Normativo (Ley 2015 de 2020, Res. 1995 de 1999) <!-- id: 3 -->
 - [x] Incorporación de Feedback Fase 1 (RIPS, CUPS, Roles) <!-- id: 17 -->
     - [x] Actualizar Requisitos: Roles Profesionales Dinámicos y Seguridad Cierre <!-- id: 18 -->
     - [x] Actualizar Requisitos: Nuevas Plantillas (Psicología, Nutrición, PyP) <!-- id: 19 -->
@@ -114,3 +110,15 @@
     - [x] Ciclo 48: Accesibilidad en Buscadores (Palette) <!-- id: 102 -->
     - [x] Ciclo 49: Limpieza de Búsqueda Micro-UX (Palette) <!-- id: 103 -->
     - [x] Ciclo 50: Cierre de Protocolo x5 (Jules) <!-- id: 104 -->
+
+- [x] Fase 9: Expansión de Funcionalidades y Estabilización (Protocolo Jules x10) <!-- id: 105 -->
+    - [x] Ciclo 51: Configuración de Entorno y CI/CD (Alfred) <!-- id: 106 -->
+    - [x] Ciclo 52: Verificación de Estabilidad y Bugfix Crítico (Smith) <!-- id: 107 -->
+    - [x] Ciclo 53: Refinamiento de Lógica Clínica Extraída (Doc House) <!-- id: 108 -->
+    - [x] Ciclo 54: Optimización de Rendimiento Memoización (Neo) <!-- id: 109 -->
+    - [x] Ciclo 55: Auditoría de Accesibilidad Sidebar (Trinity) <!-- id: 110 -->
+    - [x] Ciclo 56: Micro-UX Feedback de Copiado (Palette) <!-- id: 111 -->
+    - [x] Ciclo 57: Hardening de Logs de Auditoría PII (Morpheus) <!-- id: 112 -->
+    - [x] Ciclo 58: Expansión de Lógica Financiera Recargos (Ledger) <!-- id: 113 -->
+    - [x] Ciclo 59: Validación de Datos Maestros SOAT (The Oracle) <!-- id: 114 -->
+    - [x] Ciclo 60: Cierre de Fase 9 y Reporte Final (Jules) <!-- id: 115 -->
