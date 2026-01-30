@@ -102,6 +102,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [globalFields, setGlobalFields] = useState<TemplateField[]>(MOCK_FIELD_LIBRARY);
   const [globalSections, setGlobalSections] = useState<TemplateSection[]>(MOCK_SECTION_LIBRARY);
   const [templates, setTemplates] = useState<RoleTemplate[]>(MOCK_TEMPLATES);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
+  const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
 
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
@@ -456,6 +459,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const downloadRIPS = () => {
       alert("Descargando paquete .ZIP con archivos TXT/JSON validados...");
   };
+
+  const handleNewTemplate = () => setIsTemplateModalOpen(true);
+  const handleNewSection = () => setIsSectionModalOpen(true);
+  const handleNewField = () => setIsFieldModalOpen(true);
 
   // --- RENDER LOGIC ---
 
@@ -1211,6 +1218,33 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   <h2 className="text-2xl font-bold text-slate-800">Configuración del Sistema</h2>
               </div>
               
+              {isTemplateModalOpen && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
+                        <p>Contenido del modal de nueva plantilla...</p>
+                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                    </div>
+                </div>
+              )}
+              {isSectionModalOpen && (
+                  <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
+                          <p>Contenido del modal de nueva sección...</p>
+                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                      </div>
+                  </div>
+              )}
+              {isFieldModalOpen && (
+                  <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
+                          <p>Contenido del modal de nuevo campo...</p>
+                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                      </div>
+                  </div>
+              )}
               {/* Settings Nav */}
               <div className="flex space-x-1 bg-white p-1 rounded-lg border border-slate-200 w-fit">
                   <button onClick={() => setSettingsTab('TEMPLATES')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${settingsTab === 'TEMPLATES' ? 'bg-slate-900 text-white shadow' : 'text-slate-500 hover:text-slate-900'}`}>
@@ -1232,6 +1266,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                               <h3 className="font-bold text-lg text-slate-800">Plantillas de Historia Clínica</h3>
                               <p className="text-sm text-slate-500">Define qué ven los profesionales según su rol.</p>
                           </div>
+                           <button
+                                onClick={handleNewTemplate}
+                                className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-slate-700"
+                            >
+                              <Plus size={16} className="mr-2"/> Nueva Plantilla
+                          </button>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1279,6 +1319,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                               <h3 className="font-bold text-lg text-slate-800">Biblioteca de Secciones</h3>
                               <p className="text-sm text-slate-500">Bloques reutilizables de información clínica.</p>
                           </div>
+                           <button
+                                onClick={handleNewSection}
+                                className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-slate-700"
+                            >
+                              <Plus size={16} className="mr-2"/> Nueva Sección
+                          </button>
                       </div>
                       <div className="space-y-3">
                           {globalSections.map(sec => (
@@ -1315,6 +1361,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                               <h3 className="font-bold text-lg text-slate-800">Campos Globales y Variables</h3>
                               <p className="text-sm text-slate-500">Definición de tipos de datos, unidades y cálculos automáticos.</p>
                           </div>
+                           <button
+                                onClick={handleNewField}
+                                className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-slate-700"
+                            >
+                              <Plus size={16} className="mr-2"/> Nuevo Campo
+                          </button>
                       </div>
                       <div className="overflow-x-auto">
                           <table className="w-full text-sm text-left">
