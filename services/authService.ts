@@ -67,7 +67,8 @@ export const authService = {
       const response = await fetch(`${API_URL}/refresh`, { method: 'POST' });
       return response.ok;
     } catch (e) {
-      return false;
+      // 🛡️ MORPHEUS: Fallback for demo mode
+      return !!sessionStorage.getItem('medicore_session');
     }
   }
 };

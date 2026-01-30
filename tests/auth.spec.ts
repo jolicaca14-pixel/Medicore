@@ -8,7 +8,13 @@ test.describe('MediCore Authentication Flow', () => {
     await expect(page.getByRole('heading', { name: 'MediCore Pro' })).toBeVisible();
 
     // Perform login using Quick Access (Demo)
-    await page.getByLabel('Acceso rápido como Médico').click();
+    const quickAccessBtn = page.getByRole('button', { name: 'Doc House' });
+    await quickAccessBtn.click();
+
+    // Ensure inputs are filled
+    await expect(page.locator('#username-input')).toHaveValue('doc_house');
+    await expect(page.locator('#password-input')).toHaveValue('12345678');
+
     await page.getByRole('button', { name: 'Inicio de Sesión Seguro' }).click();
 
     // Verify successful navigation to dashboard
