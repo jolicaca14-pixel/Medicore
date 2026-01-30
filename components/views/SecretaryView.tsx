@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { User, Patient, Appointment, Invoice, InvoiceItem, RecordType, RecordStatus, ClinicalRecord, UserRole, TariffItem } from '../../types';
 import { MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_RECORDS, MOCK_SOAT_TARIFF, SMLDV_2024, formatCurrency, MOCK_USERS } from '../../constants';
-import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw } from 'lucide-react';
+import { appointmentService } from '../../services/appointmentService';
+import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw, Loader2 } from 'lucide-react';
 
 interface SecretaryViewProps {
   user: User;
@@ -13,8 +14,26 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   // --- PATIENTS & AGENDA STATE ---
   const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
-  const [appointments, setAppointments] = useState<Appointment[]>(MOCK_APPOINTMENTS);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [isLoadingAppts, setIsLoadingAppts] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
+  // ⚡ TRINITY: Fetch appointments from API
+  React.useEffect(() => {
+    const fetchAppts = async () => {
+        setIsLoadingAppts(true);
+        try {
+            const data = await appointmentService.getAppointments(selectedDate);
+            setAppointments(data);
+        } catch (err) {
+            console.warn("Usando datos locales de citas");
+            setAppointments(MOCK_APPOINTMENTS.filter(a => a.date === selectedDate));
+        } finally {
+            setIsLoadingAppts(false);
+        }
+    };
+    fetchAppts();
+  }, [selectedDate]);
   
   // Agenda Modal
   const [isApptModalOpen, setIsApptModalOpen] = useState(false);
@@ -65,7 +84,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       return procs.reduce((acc, item) => acc + Math.round(item.soatFactor * SMLDV_2024), 0);
   };
 
-  const handleSaveAppointment = () => {
+  const handleSaveAppointment = async () => {
       if(!newAppt.patientId || !newAppt.time || !newAppt.reason || !newAppt.professionalId) {
           alert("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)");
           return;
@@ -77,23 +96,38 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
       if (isEdit) {
           finalAppt = { ...newAppt, procedures: apptProcedures } as Appointment;
+          // Note: Backend update for details not yet implemented, for now only status is patchable
           setAppointments(prev => prev.map(a => a.id === finalAppt.id ? finalAppt : a));
       } else {
-           finalAppt = {
-              id: `appt-${Date.now()}`,
-              patientId: newAppt.patientId,
-              patientName: patient?.fullName,
-              professionalId: newAppt.professionalId,
-              date: selectedDate, // Use selected calendar date
-              time: newAppt.time,
-              reason: newAppt.reason,
-              status: 'SCHEDULED',
-              procedures: apptProcedures
-          } as Appointment;
-          setAppointments([...appointments, finalAppt]);
+          try {
+              const created = await appointmentService.create({
+                  ...newAppt,
+                  date: selectedDate,
+                  procedures: apptProcedures
+              });
+              finalAppt = {
+                  ...created,
+                  patientName: patient?.fullName // Enrich for UI
+              } as Appointment;
+              setAppointments([...appointments, finalAppt]);
+          } catch (e) {
+              alert("Error al guardar en servidor. Se usará modo local.");
+              finalAppt = {
+                  id: `appt-${Date.now()}`,
+                  patientId: newAppt.patientId,
+                  patientName: patient?.fullName,
+                  professionalId: newAppt.professionalId,
+                  date: selectedDate,
+                  time: newAppt.time,
+                  reason: newAppt.reason,
+                  status: 'SCHEDULED',
+                  procedures: apptProcedures
+              } as Appointment;
+              setAppointments([...appointments, finalAppt]);
+          }
       }
 
-      // Auto-Generate Invoice logic for new or updated if procedures changed (Simplified: only on create for now to avoid duplications in mock)
+      // Auto-Generate Invoice logic
       if (apptProcedures.length > 0 && !isEdit) {
           const items: InvoiceItem[] = apptProcedures.map(p => ({
               code: p.code,
@@ -127,10 +161,16 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       setIsApptModalOpen(false);
   };
 
-  const updateApptStatus = (id: string, status: 'WAITING' | 'CANCELLED') => {
-      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-      if (status === 'WAITING') alert("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
-      if (status === 'CANCELLED') alert("Cita cancelada.");
+  const updateApptStatus = async (id: string, status: 'WAITING' | 'CANCELLED') => {
+      try {
+          await appointmentService.updateStatus(id, status);
+          setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+          if (status === 'WAITING') alert("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
+          if (status === 'CANCELLED') alert("Cita cancelada.");
+      } catch (e) {
+          console.error("Error updating status in backend, updating locally");
+          setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+      }
   };
 
   // --- BILLING HANDLERS ---
@@ -395,7 +435,11 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                           </button>
                       </div>
                       <div className="col-span-2 space-y-3">
-                          {appointments.filter(a => a.date === selectedDate).map(app => (
+                          {isLoadingAppts ? (
+                              <div className="flex justify-center p-12">
+                                  <Loader2 className="animate-spin text-blue-500" size={32}/>
+                              </div>
+                          ) : appointments.map(app => (
                               <div key={app.id} className={`bg-white p-4 rounded-xl border border-l-4 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center group relative ${app.status === 'CANCELLED' ? 'border-l-red-400 opacity-60' : (app.status === 'WAITING' ? 'border-l-green-500 bg-green-50/30' : 'border-l-blue-500')}`}>
                                   <div className="mb-3 sm:mb-0">
                                       <p className="font-bold text-lg text-slate-800">{app.time}</p>
@@ -443,7 +487,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                   </div>
                               </div>
                           ))}
-                          {appointments.filter(a => a.date === selectedDate).length === 0 && (
+                          {!isLoadingAppts && appointments.length === 0 && (
                               <div className="bg-slate-50 p-8 rounded-xl text-center text-slate-400 italic">No hay citas programadas para esta fecha.</div>
                           )}
                       </div>

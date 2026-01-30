@@ -29,8 +29,14 @@ export const authService = {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error en la autenticación');
+        let errorMessage = 'Error en la autenticación';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          errorMessage = 'Servidor no disponible (Respuesta no válida)';
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

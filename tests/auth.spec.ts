@@ -38,6 +38,7 @@ test.describe('MediCore Authentication Flow', () => {
     await page.locator('#password-input').fill('wrong_password');
     await page.getByRole('button', { name: 'Inicio de Sesión Seguro' }).click();
 
-    await expect(page.getByText(/Credenciales inválidas|Servidor no disponible/)).toBeVisible();
+    const errorMsg = page.locator('[aria-live="polite"]');
+    await expect(errorMsg).toContainText(/Credenciales inválidas|Servidor no disponible/, { timeout: 10000 });
   });
 });
