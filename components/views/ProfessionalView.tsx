@@ -49,6 +49,26 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // UX States
   const [patientSearch, setPatientSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [isSaved, setIsSaved] = useState(false);
+
+  // ⚡ HANDLERS (Defined early to avoid hoisting issues in hooks)
+  const handleSaveDraft = () => {
+    if (!currentRecord.id) return;
+    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+    setRecords(prev => {
+      const existing = prev.findIndex(r => r.id === currentRecord.id);
+      if (existing >= 0) {
+        const updated = [...prev];
+        updated[existing] = recordToSave;
+        return updated;
+      }
+      return [...prev, recordToSave];
+    });
+
+    // 🎨 Palette: Non-blocking feedback for draft saving
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
+  };
 
   const handleSaveDraft = async () => {
     if (!currentRecord.id) return;
@@ -1189,7 +1209,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                     >
                         {allowedTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
-                    <button onClick={handleSaveDraft} className="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 font-bold text-sm hover:bg-slate-50">Guardar</button>
+                    <button
+                        onClick={handleSaveDraft}
+                        className={`px-4 py-2 border rounded-lg font-bold text-sm transition-all duration-300 ${isSaved ? 'bg-green-50 border-green-500 text-green-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+                    >
+                        {isSaved ? '¡Guardado!' : 'Guardar'}
+                    </button>
                     <button onClick={() => initiateAuth('FINALIZE')} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm hover:bg-slate-800 flex items-center">
                         <Lock size={14} className="mr-2"/> Finalizar & RDA
                     </button>
@@ -1429,6 +1454,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                             </h3>
                             {!isReadOnly && (
                                 <div className="relative mb-4">
+                                    <label htmlFor="proc-search" className="sr-only">Buscar Procedimiento CUPS</label>
                                     {showCustomProcInput ? (
                                         <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
                                             <input 
@@ -1514,7 +1540,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
             <h2 className="text-2xl font-bold text-slate-800">Mis Pacientes</h2>
             <div className="relative w-full md:w-72">
                 <Search size={18} className="absolute left-3 top-[50%] translate-y-[-50%] text-slate-400" />
+                <label htmlFor="patient-search" className="sr-only">Buscar pacientes</label>
                 <input
+                    id="patient-search"
                     type="text"
                     placeholder="Buscar por nombre o ID..."
                     className="w-full pl-10 pr-10 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
@@ -1523,11 +1551,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                 />
                 {patientSearch && (
                     <button
+                        type="button"
                         onClick={() => setPatientSearch('')}
                         className="absolute right-3 top-[50%] translate-y-[-50%] text-slate-400 hover:text-slate-600"
-                        aria-label="Limpiar búsqueda"
+                        aria-label="Limpiar búsqueda de paciente"
                     >
-                        <X size={16} />
+                        <X size={16} aria-hidden="true" />
                     </button>
                 )}
             </div>

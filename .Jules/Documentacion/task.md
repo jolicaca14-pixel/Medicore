@@ -107,3 +107,10 @@
     - [x] Ciclo 43: Documentación Técnica (Docs) <!-- id: 96 -->
     - [x] Ciclo 44: Sincronización de Tareas (PM) <!-- id: 97 -->
     - [x] Ciclo 45: Reporte Final Fase 7 (Orquestador) <!-- id: 98 -->
+
+- [x] Fase 8: Refinamiento y Robustez (Protocolo Jules x5) <!-- id: 99 -->
+    - [x] Ciclo 46: Feedback Visual en Borradores (Palette) <!-- id: 100 -->
+    - [x] Ciclo 47: Alertas de SpO2 y Alineación de IDs (Doc House) <!-- id: 101 -->
+    - [x] Ciclo 48: Accesibilidad en Buscadores (Palette) <!-- id: 102 -->
+    - [x] Ciclo 49: Limpieza de Búsqueda Micro-UX (Palette) <!-- id: 103 -->
+    - [x] Ciclo 50: Cierre de Protocolo x5 (Jules) <!-- id: 104 -->
