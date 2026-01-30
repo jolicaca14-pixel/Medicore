@@ -44,7 +44,7 @@ export const authService = {
       if (!response.ok) return null;
       return response.json();
     } catch (e) {
-      // Fallback: Trust session storage if backend is unreachable
+      // 🛡️ MORPHEUS: Fallback to trust local session if backend is unreachable (Demo Mode)
       const savedUser = sessionStorage.getItem('medicore_session');
       return savedUser ? JSON.parse(savedUser) : null;
     }
@@ -55,7 +55,8 @@ export const authService = {
       const response = await fetch(`${API_URL}/refresh`, { method: 'POST' });
       return response.ok;
     } catch (e) {
-      return false;
+      // 🛡️ MORPHEUS: Fallback for demo mode
+      return !!sessionStorage.getItem('medicore_session');
     }
   }
 };

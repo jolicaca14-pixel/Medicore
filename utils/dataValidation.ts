@@ -37,3 +37,19 @@ export const validateCUPSCode = (code: string): boolean => {
   if (!code) return false;
   return MOCK_SOAT_TARIFF.some(item => item.code === code);
 };
+
+/**
+ * Returns the SOAT factor for a given CUPS code.
+ */
+export const getSOATFactor = (code: string): number => {
+  const item = MOCK_SOAT_TARIFF.find(item => item.code === code);
+  return item?.soatFactor || 1.0;
+};
+
+/**
+ * Calculates the final price based on SOAT factor and a base value.
+ */
+export const calculateSOATPrice = (code: string, baseValue: number): number => {
+  const factor = getSOATFactor(code);
+  return baseValue * factor;
+};
