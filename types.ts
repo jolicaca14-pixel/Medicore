@@ -198,10 +198,13 @@ export interface Patient {
   identification: string;
   birthDate: string;
   gender: 'M' | 'F';
+  bloodType?: string; // Rh (O+, O-, etc)
   phone: string;
   email: string;
   insuranceType: string;
   allergies?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
 }
 
 export interface ClarifyingNote {
