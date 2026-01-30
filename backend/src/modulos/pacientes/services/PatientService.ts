@@ -1,64 +1,28 @@
-import { Patient, CreatePatientDTO } from '../types';
-import { v4 as uuidv4 } from 'uuid';
-
-// Mock DB for demonstration
-let patients: Patient[] = [
-    {
-        id: 'p1',
-        fullName: 'Juan Pérez',
-        identification: '123456789',
-        birthDate: '1985-04-12',
-        gender: 'M',
-        phone: '300-555-0101',
-        email: 'juan.perez@ejemplo.com',
-        insuranceType: 'EPS Sura - Contributivo',
-        allergies: 'Penicilina, AINES'
-    },
-    {
-        id: 'p2',
-        fullName: 'María González',
-        identification: '987654321',
-        birthDate: '1952-08-23',
-        gender: 'F',
-        phone: '300-555-0102',
-        email: 'maria.gonzalez@ejemplo.com',
-        insuranceType: 'Sanitas - Subsidiado'
-    }
-];
+import pool from '../../../config/database';
 
 export class PatientService {
-    static async getAll(): Promise<Patient[]> {
-        return patients;
+    async getAllPatients() {
+        const result = await pool.query('SELECT * FROM pacientes ORDER BY nombre_completo ASC');
+        return result.rows;
     }
 
-    static async getById(id: string): Promise<Patient | undefined> {
-        return patients.find(p => p.id === id);
+    async getPatientByIdentification(identificacion: string) {
+        const result = await pool.query('SELECT * FROM pacientes WHERE identificacion = $1', [identificacion]);
+        return result.rows[0];
     }
 
-    static async getByIdentification(idNum: string): Promise<Patient | undefined> {
-        return patients.find(p => p.identification === idNum);
-    }
+    async createPatient(patientData: any) {
+        const { nombre_completo, identificacion, tipo_identificacion, fecha_nacimiento, genero, email, telefono, tipo_aseguradora, alergias } = patientData;
 
-    static async create(data: CreatePatientDTO): Promise<Patient> {
-        const newPatient: Patient = {
-            id: uuidv4(),
-            ...data,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        };
-        patients.push(newPatient);
-        return newPatient;
-    }
+        const result = await pool.query(
+            `INSERT INTO pacientes (nombre_completo, identificacion, tipo_identificacion, fecha_nacimiento, genero, email, telefono, tipo_aseguradora, alergias)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             RETURNING *`,
+            [nombre_completo, identificacion, tipo_identificacion || 'CC', fecha_nacimiento, genero, email, telefono, tipo_aseguradora, alergias]
+        );
 
-    static async update(id: string, data: Partial<CreatePatientDTO>): Promise<Patient | undefined> {
-        const index = patients.findIndex(p => p.id === id);
-        if (index === -1) return undefined;
-
-        patients[index] = {
-            ...patients[index],
-            ...data,
-            updatedAt: new Date().toISOString()
-        };
-        return patients[index];
+        return result.rows[0];
     }
 }
+
+export default new PatientService();

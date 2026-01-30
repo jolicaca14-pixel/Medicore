@@ -42,6 +42,52 @@ TODOS los agentes deben reportar aquí al terminar su turno.
 **Siguiente Agente Sugerido**: **NEO** para continuar con la implementación de módulos de backend pendientes (Agenda o Historias Clínicas).
 
 ---
+
+## [2026-01-25 12:15] - AGENTE: JULES (Run 2/2)
+**Acción Realizada**: Integración de la API de Pacientes en el Frontend.
+**Análisis**:
+- Una vez implementado el backend por NEO, es necesario conectar el frontend para consumir datos reales.
+- Se identificó la necesidad de un servicio `patientService` que maneje la comunicación con la API e incluya el token de autenticación.
+- `ProfessionalView` requiere un estado de carga para mejorar la UX durante la recuperación asíncrona de datos.
+
+**Decisión Autónoma**:
+- Se asignó a **TRINITY** para la integración.
+- Se creó `services/patientService.ts` con soporte para `Authorization: Bearer`.
+- Se refactorizó `ProfessionalView.tsx` para usar `useState` y `useEffect` en la carga de pacientes.
+- Se implementó un componente de carga visual (Loader2) y un mecanismo de fallback a `MOCK_PATIENTS` en caso de error de conexión.
+- Se mapearon los nombres de campos del backend (snake_case) a los del frontend (camelCase).
+
+**Archivos Modificados**:
+- `services/patientService.ts` (Nuevo)
+- `components/views/ProfessionalView.tsx` (Refactorizado)
+
+**Resultado**: El sistema ahora intenta sincronizar con el backend antes de recurrir a datos estáticos, permitiendo una transición fluida hacia un sistema totalmente persistente.
+
+---
+
+## [2026-01-25 12:00] - AGENTE: JULES (Run 1/2)
+**Acción Realizada**: Implementación del módulo de Backend para Pacientes.
+**Análisis**:
+- El sistema dependía exclusivamente de `MOCK_PATIENTS` en el frontend.
+- Siguiendo la arquitectura modular de NEO, se requiere un módulo dedicado para la persistencia de datos de pacientes.
+- Se identificó la necesidad de una tabla `pacientes` en PostgreSQL y sus correspondientes servicios, controladores y rutas en Express.
+
+**Decisión Autónoma**:
+- Se asignó a **NEO** para la implementación del backend.
+- Se creó la tabla `pacientes` con campos para identificación, datos demográficos, aseguradora y alergias.
+- Se implementó el `PatientService` con soporte para listado, búsqueda por identificación y creación.
+- Se protegieron las rutas con el middleware `authenticateToken` para asegurar el cumplimiento de RBAC.
+
+**Archivos Modificados**:
+- `backend/src/database/init.sql` (Schema + Mocks)
+- `backend/src/server.ts` (Registro de rutas)
+- `backend/src/modulos/pacientes/services/PatientService.ts` (Nuevo)
+- `backend/src/modulos/pacientes/controllers/PatientController.ts` (Nuevo)
+- `backend/src/modulos/pacientes/routes/index.ts` (Nuevo)
+
+**Siguiente Agente Sugerido**: **TRINITY** para integrar estos endpoints en el frontend.
+
+---
 [INICIO DE LOG]
 
 ## [2026-01-22 22:04] - AGENTE: JULES

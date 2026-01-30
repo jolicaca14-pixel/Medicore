@@ -2,8 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
-import { clinicalRecordService } from '../../services/clinicalRecordService';
-import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy } from 'lucide-react';
+import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
@@ -20,7 +19,9 @@ interface ProfessionalViewProps {
 }
 
 export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, activeTab = 'dashboard' }) => {
-  const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [isLoadingPatients, setIsLoadingPatients] = useState(true);
+  const [patientsError, setPatientsError] = useState<string | null>(null);
   const [records, setRecords] = useState<ClinicalRecord[]>(MOCK_RECORDS);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   
@@ -51,6 +52,25 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // ⚡ TRINITY: Fetch Patients from API
+  useEffect(() => {
+    const fetchPatients = async () => {
+        setIsLoadingPatients(true);
+        try {
+            const data = await patientService.getPatients();
+            setPatients(data);
+            setPatientsError(null);
+        } catch (err: any) {
+            console.error("Error fetching patients:", err);
+            setPatientsError("No se pudo conectar con el servidor. Usando datos locales.");
+            setPatients(MOCK_PATIENTS);
+        } finally {
+            setIsLoadingPatients(false);
+        }
+    };
+    fetchPatients();
+  }, []);
 
   // ⚡ HANDLERS (Defined early to avoid hoisting issues in hooks)
   // ⚡ NEO: Memoized calculators to replace useEffect anti-pattern
@@ -1536,7 +1556,21 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
             </div>
         </div>
 
-        {filteredPatients.length === 0 ? (
+        {isLoadingPatients ? (
+            <div className="flex flex-col items-center justify-center p-20 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                <Loader2 className="h-10 w-10 text-blue-500 animate-spin mb-4" />
+                <p className="text-slate-500 font-medium">Cargando pacientes...</p>
+            </div>
+        ) : patientsError ? (
+            <div className="bg-orange-50 p-4 rounded-xl border border-orange-200 mb-6 flex items-center text-orange-800 text-sm">
+                <AlertCircle className="mr-3 text-orange-500" size={20} />
+                <div>
+                    <span className="font-bold">Aviso:</span> {patientsError}
+                </div>
+            </div>
+        ) : null}
+
+        {!isLoadingPatients && filteredPatients.length === 0 ? (
             <div className="bg-white p-12 rounded-2xl border border-dashed border-slate-300 text-center">
                 <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Search size={32} className="text-slate-300" />

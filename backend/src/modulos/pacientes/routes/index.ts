@@ -1,14 +1,25 @@
 import { Router } from 'express';
-import { PatientController } from '../controllers/PatientController';
+import PatientController from '../controllers/PatientController';
 import { authenticateToken } from '../../auth/middlewares/authMiddleware';
 
 const router = Router();
 
-// Todas las rutas de pacientes requieren autenticación
-router.use(authenticateToken);
+/**
+ * GET /api/pacientes
+ * Obtener todos los pacientes
+ */
+router.get('/', authenticateToken, PatientController.getAll);
 
-router.get('/', PatientController.getAll);
-router.get('/:id', PatientController.getById);
-router.post('/', PatientController.create);
+/**
+ * GET /api/pacientes/:id
+ * Obtener paciente por identificación
+ */
+router.get('/:id', authenticateToken, PatientController.getByIdentification);
+
+/**
+ * POST /api/pacientes
+ * Crear un nuevo paciente
+ */
+router.post('/', authenticateToken, PatientController.create);
 
 export default router;
