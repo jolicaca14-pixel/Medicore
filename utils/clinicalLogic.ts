@@ -75,3 +75,51 @@ export const getFraminghamColor = (risk: number | string): string => {
   if (n < 20) return 'text-orange-500';
   return 'text-red-600';
 };
+
+/**
+ * Calculates GFR (Glomerular Filtration Rate) using Cockcroft-Gault formula.
+ */
+export const calculateTFG = (age: number, weightKg: number, creatinine: number, gender: 'M' | 'F'): number => {
+  if (age <= 0 || weightKg <= 0 || creatinine <= 0) return 0;
+  let tfg = ((140 - age) * weightKg) / (72 * creatinine);
+  if (gender === 'F') tfg *= 0.85;
+  return tfg;
+};
+
+/**
+ * Calculates a simplified Framingham Cardiovascular Risk Score.
+ * (For demonstration purposes, based on basic parameters)
+ */
+export const calculateFramingham = (age: number, gender: 'M' | 'F', sysBp: number, cholTotal: number, hdl: number, smoker: boolean): number => {
+  if (age <= 0) return 0;
+
+  let points = 0;
+
+  // Age points
+  if (age >= 30) points += 1;
+  if (age >= 45) points += 2;
+  if (age >= 60) points += 3;
+  if (age >= 75) points += 4;
+
+  // Gender
+  if (gender === 'M') points += 1;
+
+  // Smoker
+  if (smoker) points += 2;
+
+  // Systolic BP
+  if (sysBp >= 140) points += 2;
+  if (sysBp >= 160) points += 3;
+
+  // Cholesterol
+  if (cholTotal >= 200) points += 1;
+  if (cholTotal >= 240) points += 2;
+
+  // HDL (Protective)
+  if (hdl < 40) points += 2;
+  if (hdl >= 60) points -= 1;
+
+  // Simplified risk conversion
+  const risk = Math.max(0, points * 1.5);
+  return risk;
+};

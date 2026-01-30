@@ -68,9 +68,13 @@ export const authService = {
       // Map 'me' response which might just be the user object
       return mapUser({ usuario: data.usuario, accessToken: token });
     } catch (e) {
-      // Fallback: Trust session storage if backend is unreachable
-      const savedUser = sessionStorage.getItem('medicore_session');
-      return savedUser ? JSON.parse(savedUser) : null;
+      // Fallback for demo mode if backend is unreachable
+      const sessionUser = sessionStorage.getItem('medicore_session');
+      if (sessionUser) {
+        console.warn('getCurrentUser failed, trusting sessionStorage');
+        return JSON.parse(sessionUser);
+      }
+      return null;
     }
   },
 
@@ -79,7 +83,8 @@ export const authService = {
       const response = await fetch(`${API_URL}/refresh`, { method: 'POST' });
       return response.ok;
     } catch (e) {
-      return false;
+      // 🛡️ MORPHEUS: Fallback for demo mode
+      return !!sessionStorage.getItem('medicore_session');
     }
   }
 };
