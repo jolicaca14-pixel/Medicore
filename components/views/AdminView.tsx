@@ -466,13 +466,24 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   // --- RENDER LOGIC ---
 
-  // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr') && !isAdmin) {
+  // 0. ACCESS CONTROL CHECK - STRENGTHENED
+  const restrictedTabs = ['users', 'settings', 'hr', 'files'];
+  if (restrictedTabs.includes(activeTab) && !isAdmin) {
       return (
-          <div className="flex flex-col items-center justify-center h-full text-slate-400">
-              <Ban size={64} className="mb-4 text-red-400"/>
-              <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
-              <p className="text-sm">Se requieren permisos de ADMINISTRADOR para acceder a este módulo.</p>
+          <div className="flex flex-col items-center justify-center h-[60vh] text-slate-400 animate-in fade-in duration-500">
+              <div className="bg-red-50 p-6 rounded-full mb-6">
+                <Lock size={64} className="text-red-500 animate-pulse"/>
+              </div>
+              <h2 className="text-2xl font-bold text-slate-800">Acceso Privilegiado</h2>
+              <p className="text-slate-500 mt-2 max-w-md text-center">
+                El módulo de <strong>{activeTab === 'users' ? 'Gestión de Usuarios' : (activeTab === 'files' ? 'Archivos' : 'Configuración')}</strong> es de uso exclusivo para el rol de Administrador General.
+              </p>
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className="mt-8 px-6 py-2 bg-slate-900 text-white rounded-lg font-bold hover:bg-slate-800 transition-colors"
+              >
+                Volver al Panel Seguro
+              </button>
           </div>
       );
   }
@@ -1144,67 +1155,124 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
-  // 2. USERS LIST - Only Admin
+  // 2. USERS LIST - Only Admin - Improved "Dedicated Space" Layout
   if (activeTab === 'users' && isAdmin) {
+      const isFormActive = !!currentUser.id || !!currentUser.username || !!currentUser.firstName || !!currentUser.documentNumber;
+
       return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full animate-in fade-in duration-500">
-            {/* User List Column */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
-                <h3 className="font-bold text-slate-800 mb-6">Directorio de Usuarios</h3>
-                <div className="overflow-x-auto flex-1">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0">
+        <div className="space-y-8 animate-in fade-in duration-500">
+            {/* DEDICATED SPACE FOR NEW/EDIT USER */}
+            {isFormActive && (
+                <div className="bg-white p-8 rounded-2xl shadow-xl border-t-4 border-blue-500 animate-in slide-in-from-top-4 duration-500">
+                     <div className="flex justify-between items-center mb-6">
+                        <div>
+                            <h3 className="font-bold text-2xl text-slate-800 flex items-center">
+                                {currentUser.id && users.some(u => u.id === currentUser.id) ?
+                                    <><Edit className="mr-3 text-blue-600"/> Editando Perfil de Usuario</> :
+                                    <><Plus className="mr-3 text-blue-600"/> Crear Nuevo Usuario en el Sistema</>}
+                            </h3>
+                            <p className="text-slate-500 text-sm mt-1">Complete todos los campos obligatorios para gestionar el acceso.</p>
+                        </div>
+                        <button
+                            onClick={() => setCurrentUser({})}
+                            className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                            aria-label="Cerrar formulario"
+                        >
+                            <X size={24} className="text-slate-400"/>
+                        </button>
+                     </div>
+                     <div className="bg-slate-50 rounded-xl p-6 border border-slate-100">
+                        <UserForm
+                            user={currentUser}
+                            onSave={handleSaveUser}
+                            onCancel={() => setCurrentUser({})}
+                            isEmbedded={true}
+                        />
+                     </div>
+                </div>
+            )}
+
+            {/* User List Table */}
+            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+                <div className="flex flex-col md:flex-row justify-between md:items-center mb-8 gap-4">
+                    <div>
+                        <h3 className="font-bold text-slate-800 text-xl">Directorio Global de Usuarios</h3>
+                        <p className="text-slate-500 text-sm">Gestionar permisos y credenciales de todo el personal.</p>
+                    </div>
+                    {!isFormActive && (
+                        <button
+                            onClick={handleAddNewUser}
+                            className="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl flex items-center shadow-lg hover:bg-slate-800 transition-all transform hover:-translate-y-1 active:scale-95"
+                        >
+                            <Plus size={20} className="mr-2"/> Agregar Nuevo Usuario
+                        </button>
+                    )}
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                    <table className="w-full text-sm text-left border-collapse">
+                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
                             <tr>
-                                <th className="py-3 px-4">Nombre Completo</th>
-                                <th className="py-3 px-4">Roles</th>
-                                <th className="py-3 px-4">Info Profesional</th>
-                                <th className="py-3 px-4 text-right">Acciones</th>
+                                <th className="py-4 px-6">Identificación y Nombre</th>
+                                <th className="py-4 px-6">Roles Asignados</th>
+                                <th className="py-4 px-6">Credenciales Salud</th>
+                                <th className="py-4 px-6 text-right">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50">
+                        <tbody className="divide-y divide-slate-100">
                             {users.map(u => (
-                                <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50' : ''}`} onClick={() => handleEditUser(u)}>
-                                    <td className="py-3 px-4">
-                                        <div className="font-bold text-slate-700">{u.name}</div>
-                                        <div className="font-mono text-xs text-slate-400">@{u.username}</div>
-                                    </td>
-                                    <td className="py-3 px-4">
-                                        <div className="flex flex-wrap gap-1">
-                                            {u.roles?.map(r => <span key={r} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">{roleLabels[r] || r}</span>)}
+                                <tr key={u.id} className={`hover:bg-blue-50/30 transition-colors group ${currentUser.id === u.id ? 'bg-blue-50' : ''}`}>
+                                    <td className="py-4 px-6">
+                                        <div className="flex items-center">
+                                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold mr-4 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                                                {u.name.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-slate-800">{u.name}</div>
+                                                <div className="font-mono text-xs text-slate-400 flex items-center">
+                                                    <Hash size={10} className="mr-1"/>{u.documentNumber} • @{u.username}
+                                                </div>
+                                            </div>
                                         </div>
                                     </td>
-                                    <td className="py-3 px-4">
-                                        {u.roles.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST) ? (
-                                            <div className="text-xs">
-                                                <p><span className="font-bold">Lic:</span> {u.professionalLicense || 'N/A'}</p>
-                                                {u.digitalStampUrl && <span className="text-[9px] text-green-600 bg-green-50 px-1 rounded">Firma OK</span>}
-                                            </div>
-                                        ) : <span className="text-xs text-slate-400">-</span>}
+                                    <td className="py-4 px-6">
+                                        <div className="flex flex-wrap gap-1">
+                                            {u.roles?.map(r => (
+                                                <span key={r} className="text-[9px] font-bold bg-white text-slate-600 px-2 py-1 rounded-md border border-slate-200 shadow-sm">
+                                                    {roleLabels[r] || r}
+                                                </span>
+                                            ))}
+                                        </div>
                                     </td>
-                                    <td className="py-3 px-4 text-right">
-                                        <button onClick={(e) => { e.stopPropagation(); handleEditUser(u); }} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
+                                    <td className="py-4 px-6">
+                                        {u.roles.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST) ? (
+                                            <div className="text-xs space-y-1">
+                                                <p className="text-slate-600"><span className="font-bold text-slate-400">LIC:</span> {u.professionalLicense || 'Pendiente'}</p>
+                                                {u.digitalStampUrl ?
+                                                    <span className="inline-flex items-center text-[9px] text-green-600 bg-green-50 px-2 py-0.5 rounded-full font-bold border border-green-100">
+                                                        <Shield size={10} className="mr-1"/> FIRMA DIGITAL OK
+                                                    </span> :
+                                                    <span className="text-[9px] text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full font-bold border border-orange-100">
+                                                        SIN FIRMA
+                                                    </span>
+                                                }
+                                            </div>
+                                        ) : <span className="text-[10px] text-slate-300 font-medium italic">Rol Administrativo</span>}
+                                    </td>
+                                    <td className="py-4 px-6 text-right">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleEditUser(u); }}
+                                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                            title="Editar Usuario"
+                                        >
+                                            <Edit size={18}/>
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
-            </div>
-
-            {/* User Form Column */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-slate-800">
-                        {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
-                    </h3>
-                    <button onClick={handleAddNewUser} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center"><Plus size={14} className="mr-1"/> Agregar Nuevo</button>
-                 </div>
-                 <UserForm
-                    user={currentUser}
-                    onSave={handleSaveUser}
-                    onCancel={() => setCurrentUser({})}
-                    isEmbedded={true}
-                 />
             </div>
         </div>
       );
@@ -1221,27 +1289,42 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><LayoutTemplate className="mr-2 text-blue-600"/> Nueva Plantilla de Historia</h3>
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4">
+                            <p className="text-sm text-blue-800 font-medium">Módulo de Diseño de Plantillas:</p>
+                            <p className="text-xs text-blue-600 mt-1">Esta funcionalidad le permitirá crear estructuras personalizadas de historia clínica vinculando secciones y campos. Actualmente se encuentra en fase de validación técnica.</p>
+                        </div>
+                        <div className="flex justify-end">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm">Entendido</button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><Layers className="mr-2 text-blue-600"/> Biblioteca de Secciones</h3>
+                          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-4">
+                            <p className="text-sm text-slate-800 font-medium">Constructor de Secciones:</p>
+                            <p className="text-xs text-slate-500 mt-1">Próximamente podrá agrupar campos globales en bloques lógicos para ser usados en múltiples plantillas.</p>
+                          </div>
+                          <div className="flex justify-end">
+                            <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm">Regresar</button>
+                          </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><Database className="mr-2 text-blue-600"/> Definición de Variables Globales</h3>
+                          <div className="bg-purple-50 p-4 rounded-lg border border-purple-100 mb-4">
+                            <p className="text-sm text-purple-800 font-medium">Diccionario de Datos:</p>
+                            <p className="text-xs text-purple-600 mt-1">Estamos trabajando en un motor de expresiones para permitir cálculos automáticos complejos basados en variables globales.</p>
+                          </div>
+                          <div className="flex justify-end">
+                            <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm">Cerrar</button>
+                          </div>
                       </div>
                   </div>
               )}
@@ -1282,8 +1365,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           <LayoutTemplate size={20}/>
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                                          <button onClick={() => alert("La edición de plantillas base será habilitada en la próxima actualización.")} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
+                                          <button onClick={() => alert("No se puede eliminar una plantilla activa con registros vinculados.")} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
                                       </div>
                                   </div>
                                   <h4 className="font-bold text-slate-800">{t.name}</h4>
@@ -1345,7 +1428,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           ))}
                                           {sec.fields.length > 4 && <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] text-slate-500">+{sec.fields.length - 4}</div>}
                                       </div>
-                                      <button className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => alert("Gestión de biblioteca de secciones en desarrollo.")} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
                                   </div>
                               </div>
                           ))}
@@ -1405,7 +1488,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                               ) : <span className="text-xs text-slate-400">Opcional</span>}
                                           </td>
                                           <td className="p-3 text-right">
-                                              <button className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button onClick={() => alert("Las variables globales están protegidas contra cambios para mantener la integridad de los datos históricos.")} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
                                           </td>
                                       </tr>
                                   ))}

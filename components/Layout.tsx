@@ -53,10 +53,20 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
         ...items,
         { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
         { id: 'users', label: 'Gestión Usuarios', icon: Users },
-        { id: 'hr', label: 'Talento Humano', icon: Briefcase }, // NEW HR MODULE
+        { id: 'hr', label: 'Talento Humano', icon: Briefcase },
+        { id: 'files', label: 'Gestión Archivos', icon: FileText },
         { id: 'reports', label: 'Gestión Financiera', icon: DollarSign },
         { id: 'settings', label: 'Plantillas / Roles', icon: Settings },
       ];
+    }
+
+    if (roles.includes(UserRole.ACCOUNTANT)) {
+       if(!items.some(i => i.id === 'reports')) items.push({ id: 'reports', label: 'Gestión Financiera', icon: DollarSign });
+    }
+
+    if (roles.includes(UserRole.MANAGER)) {
+       if(!items.some(i => i.id === 'dashboard')) items.push({ id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard });
+       if(!items.some(i => i.id === 'reports')) items.push({ id: 'reports', label: 'Gestión Financiera', icon: DollarSign });
     }
     
     if (roles.includes(UserRole.PROFESSIONAL) || roles.includes(UserRole.PSYCHOLOGIST)) {
