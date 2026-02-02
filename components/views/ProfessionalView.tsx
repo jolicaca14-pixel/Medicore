@@ -115,27 +115,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       calc_framingham: framinghamValue
   }), [bmiValue, tamValue, tfgValue, framinghamValue]);
 
-  const handleSaveDraft = () => {
-    if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
-    setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = recordToSave;
-        return updated;
-      }
-      return [...prev, recordToSave];
-    });
-
-    // 🎨 Palette: Non-blocking feedback for draft saving
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
-  };
-
   const handleSaveDraft = async () => {
     if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
 
     // ⚡ TRINITY: Persist draft to backend
     try {
@@ -157,7 +139,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       }
       return [...prev, recordToSave];
     });
-    alert("Borrador guardado exitosamente.");
+
+    // 🎨 Palette: Non-blocking feedback for draft saving
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
   };
 
   // ⚡ NEO: Keyboard Shortcuts (Ctrl+S for Save)

@@ -106,6 +106,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
   const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
 
+  const [currentField, setCurrentField] = useState<Partial<TemplateField>>({ type: 'TEXT', required: false, isGlobal: true });
+  const [currentSection, setCurrentSection] = useState<Partial<TemplateSection>>({ fields: [] });
+  const [currentTemplate, setCurrentTemplate] = useState<Partial<RoleTemplate>>({ allowedRoles: [], sections: [], active: true });
+
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
   const [ripsEndDate, setRipsEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -460,9 +464,54 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       alert("Descargando paquete .ZIP con archivos TXT/JSON validados...");
   };
 
-  const handleNewTemplate = () => setIsTemplateModalOpen(true);
-  const handleNewSection = () => setIsSectionModalOpen(true);
-  const handleNewField = () => setIsFieldModalOpen(true);
+  const handleNewTemplate = () => {
+      setCurrentTemplate({ id: '', name: '', description: '', allowedRoles: [], sections: [], active: true, recordType: RecordType.GENERAL });
+      setIsTemplateModalOpen(true);
+  };
+  const handleNewSection = () => {
+      setCurrentSection({ id: '', title: '', description: '', fields: [] });
+      setIsSectionModalOpen(true);
+  };
+  const handleNewField = () => {
+      setCurrentField({ id: '', label: '', type: 'TEXT', required: false, isGlobal: true });
+      setIsFieldModalOpen(true);
+  };
+
+  const handleSaveField = () => {
+      if (!currentField.id || !currentField.label) return alert("ID y Etiqueta son obligatorios");
+
+      const fieldToSave = currentField as TemplateField;
+      if (globalFields.some(f => f.id === fieldToSave.id)) {
+          setGlobalFields(prev => prev.map(f => f.id === fieldToSave.id ? fieldToSave : f));
+      } else {
+          setGlobalFields(prev => [...prev, fieldToSave]);
+      }
+      setIsFieldModalOpen(false);
+  };
+
+  const handleSaveSection = () => {
+      if (!currentSection.id || !currentSection.title) return alert("ID y Título son obligatorios");
+
+      const sectionToSave = currentSection as TemplateSection;
+      if (globalSections.some(s => s.id === sectionToSave.id)) {
+          setGlobalSections(prev => prev.map(s => s.id === sectionToSave.id ? sectionToSave : s));
+      } else {
+          setGlobalSections(prev => [...prev, sectionToSave]);
+      }
+      setIsSectionModalOpen(false);
+  };
+
+  const handleSaveTemplate = () => {
+      if (!currentTemplate.id || !currentTemplate.name) return alert("ID y Nombre son obligatorios");
+
+      const templateToSave = currentTemplate as RoleTemplate;
+      if (templates.some(t => t.id === templateToSave.id)) {
+          setTemplates(prev => prev.map(t => t.id === templateToSave.id ? templateToSave : t));
+      } else {
+          setTemplates(prev => [...prev, templateToSave]);
+      }
+      setIsTemplateModalOpen(false);
+  };
 
   // --- RENDER LOGIC ---
 
@@ -1220,28 +1269,346 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                    <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-slate-800 flex items-center">
+                                <LayoutTemplate className="mr-2 text-blue-600"/> {templates.some(t => t.id === currentTemplate.id) ? 'Editar Plantilla' : 'Nueva Plantilla de Rol'}
+                            </h3>
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+                        </div>
+
+                        <div className="space-y-4 flex-1 overflow-y-auto pr-2">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">ID Plantilla (Slug)</label>
+                                    <input
+                                        className="w-full border p-2 rounded text-sm font-mono"
+                                        placeholder="ej: tpl_general"
+                                        value={currentTemplate.id}
+                                        onChange={e => setCurrentTemplate({...currentTemplate, id: e.target.value})}
+                                        disabled={templates.some(t => t.id === currentTemplate.id)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre</label>
+                                    <input
+                                        className="w-full border p-2 rounded text-sm"
+                                        placeholder="ej: Historia Clínica General"
+                                        value={currentTemplate.name}
+                                        onChange={e => setCurrentTemplate({...currentTemplate, name: e.target.value})}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Registro</label>
+                                    <select
+                                        className="w-full border p-2 rounded text-sm"
+                                        value={currentTemplate.recordType}
+                                        onChange={e => setCurrentTemplate({...currentTemplate, recordType: e.target.value as any})}
+                                    >
+                                        {Object.values(RecordType).map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex items-center space-x-2 pt-5">
+                                    <input
+                                        id="tpl-active"
+                                        type="checkbox"
+                                        className="rounded text-blue-600"
+                                        checked={currentTemplate.active}
+                                        onChange={e => setCurrentTemplate({...currentTemplate, active: e.target.checked})}
+                                    />
+                                    <label htmlFor="tpl-active" className="text-sm font-bold text-slate-700">Plantilla Activa</label>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción</label>
+                                <input
+                                    className="w-full border p-2 rounded text-sm"
+                                    placeholder="ej: Formato estándar para consulta externa..."
+                                    value={currentTemplate.description || ''}
+                                    onChange={e => setCurrentTemplate({...currentTemplate, description: e.target.value})}
+                                />
+                            </div>
+
+                            <div className="pt-2">
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Roles con Acceso</label>
+                                <div className="flex flex-wrap gap-2 p-2 border rounded-lg bg-slate-50">
+                                    {Object.values(UserRole).map(role => {
+                                        const isSelected = currentTemplate.allowedRoles?.includes(role);
+                                        return (
+                                            <button
+                                                key={role}
+                                                onClick={() => {
+                                                    const newRoles = isSelected
+                                                        ? currentTemplate.allowedRoles?.filter(r => r !== role)
+                                                        : [...(currentTemplate.allowedRoles || []), role];
+                                                    setCurrentTemplate({...currentTemplate, allowedRoles: newRoles});
+                                                }}
+                                                className={`px-2 py-1 rounded text-[10px] font-bold border transition-colors ${isSelected ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                                            >
+                                                {roleLabels[role] || role}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="pt-2">
+                                <label className="block text-sm font-bold text-slate-700 mb-2 flex justify-between items-center">
+                                    Secciones de la Plantilla
+                                    <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{currentTemplate.sections?.length || 0} incluidas</span>
+                                </label>
+                                <div className="space-y-2 max-h-60 overflow-y-auto p-1 border rounded-lg bg-slate-50">
+                                    {globalSections.map(section => {
+                                        const isIncluded = currentTemplate.sections?.some(s => s.id === section.id);
+                                        return (
+                                            <div
+                                                key={section.id}
+                                                className={`p-3 border rounded-lg flex items-center justify-between cursor-pointer transition-colors ${isIncluded ? 'bg-white border-purple-300 shadow-sm' : 'hover:bg-slate-100 border-slate-200'}`}
+                                                onClick={() => {
+                                                    const newSections = isIncluded
+                                                        ? currentTemplate.sections?.filter(s => s.id !== section.id)
+                                                        : [...(currentTemplate.sections || []), section];
+                                                    setCurrentTemplate({...currentTemplate, sections: newSections});
+                                                }}
+                                            >
+                                                <div className="flex items-center space-x-3">
+                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center ${isIncluded ? 'bg-purple-600 border-purple-600' : 'bg-white border-slate-300'}`}>
+                                                        {isIncluded && <CheckCircle size={12} className="text-white"/>}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-slate-700">{section.title}</p>
+                                                        <p className="text-[10px] text-slate-400">{section.fields.length} campos definidos</p>
+                                                    </div>
+                                                </div>
+                                                {isIncluded && (
+                                                    <div className="flex space-x-1">
+                                                        <button className="p-1 hover:bg-slate-100 rounded text-slate-400"><ChevronDown size={14}/></button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-8 pt-4 border-t">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold text-sm hover:bg-slate-100 rounded-lg">Cancelar</button>
+                            <button onClick={handleSaveTemplate} className="px-6 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm hover:bg-slate-800 shadow-lg flex items-center">
+                                <Save size={16} className="mr-2"/> Guardar Plantilla
+                            </button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 flex flex-col max-h-[90vh]">
+                          <div className="flex justify-between items-center mb-6">
+                              <h3 className="text-xl font-bold text-slate-800 flex items-center">
+                                  <Layers className="mr-2 text-blue-600"/> {globalSections.some(s => s.id === currentSection.id) ? 'Editar Sección' : 'Nueva Sección Clínica'}
+                              </h3>
+                              <button onClick={() => setIsSectionModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+                          </div>
+
+                          <div className="space-y-4 flex-1 overflow-y-auto pr-2">
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">ID Sección (Slug)</label>
+                                      <input
+                                          className="w-full border p-2 rounded text-sm font-mono"
+                                          placeholder="ej: sec_vitals"
+                                          value={currentSection.id}
+                                          onChange={e => setCurrentSection({...currentSection, id: e.target.value})}
+                                          disabled={globalSections.some(s => s.id === currentSection.id)}
+                                      />
+                                  </div>
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Título</label>
+                                      <input
+                                          className="w-full border p-2 rounded text-sm"
+                                          placeholder="ej: Signos Vitales"
+                                          value={currentSection.title}
+                                          onChange={e => setCurrentSection({...currentSection, title: e.target.value})}
+                                      />
+                                  </div>
+                              </div>
+
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción</label>
+                                  <input
+                                      className="w-full border p-2 rounded text-sm"
+                                      placeholder="ej: Registro de constantes fisiológicas..."
+                                      value={currentSection.description || ''}
+                                      onChange={e => setCurrentSection({...currentSection, description: e.target.value})}
+                                  />
+                              </div>
+
+                              <div className="pt-4">
+                                  <label className="block text-sm font-bold text-slate-700 mb-3 flex justify-between items-center">
+                                      Seleccionar Campos de la Biblioteca
+                                      <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{currentSection.fields?.length || 0} seleccionados</span>
+                                  </label>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto p-1 border rounded-lg bg-slate-50">
+                                      {globalFields.map(field => {
+                                          const isSelected = currentSection.fields?.some(f => f.id === field.id);
+                                          return (
+                                              <div
+                                                  key={field.id}
+                                                  className={`p-2 border rounded flex items-center space-x-3 cursor-pointer transition-colors ${isSelected ? 'bg-white border-blue-300 shadow-sm' : 'hover:bg-slate-100 border-slate-200'}`}
+                                                  onClick={() => {
+                                                      const newFields = isSelected
+                                                          ? currentSection.fields?.filter(f => f.id !== field.id)
+                                                          : [...(currentSection.fields || []), field];
+                                                      setCurrentSection({...currentSection, fields: newFields});
+                                                  }}
+                                              >
+                                                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${isSelected ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'}`}>
+                                                      {isSelected && <CheckCircle size={10} className="text-white"/>}
+                                                  </div>
+                                                  <div className="overflow-hidden">
+                                                      <p className="text-xs font-bold text-slate-700 truncate">{field.label}</p>
+                                                      <p className="text-[9px] text-slate-400 font-mono">ID: {field.id}</p>
+                                                  </div>
+                                              </div>
+                                          );
+                                      })}
+                                  </div>
+                              </div>
+                          </div>
+
+                          <div className="flex justify-end gap-3 mt-8 pt-4 border-t">
+                              <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold text-sm hover:bg-slate-100 rounded-lg">Cancelar</button>
+                              <button onClick={handleSaveSection} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center">
+                                  <Save size={16} className="mr-2"/> Guardar Sección
+                              </button>
+                          </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <div className="flex justify-between items-center mb-6">
+                              <h3 className="text-xl font-bold text-slate-800 flex items-center">
+                                  <Type className="mr-2 text-blue-600"/> {globalFields.some(f => f.id === currentField.id) ? 'Editar Campo' : 'Nuevo Campo Global'}
+                              </h3>
+                              <button onClick={() => setIsFieldModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+                          </div>
+
+                          <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">ID Variable (Slug)</label>
+                                      <input
+                                          className="w-full border p-2 rounded text-sm font-mono"
+                                          placeholder="ej: v_fc"
+                                          value={currentField.id}
+                                          onChange={e => setCurrentField({...currentField, id: e.target.value})}
+                                          disabled={globalFields.some(f => f.id === currentField.id)}
+                                      />
+                                  </div>
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Dato</label>
+                                      <select
+                                          className="w-full border p-2 rounded text-sm"
+                                          value={currentField.type}
+                                          onChange={e => setCurrentField({...currentField, type: e.target.value as any})}
+                                      >
+                                          <option value="TEXT">Texto Corto</option>
+                                          <option value="TEXTAREA">Texto Largo</option>
+                                          <option value="NUMBER">Número</option>
+                                          <option value="SELECT">Selección (Dropdown)</option>
+                                          <option value="CALCULATED">Calculado (Fórmula)</option>
+                                          <option value="CHECKBOX">Checkbox</option>
+                                          <option value="DATE">Fecha</option>
+                                          <option value="HEADER">Encabezado</option>
+                                          <option value="INFO">Bloque Info</option>
+                                      </select>
+                                  </div>
+                              </div>
+
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Etiqueta (Label)</label>
+                                  <input
+                                      className="w-full border p-2 rounded text-sm"
+                                      placeholder="ej: Frecuencia Cardíaca"
+                                      value={currentField.label}
+                                      onChange={e => setCurrentField({...currentField, label: e.target.value})}
+                                  />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Unidad (opcional)</label>
+                                      <input
+                                          className="w-full border p-2 rounded text-sm"
+                                          placeholder="ej: mmHg, kg, bpm"
+                                          value={currentField.unit || ''}
+                                          onChange={e => setCurrentField({...currentField, unit: e.target.value})}
+                                      />
+                                  </div>
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Placeholder</label>
+                                      <input
+                                          className="w-full border p-2 rounded text-sm"
+                                          placeholder="ej: Ingrese valor..."
+                                          value={currentField.placeholder || ''}
+                                          onChange={e => setCurrentField({...currentField, placeholder: e.target.value})}
+                                      />
+                                  </div>
+                              </div>
+
+                              {currentField.type === 'SELECT' && (
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Opciones (separadas por coma)</label>
+                                      <textarea
+                                          className="w-full border p-2 rounded text-sm"
+                                          rows={2}
+                                          placeholder="Opción 1, Opción 2, Opción 3"
+                                          value={currentField.options?.join(', ') || ''}
+                                          onChange={e => setCurrentField({...currentField, options: e.target.value.split(',').map(s => s.trim())})}
+                                      />
+                                  </div>
+                              )}
+
+                              {currentField.type === 'CALCULATED' && (
+                                  <div className="bg-purple-50 p-3 rounded border border-purple-100">
+                                      <label className="block text-xs font-bold text-purple-700 uppercase mb-1 flex items-center">
+                                          <Calculator size={12} className="mr-1"/> Fórmula de Cálculo
+                                      </label>
+                                      <input
+                                          className="w-full border border-purple-200 p-2 rounded text-sm font-mono"
+                                          placeholder="ej: (v_sys + 2*v_dia)/3"
+                                          value={currentField.formula || ''}
+                                          onChange={e => setCurrentField({...currentField, formula: e.target.value})}
+                                      />
+                                      <p className="text-[10px] text-purple-600 mt-1 italic">Use IDs de otras variables globales para el cálculo.</p>
+                                  </div>
+                              )}
+
+                              <div className="flex items-center space-x-2 pt-2">
+                                  <input
+                                      id="field-required"
+                                      type="checkbox"
+                                      className="rounded text-blue-600"
+                                      checked={currentField.required}
+                                      onChange={e => setCurrentField({...currentField, required: e.target.checked})}
+                                  />
+                                  <label htmlFor="field-required" className="text-sm font-bold text-slate-700">Campo Obligatorio</label>
+                              </div>
+                          </div>
+
+                          <div className="flex justify-end gap-3 mt-8 pt-4 border-t">
+                              <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold text-sm hover:bg-slate-100 rounded-lg">Cancelar</button>
+                              <button onClick={handleSaveField} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center">
+                                  <Save size={16} className="mr-2"/> Guardar Campo
+                              </button>
+                          </div>
                       </div>
                   </div>
               )}
