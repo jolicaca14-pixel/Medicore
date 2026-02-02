@@ -8,6 +8,12 @@ export default defineConfig({
   },
   use: {
     baseURL: 'http://localhost:3000',
+    actionTimeout: 10000,
+    navigationTimeout: 15000,
+  },
+  expect: {
+    timeout: 10000,
   },
   testDir: 'tests',
+  timeout: 60000,
 });

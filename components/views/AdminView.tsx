@@ -464,6 +464,27 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const handleNewSection = () => setIsSectionModalOpen(true);
   const handleNewField = () => setIsFieldModalOpen(true);
 
+  const handleEditTemplate = (t: RoleTemplate) => alert(`Editando plantilla: ${t.name}`);
+  const handleDeleteTemplate = (id: string) => {
+      if(window.confirm("¿Seguro que desea eliminar esta plantilla?")) {
+          setTemplates(prev => prev.filter(t => t.id !== id));
+      }
+  };
+
+  const handleEditSection = (s: TemplateSection) => alert(`Editando sección: ${s.title}`);
+  const handleDeleteSection = (id: string) => {
+      if(window.confirm("¿Seguro que desea eliminar esta sección?")) {
+          setGlobalSections(prev => prev.filter(s => s.id !== id));
+      }
+  };
+
+  const handleEditField = (f: TemplateField) => alert(`Editando campo: ${f.label}`);
+  const handleDeleteField = (id: string) => {
+      if(window.confirm("¿Seguro que desea eliminar este campo?")) {
+          setGlobalFields(prev => prev.filter(f => f.id !== id));
+      }
+  };
+
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
@@ -1221,27 +1242,74 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><LayoutTemplate className="mr-2"/> Nueva Plantilla</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre de la Plantilla</label>
+                                <input type="text" className="w-full px-4 py-2 border rounded-lg text-sm" placeholder="Ej: Evolución Médica General" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción</label>
+                                <textarea className="w-full px-4 py-2 border rounded-lg text-sm" rows={3} placeholder="Describa el propósito de esta plantilla..." />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                            <button onClick={() => { setIsTemplateModalOpen(false); alert("Plantilla creada exitosamente (Simulación)."); }} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm">Guardar Plantilla</button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><Layers className="mr-2"/> Nueva Sección Clínica</h3>
+                          <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Título de la Sección</label>
+                                <input type="text" className="w-full px-4 py-2 border rounded-lg text-sm" placeholder="Ej: Examen Físico Detallado" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Identificador Único (ID)</label>
+                                <input type="text" className="w-full px-4 py-2 border rounded-lg text-sm font-mono" placeholder="ej_examen_fisico" />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                            <button onClick={() => { setIsSectionModalOpen(false); alert("Sección agregada a la biblioteca (Simulación)."); }} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm">Crear Sección</button>
+                        </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><Type className="mr-2"/> Nuevo Campo / Variable</h3>
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Etiqueta del Campo</label>
+                                    <input type="text" className="w-full px-4 py-2 border rounded-lg text-sm" placeholder="Ej: Frecuencia Cardíaca" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Dato</label>
+                                    <select className="w-full px-4 py-2 border rounded-lg text-sm">
+                                        <option>TEXTO</option>
+                                        <option>NÚMERO</option>
+                                        <option>SELECT</option>
+                                        <option>CÁLCULO</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Unidad (Opcional)</label>
+                                    <input type="text" className="w-full px-4 py-2 border rounded-lg text-sm" placeholder="Ej: bpm, mmHg" />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                            <button onClick={() => { setIsFieldModalOpen(false); alert("Campo definido correctamente (Simulación)."); }} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm">Guardar Variable</button>
+                        </div>
                       </div>
                   </div>
               )}
@@ -1282,8 +1350,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           <LayoutTemplate size={20}/>
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                                          <button onClick={() => handleEditTemplate(t)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
+                                          <button onClick={() => handleDeleteTemplate(t.id)} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
                                       </div>
                                   </div>
                                   <h4 className="font-bold text-slate-800">{t.name}</h4>
@@ -1345,7 +1413,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           ))}
                                           {sec.fields.length > 4 && <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] text-slate-500">+{sec.fields.length - 4}</div>}
                                       </div>
-                                      <button className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => handleEditSection(sec)} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => handleDeleteSection(sec.id)} className="p-2 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button>
                                   </div>
                               </div>
                           ))}
@@ -1405,7 +1474,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                               ) : <span className="text-xs text-slate-400">Opcional</span>}
                                           </td>
                                           <td className="p-3 text-right">
-                                              <button className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button onClick={() => handleEditField(field)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500 mr-1"><Edit size={14}/></button>
+                                              <button onClick={() => handleDeleteField(field.id)} className="p-1.5 hover:bg-slate-200 rounded text-red-500"><Trash2 size={14}/></button>
                                           </td>
                                       </tr>
                                   ))}
