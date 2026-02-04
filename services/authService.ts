@@ -19,6 +19,17 @@ const mapUser = (backendData: any): User => {
   };
 };
 
+export const getAuthToken = () => {
+  const session = sessionStorage.getItem('medicore_session');
+  if (!session) return null;
+  try {
+    const data = JSON.parse(session);
+    return data.accessToken || null;
+  } catch (e) {
+    return null;
+  }
+};
+
 export const authService = {
   async login(username: string, password: string): Promise<User> {
     try {

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
-import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
+import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2, Info, Brain } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
@@ -46,12 +46,15 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // AI Suggestion State
   const [isSuggestingCIE, setIsSuggestingCIE] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string>('');
+  const [aiSummary, setAiSummary] = useState<string>('');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   // UX States
   const [patientSearch, setPatientSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [hoveredPatientId, setHoveredPatientId] = useState<string | null>(null);
 
   // ⚡ TRINITY: Fetch Patients from API
   useEffect(() => {
@@ -115,27 +118,13 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       calc_framingham: framinghamValue
   }), [bmiValue, tamValue, tfgValue, framinghamValue]);
 
-  const handleSaveDraft = () => {
-    if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
-    setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = recordToSave;
-        return updated;
-      }
-      return [...prev, recordToSave];
-    });
-
-    // 🎨 Palette: Non-blocking feedback for draft saving
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
-  };
-
   const handleSaveDraft = async () => {
     if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+
+    const recordToSave = {
+        ...currentRecord,
+        dynamicData: { ...dynamicData, ...allCalculatedValues }
+    } as ClinicalRecord;
 
     // ⚡ TRINITY: Persist draft to backend
     try {
@@ -157,7 +146,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       }
       return [...prev, recordToSave];
     });
-    alert("Borrador guardado exitosamente.");
+
+    // 🎨 Palette: Non-blocking feedback for draft saving
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
   };
 
   // ⚡ NEO: Keyboard Shortcuts (Ctrl+S for Save)
@@ -332,7 +324,29 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const handleDownloadContract = () => {
       // 🛡️ MORPHEUS: Audit log for contract download
       logAuditEvent(user.id, 'DOWNLOAD_CONTRACT', 'Contract', `User downloaded a copy of their contract`);
-      alert('Descargando PDF del contrato...');
+
+      const activeContract = user.contracts?.find(c => c.isActive);
+      const contractText = `
+        CONTRATO DE PRESTACIÓN DE SERVICIOS / LABORAL
+        -------------------------------------------
+        PROFESIONAL: ${user.name}
+        DOCUMENTO: ${user.documentNumber}
+        FECHA DE INICIO: ${activeContract?.startDate || 'N/A'}
+        TIPO: ${activeContract?.type || 'N/A'}
+        VALOR: ${activeContract?.baseSalary || activeContract?.opsValue || 0}
+
+        Este es un documento generado automáticamente por MediCore Pro.
+      `;
+
+      const blob = new Blob([contractText], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `contrato_${user.username}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
   };
 
   const handleOpenPaymentModal = () => {
@@ -512,14 +526,34 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
               institution: "MediCore IPS"
           },
           clinicalContent: {
-              diagnoses: record.diagnoses?.map(d => ({ code: d.code, description: d.name, type: d.type })),
+              diagnoses: record.diagnoses?.map(d => ({
+                  code: d.code,
+                  description: d.name,
+                  type: d.type === 'PRINCIPAL' ? 'P' : 'R'
+              })),
               chiefComplaint: record.chiefComplaint,
               plan: record.plan,
-              procedures: record.performedProcedures?.map(p => ({ code: p.code, name: p.name })),
+              procedures: record.performedProcedures?.map(p => ({
+                  code: p.code,
+                  name: p.name,
+                  date: record.dateCreated // Res 1888 requires procedure date
+              })),
               medications: record.prescriptions?.map(m => ({ name: m.medicationName, dose: m.dose }))
           }
       };
       return JSON.stringify(rda, null, 2);
+  };
+
+  const handleAiSummary = async () => {
+    setIsGeneratingSummary(true);
+    try {
+        const summary = await generateClinicalSummary(currentRecord as ClinicalRecord);
+        setAiSummary(summary);
+    } catch (e) {
+        console.error("Error al generar resumen AI:", e);
+    } finally {
+        setIsGeneratingSummary(false);
+    }
   };
 
   const initiateAuth = (action: 'FINALIZE' | 'SIGN_NOTE') => {
@@ -1132,6 +1166,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
              </div>
          )}
 
+         {aiSummary && (
+             <div className="mb-4 bg-blue-50 border border-blue-200 p-4 rounded-xl relative animate-in fade-in slide-in-from-top-2">
+                 <button onClick={() => setAiSummary('')} className="absolute top-2 right-2 text-blue-400 hover:text-blue-600"><X size={16}/></button>
+                 <h4 className="text-xs font-bold text-blue-800 uppercase mb-1 flex items-center"><Brain size={14} className="mr-2"/> Resumen Inteligente</h4>
+                 <p className="text-sm text-blue-900">{aiSummary}</p>
+             </div>
+         )}
+
          {showAuthModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full">
@@ -1196,6 +1238,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
             </div>
             {!isReadOnly ? (
                 <div className="flex items-center space-x-3">
+                    <button
+                        onClick={handleAiSummary}
+                        disabled={isGeneratingSummary}
+                        className="p-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors"
+                        title="Sugerir Resumen AI"
+                    >
+                        {isGeneratingSummary ? <Loader2 size={18} className="animate-spin"/> : <Brain size={18}/>}
+                    </button>
                     <select 
                         className="p-2 border rounded text-sm bg-white font-bold text-slate-700"
                         value={selectedTemplate?.id}
@@ -1592,15 +1642,32 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                 const appt = MOCK_APPOINTMENTS.find(a => a.patientId === p.id && a.date === today && a.status === 'WAITING');
 
                 return (
-                    <div key={p.id} className={`bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow cursor-pointer group relative overflow-hidden ${appt ? 'ring-2 ring-green-500' : ''}`} onClick={() => handleCreateRecord(p)}>
+                    <div
+                        key={p.id}
+                        className={`bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow cursor-pointer group relative overflow-hidden ${appt ? 'ring-2 ring-green-500' : ''}`}
+                        onClick={() => handleCreateRecord(p)}
+                        onMouseEnter={() => setHoveredPatientId(p.id)}
+                        onMouseLeave={() => setHoveredPatientId(null)}
+                    >
                         {appt && (
                             <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">
                                 EN SALA DE ESPERA
                             </div>
                         )}
                         <div className="flex justify-between items-start mb-4">
-                            <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 font-bold text-lg">
+                            <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 font-bold text-lg relative">
                                 {p.fullName.charAt(0)}
+                                {hoveredPatientId === p.id && (
+                                    <div className="absolute left-full ml-4 top-0 z-30 bg-slate-900 text-white p-4 rounded-xl shadow-2xl w-64 animate-in fade-in zoom-in duration-200 pointer-events-none">
+                                        <h4 className="font-bold text-[10px] uppercase text-slate-400 mb-2 flex items-center"><Info size={10} className="mr-1"/> Resumen Rápido</h4>
+                                        <div className="space-y-1 text-[10px]">
+                                            <p><span className="text-slate-500">Rh:</span> <span className="text-red-400 font-bold">{p.bloodType || 'N/A'}</span></p>
+                                            <p><span className="text-slate-500">Alergias:</span> <span className={p.allergies ? 'text-red-400 font-bold' : ''}>{p.allergies || 'Ninguna'}</span></p>
+                                            <p><span className="text-slate-500">Última atención:</span> 10/10/2023</p>
+                                            <p><span className="text-slate-500">Email:</span> {p.email}</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <button className="bg-slate-900 text-white px-3 py-1 rounded-full text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Atender</button>
                         </div>

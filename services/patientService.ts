@@ -1,19 +1,8 @@
 import { Patient } from '../types';
 import { MOCK_PATIENTS } from '../constants';
+import { getAuthToken } from './authService';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace('/auth', '');
-
-// Helper to get token from session
-const getAuthToken = () => {
-    const session = sessionStorage.getItem('medicore_session');
-    if (!session) return null;
-    try {
-        const data = JSON.parse(session);
-        return data.accessToken || null;
-    } catch (e) {
-        return null;
-    }
-};
 
 // Map backend patient to frontend Patient type
 const mapPatient = (p: any): Patient => ({

@@ -1,4 +1,5 @@
 import { ClinicalRecord } from '../types';
+import { getAuthToken } from './authService';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -7,7 +8,7 @@ export const clinicalRecordService = {
     try {
       const response = await fetch(`${API_URL}/historias/paciente/${patientId}`, {
         headers: {
-          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
+          'Authorization': `Bearer ${getAuthToken()}`
         }
       });
       if (!response.ok) throw new Error('Error al obtener historias clínicas');
@@ -24,7 +25,7 @@ export const clinicalRecordService = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
+          'Authorization': `Bearer ${getAuthToken()}`
         },
         body: JSON.stringify(record)
       });
@@ -42,7 +43,7 @@ export const clinicalRecordService = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
+          'Authorization': `Bearer ${getAuthToken()}`
         },
         body: JSON.stringify({ signature })
       });

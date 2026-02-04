@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType, TariffItem, Contract, ContractType, ContractAudit, DisciplinaryAction, PaymentRequest, ClinicalRecord, RecordType, RecordStatus, Patient } from '../../types';
 import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -9,6 +9,7 @@ import {
     Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson
 } from 'lucide-react';
 import { UserForm } from '../UserForm';
+import { sanitizeInput } from '../../utils/security';
 
 interface AdminViewProps {
   activeTab: string;
@@ -57,6 +58,86 @@ const roleLabels: Record<UserRole, string> = {
     [UserRole.MANAGER]: 'Gerente'
 };
 
+const UserListTable = React.memo(({ users, onEdit, currentUser, roleLabels }: {
+    users: User[], onEdit: (u: User) => void, currentUser: Partial<User>, roleLabels: any
+}) => (
+    <div className="overflow-x-auto flex-1">
+        <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0">
+                <tr>
+                    <th className="py-3 px-4">Nombre Completo</th>
+                    <th className="py-3 px-4">Roles</th>
+                    <th className="py-3 px-4">Info Profesional</th>
+                    <th className="py-3 px-4 text-right">Acciones</th>
+                </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+                {users.map(u => (
+                    <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50' : ''}`} onClick={() => onEdit(u)}>
+                        <td className="py-3 px-4">
+                            <div className="font-bold text-slate-700">{u.name}</div>
+                            <div className="font-mono text-xs text-slate-400">@{u.username}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                            <div className="flex flex-wrap gap-1">
+                                {u.roles?.map(r => <span key={r} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">{roleLabels[r] || r}</span>)}
+                            </div>
+                        </td>
+                        <td className="py-3 px-4">
+                            {u.roles.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST) ? (
+                                <div className="text-xs">
+                                    <p><span className="font-bold">Lic:</span> {u.professionalLicense || 'N/A'}</p>
+                                    {u.digitalStampUrl && <span className="text-[9px] text-green-600 bg-green-50 px-1 rounded">Firma OK</span>}
+                                </div>
+                            ) : <span className="text-xs text-slate-400">-</span>}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                            <button onClick={(e) => { e.stopPropagation(); onEdit(u); }} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
+                        </td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    </div>
+));
+
+const TemplateGrid = React.memo(({ templates, roleLabels }: { templates: RoleTemplate[], roleLabels: any }) => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {templates.map(t => (
+            <div key={t.id} className="border border-slate-200 rounded-xl p-5 hover:shadow-md transition-shadow relative group bg-slate-50/50">
+                <div className="flex justify-between items-start mb-2">
+                    <div className={`p-2 rounded-lg ${t.active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
+                        <LayoutTemplate size={20}/>
+                    </div>
+                    <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
+                        <button className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                    </div>
+                </div>
+                <h4 className="font-bold text-slate-800">{t.name}</h4>
+                <p className="text-xs text-slate-500 mb-3">{t.description}</p>
+
+                <div className="space-y-2 mb-4">
+                    <div className="text-xs">
+                        <span className="font-bold text-slate-700 block mb-1">Roles Permitidos:</span>
+                        <div className="flex flex-wrap gap-1">
+                            {t.allowedRoles.map(r => <span key={r} className="bg-white border px-1.5 py-0.5 rounded text-[10px] text-slate-600">{roleLabels[r]}</span>)}
+                        </div>
+                    </div>
+                    <div className="text-xs">
+                        <span className="font-bold text-slate-700 block mb-1">Estructura:</span>
+                        <p className="text-slate-500">{t.sections.length} secciones configuradas.</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded w-fit">
+                    <Database size={12} className="mr-1"/> Tipo Registro: {t.recordType}
+                </div>
+            </div>
+        ))}
+    </div>
+));
+
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
   const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
 
@@ -103,8 +184,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [globalSections, setGlobalSections] = useState<TemplateSection[]>(MOCK_SECTION_LIBRARY);
   const [templates, setTemplates] = useState<RoleTemplate[]>(MOCK_TEMPLATES);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [newTemplateData, setNewTemplateData] = useState<Partial<RoleTemplate>>({ name: '', description: '', allowedRoles: [], sections: [], recordType: RecordType.GENERAL, active: true });
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
+  const [newSectionData, setNewSectionData] = useState<Partial<TemplateSection>>({ title: '', description: '', fields: [] });
   const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
+  const [newFieldData, setNewFieldData] = useState<Partial<TemplateField>>({ label: '', type: 'TEXT', required: false, unit: '' });
 
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
@@ -460,14 +544,63 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       alert("Descargando paquete .ZIP con archivos TXT/JSON validados...");
   };
 
+  const projectedPayroll = useMemo(() => {
+    return users.reduce((total, u) => {
+        const activeContract = u.contracts?.find(c => c.isActive);
+        if (!activeContract) return total;
+
+        if (activeContract.type === ContractType.NOMINA) {
+            return total + (activeContract.baseSalary || 0);
+        } else if (activeContract.type === ContractType.OPS && activeContract.opsPaymentMethod === 'FIXED_MONTHLY') {
+            return total + (activeContract.opsValue || 0);
+        }
+        return total;
+    }, 0);
+  }, [users]);
+
   const handleNewTemplate = () => setIsTemplateModalOpen(true);
   const handleNewSection = () => setIsSectionModalOpen(true);
   const handleNewField = () => setIsFieldModalOpen(true);
 
+  const handleSaveNewTemplate = () => {
+    const template: RoleTemplate = {
+      ...newTemplateData,
+      id: `tpl-${Date.now()}`,
+      name: sanitizeInput(newTemplateData.name || 'Sin nombre'),
+      description: sanitizeInput(newTemplateData.description || '')
+    } as RoleTemplate;
+    setTemplates(prev => [...prev, template]);
+    setIsTemplateModalOpen(false);
+    setNewTemplateData({ name: '', description: '', allowedRoles: [], sections: [], recordType: RecordType.GENERAL, active: true });
+  };
+
+  const handleSaveNewSection = () => {
+    const section: TemplateSection = {
+      ...newSectionData,
+      id: `sec-${Date.now()}`,
+      title: sanitizeInput(newSectionData.title || 'Sin título'),
+      description: sanitizeInput(newSectionData.description || '')
+    } as TemplateSection;
+    setGlobalSections(prev => [...prev, section]);
+    setIsSectionModalOpen(false);
+    setNewSectionData({ title: '', description: '', fields: [] });
+  };
+
+  const handleSaveNewField = () => {
+    const field: TemplateField = {
+      ...newFieldData,
+      id: `field-${Date.now()}`,
+      label: sanitizeInput(newFieldData.label || 'Sin etiqueta'),
+    } as TemplateField;
+    setGlobalFields(prev => [...prev, field]);
+    setIsFieldModalOpen(false);
+    setNewFieldData({ label: '', type: 'TEXT', required: false, unit: '' });
+  };
+
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr') && !isAdmin) {
+  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files' || activeTab === 'reports') && !isAdmin) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
@@ -485,7 +618,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       return (
           <div className="space-y-6 animate-in fade-in duration-500">
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
+                      <div>
+                          <p className="text-slate-500 text-sm font-bold uppercase">Nómina Proyectada</p>
+                          <h3 className="text-xl font-bold text-slate-800">{formatCurrency(projectedPayroll)}</h3>
+                      </div>
+                      <div className="p-3 bg-indigo-100 text-indigo-600 rounded-full"><CreditCard size={20}/></div>
+                  </div>
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
                       <div>
                           <p className="text-slate-500 text-sm font-bold uppercase">Pacientes Activos</p>
@@ -1151,44 +1291,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
             {/* User List Column */}
             <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
                 <h3 className="font-bold text-slate-800 mb-6">Directorio de Usuarios</h3>
-                <div className="overflow-x-auto flex-1">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0">
-                            <tr>
-                                <th className="py-3 px-4">Nombre Completo</th>
-                                <th className="py-3 px-4">Roles</th>
-                                <th className="py-3 px-4">Info Profesional</th>
-                                <th className="py-3 px-4 text-right">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {users.map(u => (
-                                <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50' : ''}`} onClick={() => handleEditUser(u)}>
-                                    <td className="py-3 px-4">
-                                        <div className="font-bold text-slate-700">{u.name}</div>
-                                        <div className="font-mono text-xs text-slate-400">@{u.username}</div>
-                                    </td>
-                                    <td className="py-3 px-4">
-                                        <div className="flex flex-wrap gap-1">
-                                            {u.roles?.map(r => <span key={r} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">{roleLabels[r] || r}</span>)}
-                                        </div>
-                                    </td>
-                                    <td className="py-3 px-4">
-                                        {u.roles.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST) ? (
-                                            <div className="text-xs">
-                                                <p><span className="font-bold">Lic:</span> {u.professionalLicense || 'N/A'}</p>
-                                                {u.digitalStampUrl && <span className="text-[9px] text-green-600 bg-green-50 px-1 rounded">Firma OK</span>}
-                                            </div>
-                                        ) : <span className="text-xs text-slate-400">-</span>}
-                                    </td>
-                                    <td className="py-3 px-4 text-right">
-                                        <button onClick={(e) => { e.stopPropagation(); handleEditUser(u); }} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <UserListTable
+                    users={users}
+                    onEdit={handleEditUser}
+                    currentUser={currentUser}
+                    roleLabels={roleLabels}
+                />
             </div>
 
             {/* User Form Column */}
@@ -1222,8 +1330,26 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
                         <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Nombre</label>
+                                <input type="text" className="w-full border p-2 rounded" value={newTemplateData.name} onChange={e => setNewTemplateData({...newTemplateData, name: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Descripción</label>
+                                <textarea className="w-full border p-2 rounded" value={newTemplateData.description} onChange={e => setNewTemplateData({...newTemplateData, description: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Tipo de Registro</label>
+                                <select className="w-full border p-2 rounded" value={newTemplateData.recordType} onChange={e => setNewTemplateData({...newTemplateData, recordType: e.target.value as RecordType})}>
+                                    {Object.values(RecordType).map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
+                            <button onClick={handleSaveNewTemplate} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar</button>
+                        </div>
                     </div>
                 </div>
               )}
@@ -1231,8 +1357,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
                           <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Título</label>
+                                <input type="text" className="w-full border p-2 rounded" value={newSectionData.title} onChange={e => setNewSectionData({...newSectionData, title: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Descripción</label>
+                                <textarea className="w-full border p-2 rounded" value={newSectionData.description} onChange={e => setNewSectionData({...newSectionData, description: e.target.value})} />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
+                            <button onClick={handleSaveNewSection} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar</button>
+                        </div>
                       </div>
                   </div>
               )}
@@ -1240,8 +1378,30 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
                           <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Etiqueta (Label)</label>
+                                <input type="text" className="w-full border p-2 rounded" value={newFieldData.label} onChange={e => setNewFieldData({...newFieldData, label: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Tipo de Dato</label>
+                                <select className="w-full border p-2 rounded" value={newFieldData.type} onChange={e => setNewFieldData({...newFieldData, type: e.target.value as FieldType})}>
+                                    <option value="TEXT">TEXT</option>
+                                    <option value="TEXTAREA">TEXTAREA</option>
+                                    <option value="NUMBER">NUMBER</option>
+                                    <option value="SELECT">SELECT</option>
+                                    <option value="CALCULATED">CALCULATED</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Unidad (Opcional)</label>
+                                <input type="text" className="w-full border p-2 rounded" value={newFieldData.unit} onChange={e => setNewFieldData({...newFieldData, unit: e.target.value})} />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
+                            <button onClick={handleSaveNewField} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar</button>
+                        </div>
                       </div>
                   </div>
               )}
@@ -1274,40 +1434,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                           </button>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {templates.map(t => (
-                              <div key={t.id} className="border border-slate-200 rounded-xl p-5 hover:shadow-md transition-shadow relative group bg-slate-50/50">
-                                  <div className="flex justify-between items-start mb-2">
-                                      <div className={`p-2 rounded-lg ${t.active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
-                                          <LayoutTemplate size={20}/>
-                                      </div>
-                                      <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
-                                      </div>
-                                  </div>
-                                  <h4 className="font-bold text-slate-800">{t.name}</h4>
-                                  <p className="text-xs text-slate-500 mb-3">{t.description}</p>
-                                  
-                                  <div className="space-y-2 mb-4">
-                                      <div className="text-xs">
-                                          <span className="font-bold text-slate-700 block mb-1">Roles Permitidos:</span>
-                                          <div className="flex flex-wrap gap-1">
-                                              {t.allowedRoles.map(r => <span key={r} className="bg-white border px-1.5 py-0.5 rounded text-[10px] text-slate-600">{roleLabels[r]}</span>)}
-                                          </div>
-                                      </div>
-                                      <div className="text-xs">
-                                          <span className="font-bold text-slate-700 block mb-1">Estructura:</span>
-                                          <p className="text-slate-500">{t.sections.length} secciones configuradas.</p>
-                                      </div>
-                                  </div>
-                                  
-                                  <div className="flex items-center text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded w-fit">
-                                      <Database size={12} className="mr-1"/> Tipo Registro: {t.recordType}
-                                  </div>
-                              </div>
-                          ))}
-                      </div>
+                      <TemplateGrid templates={templates} roleLabels={roleLabels} />
                   </div>
               )}
 
