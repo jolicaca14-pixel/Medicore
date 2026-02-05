@@ -457,7 +457,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
 
   const downloadRIPS = () => {
-      alert("Descargando paquete .ZIP con archivos TXT/JSON validados...");
+      if (!generatedRips) return;
+      const content = JSON.stringify(generatedRips, null, 2);
+      const blob = new Blob([content], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `RIPS_${ripsStartDate}_${ripsEndDate}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      alert("Paquete de RIPS generado y descargado exitosamente.");
   };
 
   const handleNewTemplate = () => setIsTemplateModalOpen(true);
@@ -467,7 +478,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr') && !isAdmin) {
+  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
@@ -1095,13 +1106,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
                   {generatedRips ? (
                       <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                          <div className="grid grid-cols-4 gap-4">
-                              {Object.entries(generatedRips).map(([key, data]) => (
-                                  <div key={key} className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
-                                      <h4 className="font-bold text-2xl text-slate-800">{data.length}</h4>
-                                      <p className="text-xs text-slate-500 font-bold uppercase">Archivo {key}</p>
-                                  </div>
-                              ))}
+                          <div className="flex justify-between items-center gap-4">
+                              <div className="grid grid-cols-4 gap-4 flex-1">
+                                  {Object.entries(generatedRips).map(([key, data]) => (
+                                      <div key={key} className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+                                          <h4 className="font-bold text-2xl text-slate-800">{data.length}</h4>
+                                          <p className="text-xs text-slate-500 font-bold uppercase">Archivo {key}</p>
+                                      </div>
+                                  ))}
+                              </div>
+                              <button onClick={downloadRIPS} className="bg-green-600 text-white px-6 py-4 rounded-xl font-bold flex flex-col items-center justify-center shadow-lg hover:bg-green-700 transition-all min-w-[120px]">
+                                  <Download size={24} className="mb-1"/>
+                                  <span className="text-[10px] uppercase">Descargar</span>
+                              </button>
                           </div>
                           
                           <div className="border rounded-lg overflow-hidden">
@@ -1147,13 +1164,38 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // 2. USERS LIST - Only Admin
   if (activeTab === 'users' && isAdmin) {
       return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full animate-in fade-in duration-500">
-            {/* User List Column */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
-                <h3 className="font-bold text-slate-800 mb-6">Directorio de Usuarios</h3>
-                <div className="overflow-x-auto flex-1">
+        <div className="space-y-6 animate-in fade-in duration-500">
+            {/* User Form Space (Top) */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                 <div className="flex justify-between items-center mb-6 border-b pb-4">
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-800">
+                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
+                        </h3>
+                        <p className="text-sm text-slate-500">Espacio dedicado para la gestión y creación de cuentas del sistema.</p>
+                    </div>
+                    <button onClick={handleAddNewUser} className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg flex items-center hover:bg-slate-800 transition-colors shadow-lg">
+                        <Plus size={18} className="mr-2"/> Crear Nuevo Usuario
+                    </button>
+                 </div>
+                 <div className="mt-6">
+                    <UserForm
+                        user={currentUser}
+                        onSave={handleSaveUser}
+                        onCancel={() => setCurrentUser({})}
+                        isEmbedded={true}
+                    />
+                 </div>
+            </div>
+
+            {/* User List Space (Bottom) */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                <h3 className="font-bold text-slate-800 mb-6 flex items-center">
+                    <Users className="mr-2 text-blue-600"/> Directorio General de Usuarios
+                </h3>
+                <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0">
+                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
                             <tr>
                                 <th className="py-3 px-4">Nombre Completo</th>
                                 <th className="py-3 px-4">Roles</th>
@@ -1182,29 +1224,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                         ) : <span className="text-xs text-slate-400">-</span>}
                                     </td>
                                     <td className="py-3 px-4 text-right">
-                                        <button onClick={(e) => { e.stopPropagation(); handleEditUser(u); }} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
+                                        <button onClick={(e) => { e.stopPropagation(); handleEditUser(u); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"><Edit size={16}/></button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
-            </div>
-
-            {/* User Form Column */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-slate-800">
-                        {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
-                    </h3>
-                    <button onClick={handleAddNewUser} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center"><Plus size={14} className="mr-1"/> Agregar Nuevo</button>
-                 </div>
-                 <UserForm
-                    user={currentUser}
-                    onSave={handleSaveUser}
-                    onCancel={() => setCurrentUser({})}
-                    isEmbedded={true}
-                 />
             </div>
         </div>
       );
@@ -1282,8 +1308,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           <LayoutTemplate size={20}/>
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                                          <button onClick={() => setIsTemplateModalOpen(true)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
+                                          <button onClick={() => window.confirm('¿Eliminar esta plantilla?') && alert('Plantilla eliminada')} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
                                       </div>
                                   </div>
                                   <h4 className="font-bold text-slate-800">{t.name}</h4>
@@ -1345,7 +1371,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           ))}
                                           {sec.fields.length > 4 && <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] text-slate-500">+{sec.fields.length - 4}</div>}
                                       </div>
-                                      <button className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => setIsSectionModalOpen(true)} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
                                   </div>
                               </div>
                           ))}
@@ -1405,7 +1431,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                               ) : <span className="text-xs text-slate-400">Opcional</span>}
                                           </td>
                                           <td className="p-3 text-right">
-                                              <button className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button onClick={() => setIsFieldModalOpen(true)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
                                           </td>
                                       </tr>
                                   ))}
