@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
+import { clinicalRecordService } from '../../services/clinicalRecordService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
-import { sanitizeInput } from '../../utils/security';
+import { sanitizeInput, maskIdentification } from '../../utils/security';
 import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calculateTFG, calculateFramingham } from '../../utils/clinicalLogic';
 import { logAuditEvent } from '../../utils/auditLogger';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -52,6 +53,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [hoveredPatientId, setHoveredPatientId] = useState<string | null>(null);
+  const [patientSummary, setPatientSummary] = useState<string | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
 
   // ⚡ TRINITY: Fetch Patients from API
   useEffect(() => {
@@ -115,11 +119,23 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       calc_framingham: framinghamValue
   }), [bmiValue, tamValue, tfgValue, framinghamValue]);
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     if (!currentRecord.id) return;
     const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
+
+    // ⚡ TRINITY: Persist draft to backend
+    try {
+        const savedRecord = await clinicalRecordService.create(recordToSave);
+        // Update local state with the ID from backend if it changed (e.g. from temp to UUID)
+        if (savedRecord && savedRecord.id !== currentRecord.id) {
+            setCurrentRecord(prev => ({ ...prev, id: savedRecord.id }));
+        }
+    } catch (e) {
+        console.warn("No se pudo persistir en backend, usando local storage");
+    }
+
     setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
+      const existing = prev.findIndex(r => r.id === (currentRecord.id));
       if (existing >= 0) {
         const updated = [...prev];
         updated[existing] = recordToSave;
@@ -131,33 +147,6 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     // 🎨 Palette: Non-blocking feedback for draft saving
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
-  };
-
-  const handleSaveDraft = async () => {
-    if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
-
-    // ⚡ TRINITY: Persist draft to backend
-    try {
-        const savedRecord = await clinicalRecordService.create(recordToSave);
-        // Update local state with the ID from backend if it changed (e.g. from temp to UUID)
-        if (savedRecord.id !== currentRecord.id) {
-            setCurrentRecord(prev => ({ ...prev, id: savedRecord.id }));
-        }
-    } catch (e) {
-        console.warn("No se pudo persistir en backend, usando local storage");
-    }
-
-    setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = recordToSave;
-        return updated;
-      }
-      return [...prev, recordToSave];
-    });
-    alert("Borrador guardado exitosamente.");
   };
 
   // ⚡ NEO: Keyboard Shortcuts (Ctrl+S for Save)
@@ -442,8 +431,28 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
        return uniqueProcs.slice(0, 5);
   }, [records, user.id]);
 
-  const handleCreateRecord = (patient: Patient) => {
+  const handleCreateRecord = async (patient: Patient) => {
     setSelectedPatient(patient);
+    setPatientSummary(null);
+
+    // ⚡ DOC HOUSE: Auto-generate AI Summary on load
+    try {
+        setIsSummarizing(true);
+        const patientNotes = records
+            .filter(r => r.patientId === patient.id)
+            .map(r => `${r.chiefComplaint}. ${r.plan}`)
+            .join(' ');
+
+        if (patientNotes.trim()) {
+            const summary = await generateClinicalSummary(patientNotes);
+            setPatientSummary(summary);
+        }
+    } catch (e) {
+        console.error("AI Summary failed", e);
+    } finally {
+        setIsSummarizing(false);
+    }
+
     setViewMode('CREATE');
     
     // Check previous records for RCV History
@@ -1132,6 +1141,23 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
              </div>
          )}
 
+         {patientSummary && (
+             <div className="mb-4 bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg shadow-sm animate-in fade-in slide-in-from-top-1">
+                 <div className="flex items-center mb-1">
+                     <Bot size={16} className="text-blue-600 mr-2"/>
+                     <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">Resumen Clínico Inteligente (IA)</span>
+                 </div>
+                 <p className="text-xs text-slate-700 leading-relaxed italic">"{patientSummary}"</p>
+             </div>
+         )}
+
+         {isSummarizing && (
+             <div className="mb-4 bg-blue-50/50 p-2 rounded-lg flex items-center justify-center border border-dashed border-blue-200">
+                 <Loader2 size={14} className="animate-spin text-blue-400 mr-2"/>
+                 <span className="text-[10px] text-blue-400 font-medium">Generando resumen inteligente...</span>
+             </div>
+         )}
+
          {showAuthModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full">
@@ -1592,7 +1618,40 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                 const appt = MOCK_APPOINTMENTS.find(a => a.patientId === p.id && a.date === today && a.status === 'WAITING');
 
                 return (
-                    <div key={p.id} className={`bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow cursor-pointer group relative overflow-hidden ${appt ? 'ring-2 ring-green-500' : ''}`} onClick={() => handleCreateRecord(p)}>
+                    <div
+                        key={p.id}
+                        className={`bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow cursor-pointer group relative overflow-hidden ${appt ? 'ring-2 ring-green-500' : ''}`}
+                        onClick={() => handleCreateRecord(p)}
+                        onMouseEnter={() => setHoveredPatientId(p.id)}
+                        onMouseLeave={() => setHoveredPatientId(null)}
+                    >
+                        {/* ⚡ PALETTE: Quick Look Tooltip */}
+                        {hoveredPatientId === p.id && (
+                            <div className="absolute inset-0 bg-slate-900/95 text-white p-4 z-20 animate-in fade-in duration-200 flex flex-col justify-center">
+                                <h4 className="text-[10px] font-bold text-blue-400 uppercase mb-2 tracking-widest">Vista Rápida</h4>
+                                <div className="space-y-1">
+                                    {records.filter(r => r.patientId === p.id).slice(0, 1).map(r => (
+                                        <div key={r.id} className="text-[11px]">
+                                            <p className="flex justify-between border-b border-slate-700 pb-1 mb-1">
+                                                <span>FC: {r.dynamicData?.v_fc || 'N/A'} lpm</span>
+                                                <span>SpO2: {r.dynamicData?.v_sat || 'N/A'}%</span>
+                                            </p>
+                                            <p className="flex justify-between border-b border-slate-700 pb-1 mb-1">
+                                                <span>TA: {r.dynamicData?.global_sys_bp}/{r.dynamicData?.global_dia_bp}</span>
+                                                <span>T: {r.dynamicData?.global_temp || 'N/A'}°C</span>
+                                            </p>
+                                            <p className="mt-2 text-slate-300 italic line-clamp-2">
+                                                Último Análisis: {r.dynamicData?.d_analisis || 'Sin registros recientes.'}
+                                            </p>
+                                        </div>
+                                    ))}
+                                    {records.filter(r => r.patientId === p.id).length === 0 && (
+                                        <p className="text-[11px] text-slate-400 italic">No hay historial clínico previo.</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {appt && (
                             <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">
                                 EN SALA DE ESPERA
@@ -1606,7 +1665,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                         </div>
                         <h3 className="font-bold text-slate-800">{p.fullName}</h3>
                         <div className="flex items-center text-sm text-slate-500 mb-1 group">
-                            <span>{p.identification}</span>
+                            <span>{maskIdentification(p.identification)}</span>
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleCopyId(p.identification); }}
                                 className={`ml-2 p-1 transition-all ${copiedId === p.identification ? 'text-green-500 scale-110' : 'text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100'}`}

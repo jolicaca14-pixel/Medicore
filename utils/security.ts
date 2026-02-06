@@ -25,3 +25,14 @@ export const sanitizeInput = (input: string | undefined | null): string => {
   // For a production environment, a more robust, well-tested library like DOMPurify is strongly recommended.
   return input.replace(/<|>/g, '');
 };
+
+/**
+ * 🛡️ Mask Identification (PII Protection)
+ * Masks sensitive identification numbers, showing only first 3 and last 3 digits.
+ * @example maskIdentification('1234567890') -> '123****890'
+ */
+export const maskIdentification = (id: string | undefined | null): string => {
+  if (!id) return '';
+  if (id.length <= 6) return id;
+  return `${id.slice(0, 3)}****${id.slice(-3)}`;
+};

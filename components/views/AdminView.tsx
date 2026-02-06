@@ -9,12 +9,109 @@ import {
     Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson
 } from 'lucide-react';
 import { UserForm } from '../UserForm';
+import { maskIdentification } from '../../utils/security';
+import { logAuditEvent } from '../../utils/auditLogger';
 
 interface AdminViewProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   currentUserSession?: User; // To check access rights
 }
+
+// --- MEMOIZED SUB-COMPONENTS ---
+const UserListTable = React.memo(({
+    users,
+    currentUser,
+    handleEditUser,
+    roleLabels
+}: {
+    users: User[],
+    currentUser: Partial<User>,
+    handleEditUser: (u: User) => void,
+    roleLabels: Record<UserRole, string>
+}) => (
+    <div className="overflow-x-auto flex-1">
+        <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0">
+                <tr>
+                    <th className="py-3 px-4">Nombre Completo</th>
+                    <th className="py-3 px-4">Roles</th>
+                    <th className="py-3 px-4">Info Profesional</th>
+                    <th className="py-3 px-4 text-right">Acciones</th>
+                </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+                {users.map(u => (
+                    <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50' : ''}`} onClick={() => handleEditUser(u)}>
+                        <td className="py-3 px-4">
+                            <div className="font-bold text-slate-700">{u.name}</div>
+                            <div className="font-mono text-xs text-slate-400">@{u.username}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                            <div className="flex flex-wrap gap-1">
+                                {u.roles?.map(r => <span key={r} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">{roleLabels[r] || r}</span>)}
+                            </div>
+                        </td>
+                        <td className="py-3 px-4">
+                            {u.roles.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST) ? (
+                                <div className="text-xs">
+                                    <p><span className="font-bold">Lic:</span> {u.professionalLicense || 'N/A'}</p>
+                                    {u.digitalStampUrl && <span className="text-[9px] text-green-600 bg-green-50 px-1 rounded">Firma OK</span>}
+                                </div>
+                            ) : <span className="text-xs text-slate-400">-</span>}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                            <button onClick={(e) => { e.stopPropagation(); handleEditUser(u); }} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
+                        </td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    </div>
+));
+
+const TemplateGrid = React.memo(({
+    templates,
+    roleLabels
+}: {
+    templates: RoleTemplate[],
+    roleLabels: Record<UserRole, string>
+}) => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {templates.map(t => (
+            <div key={t.id} className="border border-slate-200 rounded-xl p-5 hover:shadow-md transition-shadow relative group bg-slate-50/50">
+                <div className="flex justify-between items-start mb-2">
+                    <div className={`p-2 rounded-lg ${t.active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
+                        <LayoutTemplate size={20}/>
+                    </div>
+                    <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
+                        <button className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                    </div>
+                </div>
+                <h4 className="font-bold text-slate-800">{t.name}</h4>
+                <p className="text-xs text-slate-500 mb-3">{t.description}</p>
+
+                <div className="space-y-2 mb-4">
+                    <div className="text-xs">
+                        <span className="font-bold text-slate-700 block mb-1">Roles Permitidos:</span>
+                        <div className="flex flex-wrap gap-1">
+                            {t.allowedRoles.map(r => <span key={r} className="bg-white border px-1.5 py-0.5 rounded text-[10px] text-slate-600">{roleLabels[r]}</span>)}
+                        </div>
+                    </div>
+                    <div className="text-xs">
+                        <span className="font-bold text-slate-700 block mb-1">Estructura:</span>
+                        <p className="text-slate-500">{t.sections.length} secciones configuradas.</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded w-fit">
+                    <Database size={12} className="mr-1"/> Tipo Registro: {t.recordType}
+                </div>
+            </div>
+        ))}
+    </div>
+));
 
 // --- ADVANCED CHART DATA GENERATORS ---
 const generateFinancialData = (filter: string, isRestricted: boolean) => {
@@ -457,7 +554,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
 
   const downloadRIPS = () => {
-      alert("Descargando paquete .ZIP con archivos TXT/JSON validados...");
+      if (!generatedRips) return;
+      const dataStr = JSON.stringify(generatedRips, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `RIPS_${ripsStartDate}_to_${ripsEndDate}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      // 🛡️ MORPHEUS: Audit log for RIPS download
+      logAuditEvent(currentUserSession?.id || 'admin', 'DOWNLOAD_RIPS', 'Reporting', `Downloaded RIPS for period ${ripsStartDate} to ${ripsEndDate}`);
   };
 
   const handleNewTemplate = () => setIsTemplateModalOpen(true);
@@ -482,6 +592,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
+      // ⚡ LEDGER: Calculate Projected Payroll
+      const projectedPayroll = users.reduce((acc, user) => {
+          const activeContract = user.contracts?.find(c => c.isActive);
+          if (!activeContract) return acc;
+
+          if (activeContract.type === ContractType.NOMINA) {
+              return acc + (activeContract.baseSalary || 0);
+          } else if (activeContract.type === ContractType.OPS && activeContract.opsPaymentMethod === 'FIXED_MONTHLY') {
+              return acc + (activeContract.opsValue || 0);
+          }
+          return acc;
+      }, 0);
+
       return (
           <div className="space-y-6 animate-in fade-in duration-500">
               {/* Stats Cards */}
@@ -502,10 +625,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   </div>
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
                       <div>
-                          <p className="text-slate-500 text-sm font-bold uppercase">Historias Cerradas</p>
-                          <h3 className="text-3xl font-bold text-slate-800">85%</h3>
+                          <p className="text-slate-500 text-sm font-bold uppercase">Nómina Proyectada</p>
+                          <h3 className="text-3xl font-bold text-blue-600">{formatCurrency(projectedPayroll)}</h3>
                       </div>
-                      <div className="p-3 bg-purple-100 text-purple-600 rounded-full"><FileText size={24}/></div>
+                      <div className="p-3 bg-blue-100 text-blue-600 rounded-full"><Briefcase size={24}/></div>
                   </div>
                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
                       <div>
@@ -972,7 +1095,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                       <tr key={u.id} className="hover:bg-slate-50">
                                           <td className="p-3">
                                               <p className="font-bold text-slate-700">{u.name}</p>
-                                              <p className="text-xs text-slate-400">{u.documentNumber}</p>
+                                              <p className="text-xs text-slate-400">{maskIdentification(u.documentNumber)}</p>
                                           </td>
                                           <td className="p-3 text-xs">{roleLabels[u.roles[0]]}</td>
                                           <td className="p-3">
@@ -1090,6 +1213,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                           <button onClick={generateRIPS} className="h-full bg-purple-600 text-white px-4 py-2 rounded font-bold text-sm shadow hover:bg-purple-700 flex items-center">
                               <Zap size={16} className="mr-2"/> Generar
                           </button>
+                          {generatedRips && (
+                              <button onClick={downloadRIPS} className="h-full bg-green-600 text-white px-4 py-2 rounded font-bold text-sm shadow hover:bg-green-700 flex items-center">
+                                  <Download size={16} className="mr-2"/> Descargar
+                              </button>
+                          )}
                       </div>
                   </div>
 
@@ -1151,44 +1279,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
             {/* User List Column */}
             <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
                 <h3 className="font-bold text-slate-800 mb-6">Directorio de Usuarios</h3>
-                <div className="overflow-x-auto flex-1">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0">
-                            <tr>
-                                <th className="py-3 px-4">Nombre Completo</th>
-                                <th className="py-3 px-4">Roles</th>
-                                <th className="py-3 px-4">Info Profesional</th>
-                                <th className="py-3 px-4 text-right">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {users.map(u => (
-                                <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50' : ''}`} onClick={() => handleEditUser(u)}>
-                                    <td className="py-3 px-4">
-                                        <div className="font-bold text-slate-700">{u.name}</div>
-                                        <div className="font-mono text-xs text-slate-400">@{u.username}</div>
-                                    </td>
-                                    <td className="py-3 px-4">
-                                        <div className="flex flex-wrap gap-1">
-                                            {u.roles?.map(r => <span key={r} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">{roleLabels[r] || r}</span>)}
-                                        </div>
-                                    </td>
-                                    <td className="py-3 px-4">
-                                        {u.roles.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST) ? (
-                                            <div className="text-xs">
-                                                <p><span className="font-bold">Lic:</span> {u.professionalLicense || 'N/A'}</p>
-                                                {u.digitalStampUrl && <span className="text-[9px] text-green-600 bg-green-50 px-1 rounded">Firma OK</span>}
-                                            </div>
-                                        ) : <span className="text-xs text-slate-400">-</span>}
-                                    </td>
-                                    <td className="py-3 px-4 text-right">
-                                        <button onClick={(e) => { e.stopPropagation(); handleEditUser(u); }} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <UserListTable
+                    users={users}
+                    currentUser={currentUser}
+                    handleEditUser={handleEditUser}
+                    roleLabels={roleLabels}
+                />
             </div>
 
             {/* User Form Column */}
@@ -1274,40 +1370,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                           </button>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {templates.map(t => (
-                              <div key={t.id} className="border border-slate-200 rounded-xl p-5 hover:shadow-md transition-shadow relative group bg-slate-50/50">
-                                  <div className="flex justify-between items-start mb-2">
-                                      <div className={`p-2 rounded-lg ${t.active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
-                                          <LayoutTemplate size={20}/>
-                                      </div>
-                                      <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
-                                      </div>
-                                  </div>
-                                  <h4 className="font-bold text-slate-800">{t.name}</h4>
-                                  <p className="text-xs text-slate-500 mb-3">{t.description}</p>
-                                  
-                                  <div className="space-y-2 mb-4">
-                                      <div className="text-xs">
-                                          <span className="font-bold text-slate-700 block mb-1">Roles Permitidos:</span>
-                                          <div className="flex flex-wrap gap-1">
-                                              {t.allowedRoles.map(r => <span key={r} className="bg-white border px-1.5 py-0.5 rounded text-[10px] text-slate-600">{roleLabels[r]}</span>)}
-                                          </div>
-                                      </div>
-                                      <div className="text-xs">
-                                          <span className="font-bold text-slate-700 block mb-1">Estructura:</span>
-                                          <p className="text-slate-500">{t.sections.length} secciones configuradas.</p>
-                                      </div>
-                                  </div>
-                                  
-                                  <div className="flex items-center text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded w-fit">
-                                      <Database size={12} className="mr-1"/> Tipo Registro: {t.recordType}
-                                  </div>
-                              </div>
-                          ))}
-                      </div>
+                      <TemplateGrid
+                          templates={templates}
+                          roleLabels={roleLabels}
+                      />
                   </div>
               )}
 
