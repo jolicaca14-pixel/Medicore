@@ -106,6 +106,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
   const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
 
+  const [newTemplateData, setNewTemplateData] = useState<Partial<RoleTemplate>>({ name: '', description: '', allowedRoles: [UserRole.PROFESSIONAL], sections: [], active: true, recordType: RecordType.GENERAL });
+  const [newSectionData, setNewSectionData] = useState<Partial<TemplateSection>>({ title: '', fields: [] });
+  const [newFieldData, setNewFieldData] = useState<Partial<TemplateField>>({ label: '', type: 'TEXT', required: false });
+
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
   const [ripsEndDate, setRipsEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -457,12 +461,68 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
 
   const downloadRIPS = () => {
-      alert("Descargando paquete .ZIP con archivos TXT/JSON validados...");
+      if (!generatedRips) return alert("Debe generar los RIPS primero.");
+
+      const blob = new Blob([JSON.stringify(generatedRips, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `RIPS_${ripsStartDate}_a_${ripsEndDate}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      alert("Descargando archivos RIPS validados...");
   };
 
-  const handleNewTemplate = () => setIsTemplateModalOpen(true);
-  const handleNewSection = () => setIsSectionModalOpen(true);
-  const handleNewField = () => setIsFieldModalOpen(true);
+  const handleNewTemplate = () => {
+      setNewTemplateData({ name: '', description: '', allowedRoles: [UserRole.PROFESSIONAL], sections: [], active: true, recordType: RecordType.GENERAL });
+      setIsTemplateModalOpen(true);
+  };
+  const handleNewSection = () => {
+      setNewSectionData({ title: '', fields: [] });
+      setIsSectionModalOpen(true);
+  };
+  const handleNewField = () => {
+      setNewFieldData({ label: '', type: 'TEXT', required: false });
+      setIsFieldModalOpen(true);
+  };
+
+  const handleSaveNewTemplate = () => {
+      if (!newTemplateData.name) return alert("Ingrese un nombre");
+      const template: RoleTemplate = {
+          ...newTemplateData,
+          id: `tpl-${Date.now()}`,
+          sections: newTemplateData.sections || []
+      } as RoleTemplate;
+      setTemplates(prev => [...prev, template]);
+      setIsTemplateModalOpen(false);
+      alert("Plantilla creada exitosamente.");
+  };
+
+  const handleSaveNewSection = () => {
+      if (!newSectionData.title) return alert("Ingrese un título");
+      const section: TemplateSection = {
+          ...newSectionData,
+          id: `sec-${Date.now()}`,
+          fields: newSectionData.fields || []
+      } as TemplateSection;
+      setGlobalSections(prev => [...prev, section]);
+      setIsSectionModalOpen(false);
+      alert("Sección creada exitosamente.");
+  };
+
+  const handleSaveNewField = () => {
+      if (!newFieldData.label) return alert("Ingrese una etiqueta");
+      const field: TemplateField = {
+          ...newFieldData,
+          id: `field-${Date.now()}`
+      } as TemplateField;
+      setGlobalFields(prev => [...prev, field]);
+      setIsFieldModalOpen(false);
+      alert("Campo creado exitosamente.");
+  };
 
   // --- RENDER LOGIC ---
 
@@ -1146,11 +1206,55 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   // 2. USERS LIST - Only Admin
   if (activeTab === 'users' && isAdmin) {
+      const isFormActive = currentUser.id || currentUser.username || currentUser.firstName || currentUser.documentNumber;
+      const isEditing = currentUser.id && users.some(u => u.id === currentUser.id);
+
       return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full animate-in fade-in duration-500">
-            {/* User List Column */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
-                <h3 className="font-bold text-slate-800 mb-6">Directorio de Usuarios</h3>
+        <div className="space-y-6 animate-in fade-in duration-500">
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-slate-800">Gestión de Usuarios</h2>
+                {!isEditing && (
+                    <button
+                        onClick={handleAddNewUser}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-blue-700 shadow-lg transition-transform active:scale-95"
+                    >
+                        <Plus size={18} className="mr-2"/> Crear Nuevo Usuario
+                    </button>
+                )}
+            </div>
+
+            {/* Dedicated Creation/Edition Space */}
+            {isFormActive && (
+                <div className="bg-white p-8 rounded-2xl shadow-xl border-2 border-blue-50 animate-in slide-in-from-top-4 duration-300">
+                     <div className="flex justify-between items-center mb-6 border-b pb-4">
+                        <div>
+                            <h3 className="text-xl font-bold text-slate-800">
+                                {isEditing ? `Editando Usuario: ${currentUser.name}` : 'Registrar Nuevo Usuario'}
+                            </h3>
+                            <p className="text-sm text-slate-500">Complete los campos para {isEditing ? 'actualizar' : 'crear'} la cuenta en el sistema.</p>
+                        </div>
+                        <button onClick={() => setCurrentUser({})} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors">
+                            <X size={24}/>
+                        </button>
+                     </div>
+                     <div className="max-w-4xl">
+                        <UserForm
+                            user={currentUser}
+                            onSave={handleSaveUser}
+                            onCancel={() => setCurrentUser({})}
+                            isEmbedded={true}
+                        />
+                     </div>
+                </div>
+            )}
+
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
+                <div className="flex items-center justify-between mb-6">
+                    <h3 className="font-bold text-slate-800 flex items-center">
+                        <Users size={20} className="mr-2 text-blue-500"/> Directorio de Personal
+                    </h3>
+                    <div className="text-xs text-slate-400 font-medium">{users.length} Usuarios Registrados</div>
+                </div>
                 <div className="overflow-x-auto flex-1">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0">
@@ -1163,48 +1267,35 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {users.map(u => (
-                                <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50' : ''}`} onClick={() => handleEditUser(u)}>
+                                <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer transition-colors ${currentUser.id === u.id ? 'bg-blue-50/80' : ''}`} onClick={() => handleEditUser(u)}>
                                     <td className="py-3 px-4">
                                         <div className="font-bold text-slate-700">{u.name}</div>
                                         <div className="font-mono text-xs text-slate-400">@{u.username}</div>
                                     </td>
                                     <td className="py-3 px-4">
                                         <div className="flex flex-wrap gap-1">
-                                            {u.roles?.map(r => <span key={r} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">{roleLabels[r] || r}</span>)}
+                                            {u.roles?.map(r => <span key={r} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold uppercase">{roleLabels[r] || r}</span>)}
                                         </div>
                                     </td>
                                     <td className="py-3 px-4">
                                         {u.roles.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST) ? (
                                             <div className="text-xs">
-                                                <p><span className="font-bold">Lic:</span> {u.professionalLicense || 'N/A'}</p>
-                                                {u.digitalStampUrl && <span className="text-[9px] text-green-600 bg-green-50 px-1 rounded">Firma OK</span>}
+                                                <p><span className="font-bold text-slate-500">Lic:</span> <span className="font-mono">{u.professionalLicense || 'N/A'}</span></p>
+                                                {u.digitalStampUrl && <span className="text-[9px] text-green-600 bg-green-50 px-1 rounded border border-green-100">Firma Registrada</span>}
                                             </div>
-                                        ) : <span className="text-xs text-slate-400">-</span>}
+                                        ) : <span className="text-xs text-slate-400 italic">No asistencial</span>}
                                     </td>
                                     <td className="py-3 px-4 text-right">
-                                        <button onClick={(e) => { e.stopPropagation(); handleEditUser(u); }} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
+                                        <div className="flex justify-end gap-2">
+                                            <button onClick={(e) => { e.stopPropagation(); handleEditUser(u); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar"><Edit size={16}/></button>
+                                            <button onClick={(e) => { e.stopPropagation(); if(window.confirm('¿Eliminar usuario?')) setUsers(prev => prev.filter(user => user.id !== u.id)); }} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar"><Trash2 size={16}/></button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
-            </div>
-
-            {/* User Form Column */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-slate-800">
-                        {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
-                    </h3>
-                    <button onClick={handleAddNewUser} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center"><Plus size={14} className="mr-1"/> Agregar Nuevo</button>
-                 </div>
-                 <UserForm
-                    user={currentUser}
-                    onSave={handleSaveUser}
-                    onCancel={() => setCurrentUser({})}
-                    isEmbedded={true}
-                 />
             </div>
         </div>
       );
@@ -1222,8 +1313,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
                         <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase">Nombre</label>
+                                <input className="w-full border rounded p-2" value={newTemplateData.name} onChange={e => setNewTemplateData({...newTemplateData, name: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase">Descripción</label>
+                                <textarea className="w-full border rounded p-2" value={newTemplateData.description} onChange={e => setNewTemplateData({...newTemplateData, description: e.target.value})} />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
+                            <button onClick={handleSaveNewTemplate} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Crear Plantilla</button>
+                        </div>
                     </div>
                 </div>
               )}
@@ -1231,8 +1334,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
                           <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase">Título</label>
+                                <input className="w-full border rounded p-2" value={newSectionData.title} onChange={e => setNewSectionData({...newSectionData, title: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase">Descripción</label>
+                                <textarea className="w-full border rounded p-2" value={newSectionData.description} onChange={e => setNewSectionData({...newSectionData, description: e.target.value})} />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
+                            <button onClick={handleSaveNewSection} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Crear Sección</button>
+                        </div>
                       </div>
                   </div>
               )}
@@ -1240,8 +1355,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
                           <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase">Etiqueta (Label)</label>
+                                <input className="w-full border rounded p-2" value={newFieldData.label} onChange={e => setNewFieldData({...newFieldData, label: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase">Tipo</label>
+                                <select className="w-full border rounded p-2" value={newFieldData.type} onChange={e => setNewFieldData({...newFieldData, type: e.target.value as any})}>
+                                    <option value="TEXT">Texto Corto</option>
+                                    <option value="TEXTAREA">Texto Largo</option>
+                                    <option value="NUMBER">Número</option>
+                                    <option value="SELECT">Selección</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
+                            <button onClick={handleSaveNewField} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Crear Campo</button>
+                        </div>
                       </div>
                   </div>
               )}
