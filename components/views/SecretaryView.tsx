@@ -227,16 +227,70 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Por favor permita las ventanas emergentes para imprimir.");
+
+      const html = `
+        <html>
+          <head>
+            <title>Factura ${invoice.id}</title>
+            <style>
+              body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+              .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+              .details { margin-bottom: 20px; }
+              .footer { margin-top: 30px; border-top: 1px solid #ccc; pt: 10px; font-size: 0.8em; text-align: center; }
+              table { width: 100%; border-collapse: collapse; }
+              th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>MediCore IPS</h1>
+              <p>Factura de Venta N° ${invoice.id}</p>
+            </div>
+            <div class="details">
+              <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+              <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleString()}</p>
+              <p><strong>Estado:</strong> ${invoice.status}</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Descripción</th>
+                  <th>Cant.</th>
+                  <th>Precio</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${invoice.items.map(item => `
+                  <tr>
+                    <td>${item.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>${formatCurrency(item.price)}</td>
+                    <td>${formatCurrency(item.price * item.quantity)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div style="text-align: right; margin-top: 20px;">
+              <p><strong>Subtotal:</strong> ${formatCurrency(invoice.subtotal)}</p>
+              <p><strong>Descuento:</strong> ${formatCurrency(invoice.discount)}</p>
+              <p style="font-size: 1.2em;"><strong>Total a Pagar:</strong> ${formatCurrency(invoice.total)}</p>
+              <p><strong>Saldo Pendiente:</strong> ${formatCurrency(invoice.balance)}</p>
+            </div>
+            <div class="footer">
+              <p>Gracias por su confianza. Este documento es un soporte de cobro.</p>
+            </div>
+            <script>
+              window.onload = () => { window.print(); };
+            </script>
+          </body>
+        </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
