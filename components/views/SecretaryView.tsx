@@ -227,16 +227,73 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const html = `
+          <html>
+          <head>
+              <title>Factura ${invoice.id}</title>
+              <style>
+                  body { font-family: sans-serif; padding: 40px; color: #334155; }
+                  .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
+                  .details { margin-bottom: 30px; }
+                  table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                  th { text-align: left; background: #f8fafc; padding: 10px; border-bottom: 1px solid #e2e8f0; }
+                  td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
+                  .totals { text-align: right; font-weight: bold; }
+                  .status { display: inline-block; padding: 5px 10px; border-radius: 15px; font-size: 12px; }
+                  .paid { background: #dcfce7; color: #166534; }
+                  .pending { background: #fee2e2; color: #991b1b; }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <h1>MEDICORE IPS</h1>
+                  <p>NIT: 900.123.456-7</p>
+                  <h2>FACTURA DE VENTA N° ${invoice.id}</h2>
+              </div>
+              <div class="details">
+                  <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                  <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+                  <p><strong>Estado:</strong> <span class="status ${invoice.status === 'PAID' ? 'paid' : 'pending'}">${invoice.status}</span></p>
+              </div>
+              <table>
+                  <thead>
+                      <tr>
+                          <th>Concepto</th>
+                          <th>Cant.</th>
+                          <th>Valor Unit.</th>
+                          <th>Total</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      ${invoice.items.map(item => `
+                          <tr>
+                              <td>${item.name}</td>
+                              <td>${item.quantity}</td>
+                              <td>${formatCurrency(item.price)}</td>
+                              <td>${formatCurrency(item.price * item.quantity)}</td>
+                          </tr>
+                      `).join('')}
+                  </tbody>
+              </table>
+              <div class="totals">
+                  <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+                  <p>Descuento: ${formatCurrency(invoice.discount)}</p>
+                  <p style="font-size: 20px;">TOTAL A PAGAR: ${formatCurrency(invoice.total)}</p>
+                  <hr/>
+                  <p>Saldo Pendiente: ${formatCurrency(invoice.balance)}</p>
+              </div>
+              <div style="margin-top: 50px; font-size: 10px; text-align: center; color: #94a3b8;">
+                  Generado por sistema MediCore Pro HCE.
+              </div>
+              <script>window.print();</script>
+          </body>
+          </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---

@@ -457,7 +457,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
 
   const downloadRIPS = () => {
-      alert("Descargando paquete .ZIP con archivos TXT/JSON validados...");
+      if (!generatedRips) return;
+      const content = JSON.stringify(generatedRips, null, 2);
+      const blob = new Blob([content], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `RIPS_${ripsStartDate}_${ripsEndDate}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
   };
 
   const handleNewTemplate = () => setIsTemplateModalOpen(true);
@@ -1147,10 +1157,39 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // 2. USERS LIST - Only Admin
   if (activeTab === 'users' && isAdmin) {
       return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full animate-in fade-in duration-500">
-            {/* User List Column */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
-                <h3 className="font-bold text-slate-800 mb-6">Directorio de Usuarios</h3>
+        <div className="space-y-8 animate-in fade-in duration-500 h-full flex flex-col">
+            {/* Espacio de Creación de Usuarios - Dedicated at Top */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border-2 border-blue-100 border-dashed">
+                 <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-800">Espacio de Creación de Usuarios</h3>
+                        <p className="text-sm text-slate-500">Utilice este formulario para registrar nuevos funcionarios o editar los existentes.</p>
+                    </div>
+                    {!currentUser.id && (
+                        <div className="flex items-center text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg text-xs font-bold">
+                           <Plus size={14} className="mr-1"/> Modo Creación Activo
+                        </div>
+                    )}
+                    {currentUser.id && (
+                        <button onClick={handleAddNewUser} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center hover:bg-slate-700">
+                            <Plus size={14} className="mr-1"/> Limpiar y Crear Nuevo
+                        </button>
+                    )}
+                 </div>
+                 <UserForm
+                    user={currentUser}
+                    onSave={handleSaveUser}
+                    onCancel={() => setCurrentUser({})}
+                    isEmbedded={true}
+                 />
+            </div>
+
+            {/* User List / Directory - Below */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col flex-1 overflow-hidden">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-slate-800">Directorio de Usuarios Activos</h3>
+                    <span className="text-xs bg-slate-100 px-2 py-1 rounded font-bold text-slate-500">{users.length} Usuarios Registrados</span>
+                </div>
                 <div className="overflow-x-auto flex-1">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0">
@@ -1163,7 +1202,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {users.map(u => (
-                                <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50' : ''}`} onClick={() => handleEditUser(u)}>
+                                <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50 ring-1 ring-blue-200' : ''}`} onClick={() => handleEditUser(u)}>
                                     <td className="py-3 px-4">
                                         <div className="font-bold text-slate-700">{u.name}</div>
                                         <div className="font-mono text-xs text-slate-400">@{u.username}</div>
@@ -1190,22 +1229,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                     </table>
                 </div>
             </div>
-
-            {/* User Form Column */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-slate-800">
-                        {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
-                    </h3>
-                    <button onClick={handleAddNewUser} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center"><Plus size={14} className="mr-1"/> Agregar Nuevo</button>
-                 </div>
-                 <UserForm
-                    user={currentUser}
-                    onSave={handleSaveUser}
-                    onCancel={() => setCurrentUser({})}
-                    isEmbedded={true}
-                 />
-            </div>
         </div>
       );
   }
@@ -1221,27 +1244,71 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">Configuración de Plantilla</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700">Nombre de la Plantilla</label>
+                                <input type="text" className="w-full border p-2 rounded mt-1" placeholder="Ej: Consulta General Adultos" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700">Descripción</label>
+                                <textarea className="w-full border p-2 rounded mt-1" rows={2} placeholder="Describa el propósito..."></textarea>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium">Cancelar</button>
+                            <button onClick={() => { setIsTemplateModalOpen(false); alert("Plantilla guardada (Demo)"); }} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar</button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">Configuración de Sección</h3>
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="block text-sm font-bold text-slate-700">Título de la Sección</label>
+                                  <input type="text" className="w-full border p-2 rounded mt-1" placeholder="Ej: Antecedentes Familiares" />
+                              </div>
+                              <div>
+                                  <label className="block text-sm font-bold text-slate-700">ID Único (Slug)</label>
+                                  <input type="text" className="w-full border p-2 rounded mt-1" placeholder="ej: s_antecedentes_fam" />
+                              </div>
+                          </div>
+                          <div className="mt-6 flex justify-end gap-2">
+                              <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium">Cancelar</button>
+                              <button onClick={() => { setIsSectionModalOpen(false); alert("Sección guardada (Demo)"); }} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar</button>
+                          </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">Configuración de Campo / Variable</h3>
+                          <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div className="col-span-2">
+                                      <label className="block text-sm font-bold text-slate-700">Etiqueta (Label)</label>
+                                      <input type="text" className="w-full border p-2 rounded mt-1" placeholder="Ej: Tensión Arterial Sistólica" />
+                                  </div>
+                                  <div>
+                                      <label className="block text-sm font-bold text-slate-700">Tipo</label>
+                                      <select className="w-full border p-2 rounded mt-1">
+                                          <option>NUMBER</option><option>TEXT</option><option>SELECT</option><option>CALCULATED</option>
+                                      </select>
+                                  </div>
+                                  <div>
+                                      <label className="block text-sm font-bold text-slate-700">Unidad</label>
+                                      <input type="text" className="w-full border p-2 rounded mt-1" placeholder="Ej: mmHg" />
+                                  </div>
+                              </div>
+                          </div>
+                          <div className="mt-6 flex justify-end gap-2">
+                              <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium">Cancelar</button>
+                              <button onClick={() => { setIsFieldModalOpen(false); alert("Campo guardado (Demo)"); }} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar</button>
+                          </div>
                       </div>
                   </div>
               )}
@@ -1282,8 +1349,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           <LayoutTemplate size={20}/>
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                                          <button onClick={() => setIsTemplateModalOpen(true)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
+                                          <button onClick={() => setTemplates(prev => prev.filter(item => item.id !== t.id))} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
                                       </div>
                                   </div>
                                   <h4 className="font-bold text-slate-800">{t.name}</h4>
@@ -1345,7 +1412,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           ))}
                                           {sec.fields.length > 4 && <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] text-slate-500">+{sec.fields.length - 4}</div>}
                                       </div>
-                                      <button className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => setIsSectionModalOpen(true)} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => setGlobalSections(prev => prev.filter(s => s.id !== sec.id))} className="p-2 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button>
                                   </div>
                               </div>
                           ))}
@@ -1405,7 +1473,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                               ) : <span className="text-xs text-slate-400">Opcional</span>}
                                           </td>
                                           <td className="p-3 text-right">
-                                              <button className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button onClick={() => setIsFieldModalOpen(true)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500 mr-1"><Edit size={14}/></button>
+                                              <button onClick={() => setGlobalFields(prev => prev.filter(f => f.id !== field.id))} className="p-1.5 hover:bg-red-50 rounded text-red-500"><Trash2 size={14}/></button>
                                           </td>
                                       </tr>
                                   ))}
