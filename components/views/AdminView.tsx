@@ -3,12 +3,13 @@ import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType
 import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
 import { 
-    Shield, Users, FileText, Settings, Plus, Edit, Trash2, X, Save, 
+    Shield, Users, UserPlus, FileText, Settings, Plus, Edit, Trash2, X, Save,
     Download, CheckCircle, Search, LayoutTemplate, List, AlertCircle, 
     ChevronDown, ChevronRight, Calculator, Type, Hash, Calendar, CheckSquare, AlignLeft, Info,
     Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson
 } from 'lucide-react';
 import { UserForm } from '../UserForm';
+import { maskIdentification } from '../../utils/security';
 
 interface AdminViewProps {
   activeTab: string;
@@ -482,10 +483,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
+      // 💰 LEDGER: Calculate Projected Payroll
+      const totalPayroll = users.reduce((acc, u) => {
+        const activeContract = u.contracts?.find(c => c.isActive);
+        if (!activeContract) return acc;
+        const val = activeContract.type === 'NOMINA'
+            ? (activeContract.baseSalary || 0)
+            : (activeContract.opsPaymentMethod === 'FIXED_MONTHLY' ? (activeContract.opsValue || 0) : 0);
+        return acc + val;
+      }, 0);
+
       return (
           <div className="space-y-6 animate-in fade-in duration-500">
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
                       <div>
                           <p className="text-slate-500 text-sm font-bold uppercase">Pacientes Activos</p>
@@ -509,10 +520,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   </div>
                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
                       <div>
-                          <p className="text-slate-500 text-sm font-bold uppercase">Alertas Sistema</p>
+                          <p className="text-slate-500 text-sm font-bold uppercase">Alertas</p>
                           <h3 className="text-3xl font-bold text-red-500">3</h3>
                       </div>
                       <div className="p-3 bg-red-100 text-red-600 rounded-full"><AlertTriangle size={24}/></div>
+                  </div>
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
+                      <div>
+                          <p className="text-slate-500 text-sm font-bold uppercase">Nómina Proyectada</p>
+                          <h3 className="text-2xl font-bold text-orange-600">{formatCurrency(totalPayroll)}</h3>
+                      </div>
+                      <div className="p-3 bg-orange-100 text-orange-600 rounded-full"><Briefcase size={24}/></div>
                   </div>
               </div>
 
@@ -1166,7 +1184,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                 <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50' : ''}`} onClick={() => handleEditUser(u)}>
                                     <td className="py-3 px-4">
                                         <div className="font-bold text-slate-700">{u.name}</div>
-                                        <div className="font-mono text-xs text-slate-400">@{u.username}</div>
+                                        <div className="font-mono text-xs text-slate-400">@{maskIdentification(u.username)}</div>
                                     </td>
                                     <td className="py-3 px-4">
                                         <div className="flex flex-wrap gap-1">
@@ -1193,6 +1211,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
             {/* User Form Column */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                 <div className="mb-6 p-4 bg-slate-900 rounded-lg text-white shadow-inner">
+                    <h2 className="text-xl font-bold flex items-center">
+                        <UserPlus size={24} className="mr-3 text-blue-400"/> Espacio de Creación de Usuarios
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-1 ml-9">Gestione las credenciales y perfiles del personal asistencial y administrativo.</p>
+                 </div>
                  <div className="flex justify-between items-center mb-6">
                     <h3 className="font-bold text-slate-800">
                         {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}

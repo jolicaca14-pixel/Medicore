@@ -227,16 +227,71 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+          alert("Error: El bloqueador de ventanas emergentes impidió la impresión. Por favor, habilítelo.");
+          return;
+      }
+
+      const itemsHtml = invoice.items.map(item => `
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+        </tr>
+      `).join('');
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Factura ${invoice.id}</title>
+            <style>
+              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #333; }
+              .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px; }
+              .info { margin-bottom: 30px; }
+              table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+              .totals { text-align: right; }
+              .footer { text-align: center; font-size: 10px; color: #777; margin-top: 50px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>MEDICORE IPS</h1>
+              <p>NIT: 900.123.456-7 | Dirección: Calle 100 #15-20, Bogotá</p>
+              <h2>FACTURA DE VENTA N° ${invoice.id}</h2>
+            </div>
+            <div class="info">
+              <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+              <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleString()}</p>
+              <p><strong>Estado:</strong> ${invoice.status}</p>
+            </div>
+            <table>
+              <thead>
+                <tr style="background: #f9f9f9;">
+                  <th style="text-align: left; padding: 8px;">Concepto</th>
+                  <th style="padding: 8px;">Cant.</th>
+                  <th style="text-align: right; padding: 8px;">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+            </table>
+            <div class="totals">
+              <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+              <p>Descuento: ${formatCurrency(invoice.discount)}</p>
+              <p style="font-size: 1.2em; font-bold;"><strong>Total a Pagar: ${formatCurrency(invoice.total)}</strong></p>
+              <p>Saldo Pendiente: ${formatCurrency(invoice.balance)}</p>
+            </div>
+            <div class="footer">
+              <p>Resolución de Facturación N° 187640000001 del 2024-01-01 al 2025-01-01</p>
+              <p>Generado por MediCore Pro - Sistema de Gestión Clínica</p>
+            </div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- CARTERA HANDLERS ---

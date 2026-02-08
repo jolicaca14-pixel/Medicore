@@ -25,3 +25,16 @@ export const sanitizeInput = (input: string | undefined | null): string => {
   // For a production environment, a more robust, well-tested library like DOMPurify is strongly recommended.
   return input.replace(/<|>/g, '');
 };
+
+/**
+ * 🔒 PII Masking Utility
+ * Masks sensitive identifiers for display while keeping original data accessible for operations.
+ * Example: "123456789" -> "123****789"
+ */
+export const maskIdentification = (id: string | undefined): string => {
+  if (!id) return '';
+  if (id.length <= 4) return id;
+  const visibleStart = id.slice(0, 3);
+  const visibleEnd = id.slice(-3);
+  return `${visibleStart}****${visibleEnd}`;
+};
