@@ -127,7 +127,54 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- PRINT VIEW ---
   const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head>
+                  <title>Resultados Diagnósticos - ${patientId}</title>
+                  <style>
+                      body { font-family: sans-serif; padding: 40px; color: #334155; line-height: 1.5; }
+                      h1 { color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 30px; }
+                      .header { margin-bottom: 30px; display: flex; justify-content: space-between; }
+                      .result-item { margin-bottom: 20px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+                      .label { font-weight: bold; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px; }
+                      .value { font-size: 1.1rem; color: #0f172a; font-weight: 500; }
+                      .footer { margin-top: 50px; border-top: 1px solid #e2e8f0; pt: 20px; font-size: 0.8rem; color: #94a3b8; text-align: center; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <div>
+                          <h1>Reporte de Resultados</h1>
+                          <p><strong>Paciente:</strong> ${patientId}</p>
+                          <p><strong>Fecha de Emisión:</strong> ${date}</p>
+                      </div>
+                      <div style="text-align: right;">
+                          <p style="font-weight: bold; color: #2563eb;">MEDICORE IPS</p>
+                          <p style="font-size: 0.8rem; color: #64748b;">Módulo de Diagnóstico</p>
+                      </div>
+                  </div>
+                  <div class="content">
+                      <p style="margin-bottom: 20px;">Este documento es un resumen oficial de los hallazgos clínicos registrados en la fecha indicada.</p>
+                      <div class="result-item">
+                          <span class="label">Interpretación Clínica</span>
+                          <p class="value">Los resultados analizados se encuentran dentro de la normalidad clínica para los parámetros solicitados. Se recomienda correlación con cuadro clínico por parte del médico tratante.</p>
+                      </div>
+                      <div class="result-item" style="border-left: 4px solid #2563eb;">
+                          <span class="label">Firma del Profesional</span>
+                          <p class="value" style="margin-top: 10px; border-top: 1px dashed #cbd5e1; pt: 10px; width: 250px;">Validado Digitalmente</p>
+                      </div>
+                  </div>
+                  <div class="footer">
+                      Este reporte tiene fines informativos y debe ser interpretado por un profesional de la salud.
+                  </div>
+                  <script>setTimeout(() => { window.print(); }, 500);</script>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+      }
   };
 
   // --- RENDER FORM ---

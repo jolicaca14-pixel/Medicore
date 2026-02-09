@@ -227,16 +227,118 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head>
+                  <title>Factura ${invoice.id} - MEDICORE IPS</title>
+                  <style>
+                      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #334155; line-height: 1.6; }
+                      .invoice-box { max-width: 800px; margin: auto; padding: 40px; border: 1px solid #e2e8f0; border-radius: 16px; background: #fff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+                      .header { display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; }
+                      .logo { font-size: 28px; font-weight: 800; color: #1e293b; letter-spacing: -0.025em; }
+                      .logo span { color: #2563eb; }
+                      .invoice-info { text-align: right; }
+                      .info-grid { display: grid; grid-template-cols: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+                      .info-section h4 { font-size: 12px; text-transform: uppercase; color: #64748b; margin-bottom: 8px; letter-spacing: 0.05em; }
+                      .info-section p { font-size: 14px; font-weight: 600; color: #1e293b; margin: 0; }
+                      table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+                      th { background: #f8fafc; color: #64748b; font-size: 12px; text-transform: uppercase; text-align: left; padding: 12px 16px; border-bottom: 2px solid #f1f5f9; }
+                      td { padding: 16px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #334155; }
+                      .totals { margin-left: auto; width: 300px; }
+                      .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
+                      .total-row.grand-total { border-top: 2px solid #f1f5f9; margin-top: 8px; pt: 16px; font-size: 18px; font-weight: 800; color: #1e293b; }
+                      .footer { margin-top: 60px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; pt: 20px; }
+                  </style>
+              </head>
+              <body>
+                  <div class="invoice-box">
+                      <div class="header">
+                          <div class="logo">MEDICORE<span>IPS</span></div>
+                          <div class="invoice-info">
+                              <h2 style="margin: 0; color: #1e293b;">FACTURA DE VENTA</h2>
+                              <p style="margin: 4px 0; color: #64748b; font-weight: 600;">N° ${invoice.id}</p>
+                          </div>
+                      </div>
+
+                      <div class="info-grid">
+                          <div class="info-section">
+                              <h4>Emisor</h4>
+                              <p>MEDICORE IPS S.A.S</p>
+                              <p>NIT: 900.123.456-7</p>
+                              <p>Bogotá, Colombia</p>
+                          </div>
+                          <div class="info-section" style="text-align: right;">
+                              <h4>Cliente</h4>
+                              <p>${invoice.patientName}</p>
+                              <p>Fecha: ${new Date(invoice.date).toLocaleDateString()}</p>
+                              <p>Estado: <span style="color: ${invoice.status === 'PAID' ? '#10b981' : '#f59e0b'}">${invoice.status}</span></p>
+                          </div>
+                      </div>
+
+                      <table>
+                          <thead>
+                              <tr>
+                                  <th>Descripción / Código</th>
+                                  <th style="text-align: center;">Cant.</th>
+                                  <th style="text-align: right;">Precio Unit.</th>
+                                  <th style="text-align: right;">Subtotal</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              ${invoice.items.map(item => `
+                                  <tr>
+                                      <td>
+                                          <div style="font-weight: 600; color: #1e293b;">${item.name}</div>
+                                          <div style="font-size: 11px; color: #94a3b8;">${item.code}</div>
+                                      </td>
+                                      <td style="text-align: center;">${item.quantity}</td>
+                                      <td style="text-align: right;">${formatCurrency(item.price)}</td>
+                                      <td style="text-align: right; font-weight: 600;">${formatCurrency(item.price * item.quantity)}</td>
+                                  </tr>
+                              `).join('')}
+                          </tbody>
+                      </table>
+
+                      <div class="totals">
+                          <div class="total-row">
+                              <span style="color: #64748b;">Subtotal:</span>
+                              <span style="font-weight: 600;">${formatCurrency(invoice.subtotal)}</span>
+                          </div>
+                          <div class="total-row">
+                              <span style="color: #64748b;">Descuentos:</span>
+                              <span style="color: #ef4444;">- ${formatCurrency(invoice.discount || 0)}</span>
+                          </div>
+                          <div class="total-row grand-total">
+                              <span>Total a Pagar:</span>
+                              <span style="color: #2563eb;">${formatCurrency(invoice.total)}</span>
+                          </div>
+                          <div class="total-row" style="margin-top: 10px; font-size: 13px;">
+                              <span style="color: #64748b;">Pagado:</span>
+                              <span style="color: #10b981; font-weight: 600;">${formatCurrency(invoice.total - invoice.balance)}</span>
+                          </div>
+                          <div class="total-row" style="font-size: 13px;">
+                              <span style="color: #64748b;">Saldo Pendiente:</span>
+                              <span style="color: #ef4444; font-weight: 600;">${formatCurrency(invoice.balance)}</span>
+                          </div>
+                      </div>
+
+                      <div class="footer">
+                          <p>Esta factura se asimila en todos sus efectos legales a una Letra de Cambio (Art. 774 del Código de Comercio).</p>
+                          <p>Gracias por confiar en MEDICORE IPS.</p>
+                      </div>
+                  </div>
+                  <script>
+                    setTimeout(() => { window.print(); }, 500);
+                  </script>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+      } else {
+          alert("Por favor, permita las ventanas emergentes para imprimir la factura.");
+      }
   };
 
   // --- CARTERA HANDLERS ---
