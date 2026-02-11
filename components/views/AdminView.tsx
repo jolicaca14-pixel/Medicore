@@ -60,6 +60,21 @@ const roleLabels: Record<UserRole, string> = {
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
   const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
 
+  // ⚡ LEDGER: Projected Payroll Calculation
+  const projectedPayroll = useMemo(() => {
+    return users.reduce((total, user) => {
+        const activeContract = user.contracts?.find(c => c.isActive);
+        if (!activeContract) return total;
+
+        if (activeContract.type === ContractType.NOMINA) {
+            return total + (activeContract.baseSalary || 0);
+        } else if (activeContract.type === ContractType.OPS && activeContract.opsPaymentMethod === 'FIXED_MONTHLY') {
+            return total + (activeContract.opsValue || 0);
+        }
+        return total;
+    }, 0);
+  }, [users]);
+
   // --- STATE MANAGEMENT ---
   
   // Users
@@ -502,10 +517,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   </div>
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
                       <div>
-                          <p className="text-slate-500 text-sm font-bold uppercase">Historias Cerradas</p>
-                          <h3 className="text-3xl font-bold text-slate-800">85%</h3>
+                          <p className="text-slate-500 text-sm font-bold uppercase">Nómina Proyectada</p>
+                          <h3 className="text-3xl font-bold text-slate-800">{formatCurrency(projectedPayroll)}</h3>
                       </div>
-                      <div className="p-3 bg-purple-100 text-purple-600 rounded-full"><FileText size={24}/></div>
+                      <div className="p-3 bg-purple-100 text-purple-600 rounded-full"><Calculator size={24}/></div>
                   </div>
                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
                       <div>

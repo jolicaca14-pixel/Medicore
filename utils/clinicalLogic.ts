@@ -22,10 +22,12 @@ export const getVitalWarning = (id: string, value: string, age?: number): string
         if (n > 120) return 'Sístole elevada para edad pediátrica';
         if (n < 80) return 'Hipotensión pediátrica';
     }
+    if (n >= 180) return 'CRISIS HIPERTENSIVA: Sístole crítica';
     if (n > 140) return 'Hipertensión: Sístole elevada';
     if (n < 90) return 'Hipotensión: Sístole baja';
   }
   if (id === 'global_dia_bp') {
+    if (n >= 110) return 'CRISIS HIPERTENSIVA: Diástole crítica';
     if (n > 90) return 'Hipertensión: Diástole elevada';
     if (n < 60) return 'Hipotensión: Diástole baja';
   }

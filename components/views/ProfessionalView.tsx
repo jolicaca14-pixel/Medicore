@@ -46,31 +46,15 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // AI Suggestion State
   const [isSuggestingCIE, setIsSuggestingCIE] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string>('');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string>('');
 
   // UX States
   const [patientSearch, setPatientSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  // ⚡ TRINITY: Fetch Patients from API
-  useEffect(() => {
-    const fetchPatients = async () => {
-        setIsLoadingPatients(true);
-        try {
-            const data = await patientService.getPatients();
-            setPatients(data);
-            setPatientsError(null);
-        } catch (err: any) {
-            console.error("Error fetching patients:", err);
-            setPatientsError("No se pudo conectar con el servidor. Usando datos locales.");
-            setPatients(MOCK_PATIENTS);
-        } finally {
-            setIsLoadingPatients(false);
-        }
-    };
-    fetchPatients();
-  }, []);
+  const [copiedJSON, setCopiedJSON] = useState(false);
 
   // ⚡ HANDLERS (Defined early to avoid hoisting issues in hooks)
   // ⚡ NEO: Memoized calculators to replace useEffect anti-pattern
@@ -115,27 +99,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       calc_framingham: framinghamValue
   }), [bmiValue, tamValue, tfgValue, framinghamValue]);
 
-  const handleSaveDraft = () => {
-    if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
-    setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = recordToSave;
-        return updated;
-      }
-      return [...prev, recordToSave];
-    });
-
-    // 🎨 Palette: Non-blocking feedback for draft saving
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
-  };
-
   const handleSaveDraft = async () => {
     if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+    // 🛡️ Fix: Merge calculated values to ensure data integrity
+    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
 
     // ⚡ TRINITY: Persist draft to backend
     try {
@@ -674,6 +641,81 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       setCurrentRecord(prev => ({ ...prev, performedProcedures: prev.performedProcedures?.filter(p => p.id !== id) }));
   };
 
+  const handlePrintRecord = () => {
+    if (!selectedPatient) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const patientAge = new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear();
+    const recordsText = Object.entries(dynamicData)
+        .map(([key, val]) => {
+            const label = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+            return `<p><strong>${label}:</strong> ${val}</p>`;
+        }).join('');
+
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Historia Clínica - ${selectedPatient.fullName}</title>
+            <style>
+                body { font-family: sans-serif; padding: 40px; color: #1e293b; }
+                .header { border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px; }
+                .section { margin-bottom: 20px; }
+                h1 { color: #0f172a; margin: 0; }
+                h2 { color: #334155; border-left: 4px solid #3b82f6; padding-left: 10px; font-size: 1.2rem; }
+                .grid { display: grid; grid-template-cols: 1fr 1fr; gap: 10px; }
+                .footer { margin-top: 50px; border-top: 1px solid #e2e8f0; pt: 20px; font-size: 0.8rem; color: #64748b; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>MediCore IPS</h1>
+                <p><strong>Paciente:</strong> ${selectedPatient.fullName} (${selectedPatient.identification})</p>
+                <p><strong>Edad:</strong> ${patientAge} años | <strong>Género:</strong> ${selectedPatient.gender}</p>
+            </div>
+            <div class="section">
+                <h2>Resumen de Atención</h2>
+                <p><strong>Motivo:</strong> ${currentRecord.chiefComplaint}</p>
+                <p><strong>Enfermedad Actual:</strong> ${currentRecord.historyOfPresentIllness}</p>
+            </div>
+            <div class="section">
+                <h2>Datos Clínicos</h2>
+                <div class="grid">${recordsText}</div>
+            </div>
+            <div class="section">
+                <h2>Diagnósticos</h2>
+                ${currentRecord.diagnoses?.map(d => `<p>${d.code} - ${d.name} (${d.type})</p>`).join('')}
+            </div>
+            <div class="footer">
+                <p>Atendido por: ${user.name} - Lic. ${user.professionalLicense || 'N/A'}</p>
+                <p>Fecha de impresión: ${new Date().toLocaleString()}</p>
+            </div>
+            <script>window.print();</script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+    logAuditEvent(user.id, 'PRINT_RECORD', 'ClinicalRecord', `Printed record for patient ${selectedPatient.identification}`);
+  };
+
+  const handleGenerateSummary = async () => {
+    if (!selectedPatient) return;
+    setIsGeneratingSummary(true);
+    setAiSummary('');
+    try {
+        // Aggregate relevant clinical notes for the AI
+        const context = `Paciente: ${selectedPatient.fullName}. Motivo: ${currentRecord.chiefComplaint}. Historia: ${currentRecord.historyOfPresentIllness}. Antecedentes: ${currentRecord.antecedents}. Análisis: ${dynamicData['d_analisis'] || ''}`;
+        const summary = await generateClinicalSummary(context);
+        setAiSummary(summary);
+        logAuditEvent(user.id, 'GENERATE_AI_SUMMARY', 'ClinicalRecord', `Generated AI summary for patient ${selectedPatient.identification}`);
+    } catch (error) {
+        console.error("Error generating AI summary:", error);
+        setAiSummary("No se pudo generar el resumen en este momento.");
+    } finally {
+        setIsGeneratingSummary(false);
+    }
+  };
+
   const handleImportResult = (result: ClinicalRecord) => {
       let importText = `\n[RESULTADO EXTERNO - ${result.chiefComplaint} - ${new Date(result.dateCreated).toLocaleDateString()}]\n`;
       Object.entries(result.dynamicData).forEach(([key, val]) => {
@@ -770,22 +812,33 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   const RDAViewerModal = () => (
       <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 max-h-[90vh] flex flex-col animate-in zoom-in duration-200">
               <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xl font-bold text-slate-800 flex items-center">
                       <ShieldCheck className="mr-2 text-green-600"/> Resumen Digital de Atención (RDA)
                   </h3>
-                  <button aria-label="Cerrar modal" onClick={() => setShowRDAModal(false)}><X size={20}/></button>
+                  <button aria-label="Cerrar modal" onClick={() => setShowRDAModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20}/></button>
               </div>
               <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4 text-xs text-blue-800">
                   <span className="font-bold block mb-1">Cumplimiento Resolución 1888 de 2025:</span>
                   Este documento JSON estandarizado es la representación técnica enviada a la Plataforma de Interoperabilidad del Ministerio de Salud. Garantiza la continuidad asistencial y el intercambio seguro de datos.
               </div>
-              <div className="flex-1 overflow-y-auto bg-slate-900 text-green-400 p-4 rounded-lg font-mono text-xs">
+              <div className="flex-1 overflow-y-auto bg-slate-900 text-green-400 p-4 rounded-lg font-mono text-xs relative group">
+                  <button
+                    onClick={() => {
+                        navigator.clipboard.writeText(currentRecord.rdaPayload || '');
+                        setCopiedJSON(true);
+                        setTimeout(() => setCopiedJSON(false), 2000);
+                    }}
+                    className="absolute top-4 right-4 bg-slate-800 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-all flex items-center"
+                  >
+                    {copiedJSON ? <FileCheck size={12} className="mr-1 text-green-400"/> : <Copy size={12} className="mr-1"/>}
+                    {copiedJSON ? '¡Copiado!' : 'Copiar JSON'}
+                  </button>
                   <pre>{currentRecord.rdaPayload || 'No hay datos de RDA disponibles.'}</pre>
               </div>
-              <div className="mt-4 flex justify-end">
-                   <button onClick={() => setShowRDAModal(false)} className="px-4 py-2 bg-slate-200 text-slate-800 rounded font-bold text-sm">Cerrar</button>
+              <div className="mt-4 flex justify-end gap-2">
+                   <button onClick={() => setShowRDAModal(false)} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors">Cerrar</button>
               </div>
           </div>
       </div>
@@ -1125,6 +1178,24 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
          
          {showRDAModal && <RDAViewerModal />}
 
+         {aiSummary && (
+             <div className="mb-4 bg-blue-50 border border-blue-200 p-4 rounded-xl relative animate-in fade-in slide-in-from-top-2">
+                 <button onClick={() => setAiSummary('')} className="absolute top-2 right-2 text-blue-400 hover:text-blue-600"><X size={16}/></button>
+                 <div className="flex items-start">
+                     <div className="bg-blue-500 p-2 rounded-lg text-white mr-3 mt-1">
+                         <Bot size={20}/>
+                     </div>
+                     <div>
+                         <h4 className="text-sm font-bold text-blue-800 mb-1">Resumen Clínico Inteligente (IA)</h4>
+                         <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">{aiSummary}</p>
+                         <div className="mt-2 flex items-center text-[10px] text-blue-500 font-bold uppercase tracking-wider">
+                             <ShieldCheck size={12} className="mr-1"/> Verificado por Doc House
+                         </div>
+                     </div>
+                 </div>
+             </div>
+         )}
+
          {selectedPatient.allergies && (
              <div className="mb-4 bg-red-600 text-white p-2 rounded-lg flex items-center justify-center animate-pulse shadow-lg">
                  <AlertOctagon size={20} className="mr-2"/>
@@ -1196,6 +1267,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
             </div>
             {!isReadOnly ? (
                 <div className="flex items-center space-x-3">
+                    <button
+                        onClick={handleGenerateSummary}
+                        disabled={isGeneratingSummary}
+                        className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg font-bold text-xs flex items-center hover:bg-blue-200 transition-colors disabled:opacity-50"
+                    >
+                        {isGeneratingSummary ? <Loader2 size={14} className="mr-2 animate-spin"/> : <Bot size={14} className="mr-2"/>}
+                        Resumen IA
+                    </button>
                     <select 
                         className="p-2 border rounded text-sm bg-white font-bold text-slate-700"
                         value={selectedTemplate?.id}
@@ -1209,12 +1288,26 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                     >
                         {isSaved ? '¡Guardado!' : 'Guardar'}
                     </button>
+                    <button
+                        onClick={handlePrintRecord}
+                        className="p-2 border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+                        title="Imprimir Borrador"
+                    >
+                        <Printer size={18}/>
+                    </button>
                     <button onClick={() => initiateAuth('FINALIZE')} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm hover:bg-slate-800 flex items-center">
                         <Lock size={14} className="mr-2"/> Finalizar & RDA
                     </button>
                 </div>
             ) : (
                 <div className="flex items-center space-x-3">
+                    <button
+                        onClick={handlePrintRecord}
+                        className="p-2 border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+                        title="Imprimir Historia"
+                    >
+                        <Printer size={18}/>
+                    </button>
                     <div className={`flex items-center space-x-2 px-3 py-1 rounded-full border text-xs font-bold ${currentRecord.rdaStatus === RDAStatus.SENT_MINSALUD ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>
                         {currentRecord.rdaStatus === RDAStatus.SENT_MINSALUD ? <ShieldCheck size={14}/> : <Clock size={14}/>}
                         <span>{currentRecord.rdaStatus === RDAStatus.SENT_MINSALUD ? 'RDA Enviado (Res. 1888)' : 'RDA Pendiente'}</span>

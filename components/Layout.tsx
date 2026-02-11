@@ -16,7 +16,8 @@ import {
   Bell,
   X,
   ChevronRight,
-  Image
+  Image,
+  Menu
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -30,6 +31,7 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, setActiveTab }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>(MOCK_NOTIFICATIONS);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   if (!user) return <>{children}</>;
 
@@ -106,9 +108,17 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 overflow-hidden relative">
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm transition-all"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shadow-sm z-10">
+      <aside className={`fixed lg:static inset-y-0 left-0 w-64 bg-white border-r border-slate-200 flex flex-col shadow-sm z-50 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <button
           className="p-6 border-b border-slate-100 flex items-center space-x-3 cursor-pointer hover:bg-slate-50 transition-colors w-full text-left"
           onClick={() => setActiveTab('dashboard')}
@@ -132,7 +142,7 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => { setActiveTab(item.id); setIsSidebarOpen(false); }}
                   title={item.label}
                   aria-label={item.label}
                   className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
@@ -175,10 +185,19 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto relative">
-        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-200 px-8 py-4 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-slate-800 capitalize">
-            {getMenuItems().find(i => i.id === activeTab)?.label || 'Panel Principal'}
-          </h2>
+        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 lg:px-8 py-4 flex justify-between items-center">
+          <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                aria-label="Abrir menú"
+              >
+                <Menu size={20} />
+              </button>
+              <h2 className="text-lg lg:text-xl font-semibold text-slate-800 capitalize">
+                {getMenuItems().find(i => i.id === activeTab)?.label || 'Panel Principal'}
+              </h2>
+          </div>
           <div className="flex items-center space-x-4">
             <span className="px-3 py-1 bg-primary-50 text-primary-700 text-xs font-semibold rounded-full border border-primary-100">
               {new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
