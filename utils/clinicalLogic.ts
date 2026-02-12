@@ -18,6 +18,7 @@ export const getVitalWarning = (id: string, value: string, age?: number): string
   const isPediatric = age !== undefined && age < 15;
 
   if (id === 'global_sys_bp') {
+    if (n >= 180) return 'URGENCIA: Crisis Hipertensiva (Sístole >= 180)';
     if (isPediatric) {
         if (n > 120) return 'Sístole elevada para edad pediátrica';
         if (n < 80) return 'Hipotensión pediátrica';
@@ -26,6 +27,7 @@ export const getVitalWarning = (id: string, value: string, age?: number): string
     if (n < 90) return 'Hipotensión: Sístole baja';
   }
   if (id === 'global_dia_bp') {
+    if (n >= 110) return 'URGENCIA: Crisis Hipertensiva (Diástole >= 110)';
     if (n > 90) return 'Hipertensión: Diástole elevada';
     if (n < 60) return 'Hipotensión: Diástole baja';
   }
@@ -34,8 +36,8 @@ export const getVitalWarning = (id: string, value: string, age?: number): string
     if (n < 60) return 'Bradicardia: FC baja';
   }
   if (id === 'v_sat' || id === 'global_sat') {
-    if (n < 90) return 'Alerta: Saturación de Oxígeno (SpO2) Crítica (<90%)';
-    if (n < 94) return 'Precaución: Saturación de Oxígeno (SpO2) Baja';
+    if (n < 90) return 'CRÍTICO: Hipoxia severa (SpO2 < 90%)';
+    if (n < 94) return 'Precaución: Saturación baja (SpO2 < 94%)';
   }
   if (id === 'global_temp') {
     if (n > 38.0) return 'Fiebre';

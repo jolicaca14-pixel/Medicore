@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
+import { clinicalRecordService } from '../../services/clinicalRecordService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
-import { sanitizeInput } from '../../utils/security';
+import { sanitizeInput, maskIdentification } from '../../utils/security';
 import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calculateTFG, calculateFramingham } from '../../utils/clinicalLogic';
 import { logAuditEvent } from '../../utils/auditLogger';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -46,12 +47,16 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // AI Suggestion State
   const [isSuggestingCIE, setIsSuggestingCIE] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string>('');
+  const [clinicalSummary, setClinicalSummary] = useState<string>('');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   // UX States
   const [patientSearch, setPatientSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [hoveredPatientId, setHoveredPatientId] = useState<string | null>(null);
+  const [copiedJSON, setCopiedJSON] = useState(false);
 
   // ⚡ TRINITY: Fetch Patients from API
   useEffect(() => {
@@ -115,27 +120,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       calc_framingham: framinghamValue
   }), [bmiValue, tamValue, tfgValue, framinghamValue]);
 
-  const handleSaveDraft = () => {
-    if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
-    setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = recordToSave;
-        return updated;
-      }
-      return [...prev, recordToSave];
-    });
-
-    // 🎨 Palette: Non-blocking feedback for draft saving
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
-  };
-
   const handleSaveDraft = async () => {
     if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+
+    // Merge calculated values into dynamic data before saving
+    const mergedData = { ...dynamicData, ...allCalculatedValues };
+    const recordToSave = { ...currentRecord, dynamicData: mergedData } as ClinicalRecord;
 
     // ⚡ TRINITY: Persist draft to backend
     try {
@@ -157,7 +147,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       }
       return [...prev, recordToSave];
     });
-    alert("Borrador guardado exitosamente.");
+
+    // 🎨 Palette: Non-blocking feedback for draft saving
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
   };
 
   // ⚡ NEO: Keyboard Shortcuts (Ctrl+S for Save)
@@ -674,6 +667,21 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       setCurrentRecord(prev => ({ ...prev, performedProcedures: prev.performedProcedures?.filter(p => p.id !== id) }));
   };
 
+  const handleGenerateSummary = async () => {
+    if (!selectedPatient) return;
+    setIsGeneratingSummary(true);
+    try {
+        const patientRecords = records.filter(r => r.patientId === selectedPatient.id && r.status === RecordStatus.FINALIZED);
+        const historyText = patientRecords.map(r => `${r.dateCreated}: ${r.chiefComplaint}. ${r.historyOfPresentIllness}`).join('\n');
+        const summary = await generateClinicalSummary(historyText || "No hay antecedentes registrados.");
+        setClinicalSummary(summary);
+    } catch (err) {
+        console.error("Error generating summary:", err);
+    } finally {
+        setIsGeneratingSummary(false);
+    }
+  };
+
   const handleImportResult = (result: ClinicalRecord) => {
       let importText = `\n[RESULTADO EXTERNO - ${result.chiefComplaint} - ${new Date(result.dateCreated).toLocaleDateString()}]\n`;
       Object.entries(result.dynamicData).forEach(([key, val]) => {
@@ -769,8 +777,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   
 
   const RDAViewerModal = () => (
-      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 max-h-[90vh] flex flex-col">
+      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 max-h-[90vh] flex flex-col animate-in zoom-in duration-300">
               <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xl font-bold text-slate-800 flex items-center">
                       <ShieldCheck className="mr-2 text-green-600"/> Resumen Digital de Atención (RDA)
@@ -781,11 +789,24 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                   <span className="font-bold block mb-1">Cumplimiento Resolución 1888 de 2025:</span>
                   Este documento JSON estandarizado es la representación técnica enviada a la Plataforma de Interoperabilidad del Ministerio de Salud. Garantiza la continuidad asistencial y el intercambio seguro de datos.
               </div>
-              <div className="flex-1 overflow-y-auto bg-slate-900 text-green-400 p-4 rounded-lg font-mono text-xs">
+              <div className="flex-1 overflow-y-auto bg-slate-900 text-green-400 p-4 rounded-lg font-mono text-xs group relative">
                   <pre>{currentRecord.rdaPayload || 'No hay datos de RDA disponibles.'}</pre>
+                  {currentRecord.rdaPayload && (
+                      <button
+                        onClick={() => {
+                            navigator.clipboard.writeText(currentRecord.rdaPayload!);
+                            setCopiedJSON(true);
+                            setTimeout(() => setCopiedJSON(false), 2000);
+                        }}
+                        className="absolute top-4 right-4 bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center border border-slate-700 transition-all"
+                      >
+                          {copiedJSON ? <CheckCircle size={14} className="mr-1 text-green-400"/> : <Copy size={14} className="mr-1"/>}
+                          {copiedJSON ? '¡Copiado!' : 'Copiar JSON'}
+                      </button>
+                  )}
               </div>
-              <div className="mt-4 flex justify-end">
-                   <button onClick={() => setShowRDAModal(false)} className="px-4 py-2 bg-slate-200 text-slate-800 rounded font-bold text-sm">Cerrar</button>
+              <div className="mt-4 flex justify-end gap-3">
+                   <button onClick={() => setShowRDAModal(false)} className="px-6 py-2 bg-slate-100 text-slate-700 rounded-lg font-bold text-sm hover:bg-slate-200">Cerrar</button>
               </div>
           </div>
       </div>
@@ -1182,10 +1203,24 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           </div>
          )}
          
+         {/* AI QUICK SUMMARY BANNER */}
+         {clinicalSummary && (
+             <div className="mb-4 bg-blue-50 border border-blue-200 p-3 rounded-xl relative animate-in fade-in slide-in-from-top-2">
+                 <button onClick={() => setClinicalSummary('')} className="absolute top-2 right-2 text-blue-400 hover:text-blue-600"><X size={16}/></button>
+                 <div className="flex items-start">
+                     <Bot className="text-blue-600 mr-3 mt-1" size={20}/>
+                     <div>
+                         <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-1">Resumen Clínico Inteligente (AI)</h4>
+                         <p className="text-sm text-slate-700 leading-relaxed">{clinicalSummary}</p>
+                     </div>
+                 </div>
+             </div>
+         )}
+
          {/* HEADER ACTIONS */}
          <div className="flex items-center justify-between mb-4 pb-4 border-b">
             <div className="flex items-center">
-                <button aria-label="Volver a la lista de pacientes" onClick={() => { setViewMode('LIST'); setSelectedPatient(null); }} className="mr-4 p-2 hover:bg-slate-100 rounded-full"><ChevronRight className="rotate-180" size={20}/></button>
+                <button aria-label="Volver a la lista de pacientes" onClick={() => { setViewMode('LIST'); setSelectedPatient(null); setClinicalSummary(''); }} className="mr-4 p-2 hover:bg-slate-100 rounded-full"><ChevronRight className="rotate-180" size={20}/></button>
                 <div>
                     <h2 className="text-xl font-bold text-slate-800">{selectedPatient.fullName}</h2>
                     <p className="text-xs text-slate-500">
@@ -1193,6 +1228,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                         {selectedPatient.bloodType && <span className="ml-2 font-bold text-red-600">| Rh: {selectedPatient.bloodType}</span>}
                     </p>
                 </div>
+                <button
+                    onClick={handleGenerateSummary}
+                    disabled={isGeneratingSummary}
+                    className="ml-6 flex items-center text-[10px] font-bold bg-blue-100 text-blue-700 px-3 py-1.5 rounded-full hover:bg-blue-200 transition-colors disabled:opacity-50"
+                >
+                    {isGeneratingSummary ? <Loader2 size={12} className="animate-spin mr-1"/> : <Bot size={12} className="mr-1"/>}
+                    {isGeneratingSummary ? 'GENERANDO...' : 'RESUMEN RÁPIDO (AI)'}
+                </button>
             </div>
             {!isReadOnly ? (
                 <div className="flex items-center space-x-3">
@@ -1592,7 +1635,34 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                 const appt = MOCK_APPOINTMENTS.find(a => a.patientId === p.id && a.date === today && a.status === 'WAITING');
 
                 return (
-                    <div key={p.id} className={`bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow cursor-pointer group relative overflow-hidden ${appt ? 'ring-2 ring-green-500' : ''}`} onClick={() => handleCreateRecord(p)}>
+                    <div
+                        key={p.id}
+                        className={`bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow cursor-pointer group relative overflow-hidden ${appt ? 'ring-2 ring-green-500' : ''}`}
+                        onClick={() => handleCreateRecord(p)}
+                        onMouseEnter={() => setHoveredPatientId(p.id)}
+                        onMouseLeave={() => setHoveredPatientId(null)}
+                    >
+                        {/* QUICK LOOK TOOLTIP */}
+                        {hoveredPatientId === p.id && (
+                            <div className="absolute inset-0 bg-slate-900/95 p-4 text-white z-20 flex flex-col justify-center animate-in fade-in duration-200">
+                                <h4 className="text-xs font-bold text-blue-400 uppercase mb-2">Vista Rápida</h4>
+                                <div className="space-y-2 text-[11px]">
+                                    <p><span className="text-slate-400">Género:</span> {p.gender === 'M' ? 'Masculino' : 'Femenino'}</p>
+                                    <p><span className="text-slate-400">Aseguradora:</span> {p.insuranceType}</p>
+                                    {p.allergies && <p><span className="text-red-400 font-bold">Alergias:</span> {p.allergies}</p>}
+                                    <div className="pt-1 border-t border-slate-700 mt-2">
+                                        <p className="font-bold text-blue-300">Últimos Signos:</p>
+                                        <div className="grid grid-cols-2 gap-1 mt-1">
+                                            <span>TA: 120/80</span>
+                                            <span>FC: 72 lpm</span>
+                                            <span>Temp: 36.5°C</span>
+                                            <span>SpO2: 98%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="mt-auto text-[9px] text-slate-500 italic">Click para abrir historia completa</p>
+                            </div>
+                        )}
                         {appt && (
                             <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">
                                 EN SALA DE ESPERA
@@ -1606,7 +1676,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                         </div>
                         <h3 className="font-bold text-slate-800">{p.fullName}</h3>
                         <div className="flex items-center text-sm text-slate-500 mb-1 group">
-                            <span>{p.identification}</span>
+                            <span>{maskIdentification(p.identification)}</span>
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleCopyId(p.identification); }}
                                 className={`ml-2 p-1 transition-all ${copiedId === p.identification ? 'text-green-500 scale-110' : 'text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100'}`}
