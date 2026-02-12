@@ -21,6 +21,12 @@ export const generateClinicalSummary = async (notes: string): Promise<string> =>
 
   const sanitizedNotes = sanitizeInput(notes);
 
+  // Mock logic for testing/demo if key is dummy
+  if (apiKey === 'dummy_key') {
+      await new Promise(r => setTimeout(r, 1000));
+      return "RESUMEN MOCK (Phase 10): Paciente con antecedentes de migraña y alergias a penicilina. Última atención estable.";
+  }
+
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',

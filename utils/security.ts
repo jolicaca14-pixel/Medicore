@@ -25,3 +25,14 @@ export const sanitizeInput = (input: string | undefined | null): string => {
   // For a production environment, a more robust, well-tested library like DOMPurify is strongly recommended.
   return input.replace(/<|>/g, '');
 };
+
+/**
+ * 🛡️ Morpheus: PII Masking Utility
+ * Masks sensitive identifiers to protect patient/user privacy in lists.
+ * E.g., '1234567890' -> '123****890'
+ */
+export const maskIdentification = (id: string | undefined): string => {
+  if (!id) return '';
+  if (id.length <= 6) return id;
+  return `${id.slice(0, 3)}****${id.slice(-3)}`;
+};

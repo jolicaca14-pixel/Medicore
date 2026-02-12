@@ -1,6 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { calculateTFG, calculateFramingham, calculateBMI } from './clinicalLogic';
+import { calculateTFG, calculateFramingham, calculateBMI, getVitalWarning } from './clinicalLogic';
+
+test('getVitalWarning', () => {
+  // SpO2
+  assert.strictEqual(getVitalWarning('v_sat', '98'), null);
+  assert.strictEqual(getVitalWarning('v_sat', '92'), 'Precaución: Saturación baja (SpO2 < 94%)');
+  assert.strictEqual(getVitalWarning('v_sat', '85'), 'CRÍTICO: Hipoxia severa (SpO2 < 90%)');
+
+  // BP Crisis
+  assert.strictEqual(getVitalWarning('global_sys_bp', '120'), null);
+  assert.strictEqual(getVitalWarning('global_sys_bp', '185'), 'URGENCIA: Crisis Hipertensiva (Sístole >= 180)');
+  assert.strictEqual(getVitalWarning('global_dia_bp', '115'), 'URGENCIA: Crisis Hipertensiva (Diástole >= 110)');
+});
 
 test('calculateBMI', () => {
   assert.strictEqual(calculateBMI(70, 1.75), "22.86");
