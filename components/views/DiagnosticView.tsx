@@ -126,8 +126,67 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+          alert("Por favor, permita las ventanas emergentes para visualizar los resultados.");
+          return;
+      }
+
+      const groupRecords = completedRecords.filter(r =>
+          MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientName &&
+          r.dateCreated.startsWith(date)
+      );
+
+      const html = `
+        <html>
+          <head>
+            <title>Resultados ${patientName} - ${date}</title>
+            <style>
+              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; }
+              .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+              .patient-info { background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 30px; }
+              .result-block { margin-bottom: 30px; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; background: #ffffff; }
+              .result-title { font-size: 1.2rem; font-weight: bold; color: #2563eb; margin-bottom: 15px; border-bottom: 1px solid #eff6ff; padding-bottom: 5px; }
+              .field { margin-bottom: 8px; display: grid; grid-template-columns: 200px 1fr; border-bottom: 1px solid #f8fafc; padding-bottom: 4px; }
+              .field-label { font-weight: bold; color: #64748b; font-size: 0.85rem; }
+              .field-value { font-size: 0.95rem; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1 style="margin:0; color:#2563eb;">MEDICORE IPS</h1>
+              <p style="margin:5px 0; color:#64748b;">Reporte Consolidado de Resultados de Diagnóstico</p>
+            </div>
+            <div class="patient-info">
+              <p style="margin:0;"><strong>Paciente:</strong> ${patientName}</p>
+              <p style="margin:5px 0 0 0;"><strong>Fecha de Procesamiento:</strong> ${date}</p>
+            </div>
+            ${groupRecords.map(r => `
+              <div class="result-block">
+                <div class="result-title">${r.chiefComplaint}</div>
+                <p style="margin:-10px 0 15px 0; font-size:0.8rem; color:#94a3b8;">Profesional: ${r.professionalName}</p>
+                <div class="fields">
+                  ${Object.entries(r.dynamicData).map(([key, val]) => {
+                      const fieldLabel = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+                      return `
+                        <div class="field">
+                          <span class="field-label">${fieldLabel}:</span>
+                          <span class="field-value">${val}</span>
+                        </div>
+                      `;
+                  }).join('')}
+                </div>
+              </div>
+            `).join('')}
+            <div style="margin-top:50px; text-align:center; font-size:0.8rem; color:#94a3b8; border-top:1px solid #e2e8f0; padding-top:20px;">
+                Validado digitalmente por el personal de laboratorio/imagenología de MediCore IPS SAS.
+            </div>
+          </body>
+        </html>
+      `;
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---

@@ -227,16 +227,78 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+          alert("Por favor, permita las ventanas emergentes para visualizar e imprimir la factura.");
+          return;
+      }
+
+      const html = `
+        <html>
+          <head>
+            <title>Factura ${invoice.id}</title>
+            <style>
+              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; }
+              .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+              .details { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+              .box { padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; }
+              .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              .table th { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; text-align: left; font-size: 0.85rem; text-transform: uppercase; color: #64748b; }
+              .table td { border: 1px solid #e2e8f0; padding: 12px; text-align: left; font-size: 0.9rem; }
+              .total-section { margin-top: 30px; border-top: 2px solid #e2e8f0; padding-top: 20px; text-align: right; }
+              .total-row { display: flex; justify-content: flex-end; gap: 40px; margin-bottom: 5px; }
+              .grand-total { font-size: 1.5rem; font-bold; color: #0f172a; margin-top: 10px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1 style="margin:0; color:#2563eb;">MEDICORE IPS SAS</h1>
+              <p style="margin:5px 0; color:#64748b;">NIT: 900.123.456-7 | Calle 100 #15-20, Bogotá</p>
+              <h2 style="margin:15px 0 0 0;">FACTURA DE VENTA N° ${invoice.id}</h2>
+            </div>
+            <div class="details">
+              <div class="box">
+                <p style="margin:0 0 5px 0; font-weight:bold; color:#64748b; text-transform:uppercase; font-size:0.75rem;">Adquiriente</p>
+                <p style="margin:0; font-weight:bold; font-size:1.1rem;">${invoice.patientName}</p>
+                <p style="margin:2px 0 0 0; color:#475569;">Paciente ID: ${invoice.patientId}</p>
+              </div>
+              <div class="box">
+                <p style="margin:0 0 5px 0; font-weight:bold; color:#64748b; text-transform:uppercase; font-size:0.75rem;">Información Factura</p>
+                <p style="margin:0;"><strong>Fecha Emisión:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+                <p style="margin:2px 0 0 0;"><strong>Estado:</strong> ${invoice.status}</p>
+              </div>
+            </div>
+            <table class="table">
+              <thead>
+                <tr><th>Descripción del Servicio</th><th>Cantidad</th><th>Valor Unit.</th><th>Total</th></tr>
+              </thead>
+              <tbody>
+                ${invoice.items.map(item => `
+                  <tr>
+                    <td>${item.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>$${item.price.toLocaleString()}</td>
+                    <td>$${(item.price * item.quantity).toLocaleString()}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div class="total-section">
+              <div class="total-row"><span>Subtotal:</span><strong>$${invoice.subtotal.toLocaleString()}</strong></div>
+              <div class="total-row"><span>Descuentos:</span><strong>- $${invoice.discount.toLocaleString()}</strong></div>
+              <div class="grand-total">Total a Pagar: $${invoice.total.toLocaleString()}</div>
+              <div style="margin-top:10px; color:#16a34a; font-weight:bold;">
+                Pagado: $${(invoice.total - invoice.balance).toLocaleString()} | Saldo: $${invoice.balance.toLocaleString()}
+              </div>
+            </div>
+            <div style="margin-top:50px; text-align:center; font-size:0.8rem; color:#94a3b8;">
+                Representación gráfica de factura electrónica. Generado por MediCore HCE.
+            </div>
+          </body>
+        </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
