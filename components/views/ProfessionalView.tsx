@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
+import { clinicalRecordService } from '../../services/clinicalRecordService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
@@ -115,27 +116,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       calc_framingham: framinghamValue
   }), [bmiValue, tamValue, tfgValue, framinghamValue]);
 
-  const handleSaveDraft = () => {
-    if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
-    setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = recordToSave;
-        return updated;
-      }
-      return [...prev, recordToSave];
-    });
-
-    // 🎨 Palette: Non-blocking feedback for draft saving
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
-  };
-
   const handleSaveDraft = async () => {
     if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
 
     // ⚡ TRINITY: Persist draft to backend
     try {
@@ -157,7 +140,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       }
       return [...prev, recordToSave];
     });
-    alert("Borrador guardado exitosamente.");
+
+    // 🎨 Palette: Non-blocking feedback for draft saving
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
   };
 
   // ⚡ NEO: Keyboard Shortcuts (Ctrl+S for Save)
@@ -332,7 +318,25 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const handleDownloadContract = () => {
       // 🛡️ MORPHEUS: Audit log for contract download
       logAuditEvent(user.id, 'DOWNLOAD_CONTRACT', 'Contract', `User downloaded a copy of their contract`);
-      alert('Descargando PDF del contrato...');
+      const contractText = `
+        CONTRATO DE PRESTACIÓN DE SERVICIOS PROFESIONALES
+        CONTRATANTE: MEDICORE IPS SAS
+        CONTRATISTA: ${user.name}
+        CC: ${user.documentNumber}
+        TIPO: ${hrUser.contracts?.find(c => c.isActive)?.type || 'N/A'}
+        FECHA INICIO: ${hrUser.contracts?.find(c => c.isActive)?.startDate || 'N/A'}
+
+        Este documento es una copia digital válida del contrato firmado.
+      `;
+      const blob = new Blob([contractText], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `contrato_${user.id}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
   };
 
   const handleOpenPaymentModal = () => {
@@ -835,14 +839,18 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => setNewPayment({...newPayment, files: [...newPayment.files, 'seguridad_social.pdf']})} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">
+                                              {newPayment.files.includes('seguridad_social.pdf') ? 'Cargado ✓' : 'Seleccionar...'}
+                                          </button>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Informe de Actividades</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => setNewPayment({...newPayment, files: [...newPayment.files, 'informe_actividades.pdf']})} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">
+                                              {newPayment.files.includes('informe_actividades.pdf') ? 'Cargado ✓' : 'Seleccionar...'}
+                                          </button>
                                       </div>
                                   </div>
                               </div>
