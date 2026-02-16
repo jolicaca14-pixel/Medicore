@@ -106,6 +106,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
   const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
 
+  // New Form States for Settings
+  const [newTemplateData, setNewTemplateData] = useState({ name: '', description: '' });
+  const [newSectionData, setNewSectionData] = useState({ title: '', description: '' });
+  const [newFieldData, setNewFieldData] = useState({ label: '', type: 'TEXT' as FieldType });
+
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
   const [ripsEndDate, setRipsEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -457,12 +462,69 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
 
   const downloadRIPS = () => {
-      alert("Descargando paquete .ZIP con archivos TXT/JSON validados...");
+      if (!generatedRips) return;
+      const data = JSON.stringify(generatedRips, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `RIPS_${ripsStartDate}_${ripsEndDate}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
   };
 
-  const handleNewTemplate = () => setIsTemplateModalOpen(true);
-  const handleNewSection = () => setIsSectionModalOpen(true);
-  const handleNewField = () => setIsFieldModalOpen(true);
+  const handleNewTemplate = () => {
+      setNewTemplateData({ name: '', description: '' });
+      setIsTemplateModalOpen(true);
+  };
+  const handleSaveTemplate = () => {
+      if (!newTemplateData.name) return alert("Ingrese un nombre");
+      const template: RoleTemplate = {
+          id: `t_${Date.now()}`,
+          name: newTemplateData.name,
+          description: newTemplateData.description,
+          recordType: RecordType.GENERAL,
+          allowedRoles: [UserRole.PROFESSIONAL],
+          sections: [],
+          active: true
+      };
+      setTemplates([...templates, template]);
+      setIsTemplateModalOpen(false);
+      alert("Plantilla creada.");
+  };
+
+  const handleNewSection = () => {
+      setNewSectionData({ title: '', description: '' });
+      setIsSectionModalOpen(true);
+  };
+  const handleSaveSection = () => {
+      if (!newSectionData.title) return alert("Ingrese un título");
+      const section: TemplateSection = {
+          id: `s_${Date.now()}`,
+          title: newSectionData.title,
+          fields: []
+      };
+      setGlobalSections([...globalSections, section]);
+      setIsSectionModalOpen(false);
+      alert("Sección creada.");
+  };
+
+  const handleNewField = () => {
+      setNewFieldData({ label: '', type: 'TEXT' });
+      setIsFieldModalOpen(true);
+  };
+  const handleSaveField = () => {
+      if (!newFieldData.label) return alert("Ingrese una etiqueta");
+      const field: TemplateField = {
+          id: `f_${Date.now()}`,
+          label: newFieldData.label,
+          type: newFieldData.type,
+          required: false
+      };
+      setGlobalFields([...globalFields, field]);
+      setIsFieldModalOpen(false);
+      alert("Campo creado.");
+  };
 
   // --- RENDER LOGIC ---
 
@@ -1104,6 +1166,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                               ))}
                           </div>
                           
+                          <div className="flex justify-end">
+                              <button onClick={downloadRIPS} className="bg-green-600 text-white px-4 py-2 rounded font-bold text-sm shadow hover:bg-green-700 flex items-center">
+                                  <Download size={16} className="mr-2"/> Descargar RIPS (JSON)
+                              </button>
+                          </div>
+
                           <div className="border rounded-lg overflow-hidden">
                                <div className="bg-slate-100 px-4 py-2 border-b">
                                   <span className="font-mono text-xs font-bold text-slate-600">Previsualización (Formato JSON Res. 2275/2023)</span>
@@ -1147,11 +1215,36 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // 2. USERS LIST - Only Admin
   if (activeTab === 'users' && isAdmin) {
       return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full animate-in fade-in duration-500">
-            {/* User List Column */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
-                <h3 className="font-bold text-slate-800 mb-6">Directorio de Usuarios</h3>
-                <div className="overflow-x-auto flex-1">
+        <div className="space-y-8 animate-in fade-in duration-500">
+            {/* User Creation Space */}
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-100">
+                 <div className="flex justify-between items-center mb-6 border-b pb-4">
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800">Espacio de Creación de Usuarios</h2>
+                        <p className="text-sm text-slate-500">Registre nuevos colaboradores o edite información existente.</p>
+                    </div>
+                    {currentUser.id && users.some(u => u.id === currentUser.id) && (
+                        <button onClick={handleAddNewUser} className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg flex items-center shadow-lg hover:bg-slate-800 transition-all">
+                            <Plus size={18} className="mr-2"/> Nuevo Usuario
+                        </button>
+                    )}
+                 </div>
+                 <div className="max-w-4xl">
+                     <UserForm
+                        user={currentUser}
+                        onSave={handleSaveUser}
+                        onCancel={() => setCurrentUser({})}
+                        isEmbedded={true}
+                     />
+                 </div>
+            </div>
+
+            {/* User Directory */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
+                <h3 className="font-bold text-slate-800 mb-6 flex items-center text-lg">
+                    <Users className="mr-2 text-blue-600"/> Directorio de Usuarios Registrados
+                </h3>
+                <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0">
                             <tr>
@@ -1190,22 +1283,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                     </table>
                 </div>
             </div>
-
-            {/* User Form Column */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-slate-800">
-                        {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
-                    </h3>
-                    <button onClick={handleAddNewUser} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center"><Plus size={14} className="mr-1"/> Agregar Nuevo</button>
-                 </div>
-                 <UserForm
-                    user={currentUser}
-                    onSave={handleSaveUser}
-                    onCancel={() => setCurrentUser({})}
-                    isEmbedded={true}
-                 />
-            </div>
         </div>
       );
   }
@@ -1221,27 +1298,69 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla de Historia</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Nombre de la Plantilla</label>
+                                <input className="w-full border p-2 rounded" value={newTemplateData.name} onChange={e => setNewTemplateData({...newTemplateData, name: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Descripción</label>
+                                <textarea className="w-full border p-2 rounded" value={newTemplateData.description} onChange={e => setNewTemplateData({...newTemplateData, description: e.target.value})} />
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold">Cancelar</button>
+                            <button onClick={handleSaveTemplate} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Crear Plantilla</button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección Clínica</h3>
+                          <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Título de la Sección</label>
+                                <input className="w-full border p-2 rounded" value={newSectionData.title} onChange={e => setNewSectionData({...newSectionData, title: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Descripción (Interna)</label>
+                                <textarea className="w-full border p-2 rounded" value={newSectionData.description} onChange={e => setNewSectionData({...newSectionData, description: e.target.value})} />
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold">Cancelar</button>
+                            <button onClick={handleSaveSection} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Crear Sección</button>
+                        </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo de Datos</h3>
+                          <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Etiqueta (Label)</label>
+                                <input className="w-full border p-2 rounded" value={newFieldData.label} onChange={e => setNewFieldData({...newFieldData, label: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Tipo de Dato</label>
+                                <select className="w-full border p-2 rounded" value={newFieldData.type} onChange={e => setNewFieldData({...newFieldData, type: e.target.value as FieldType})}>
+                                    <option value="TEXT">Texto Corto</option>
+                                    <option value="TEXTAREA">Texto Largo</option>
+                                    <option value="NUMBER">Numérico</option>
+                                    <option value="SELECT">Selección Única</option>
+                                    <option value="DATE">Fecha</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold">Cancelar</button>
+                            <button onClick={handleSaveField} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Crear Campo</button>
+                        </div>
                       </div>
                   </div>
               )}
