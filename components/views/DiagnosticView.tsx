@@ -126,8 +126,58 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientFullName: string, date: string) => {
+      const recordsToPrint = completedRecords.filter(r => {
+          const p = MOCK_PATIENTS.find(pt => pt.id === r.patientId);
+          return p?.fullName === patientFullName && r.dateCreated.startsWith(date);
+      });
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head>
+                  <title>Resultados Diagnósticos - ${patientFullName}</title>
+                  <style>
+                      body { font-family: sans-serif; padding: 40px; color: #334155; line-height: 1.5; }
+                      .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+                      .result-item { margin-bottom: 30px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; }
+                      h1 { color: #1e293b; margin: 0; font-size: 24px; }
+                      h2 { color: #2563eb; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin-top: 0; }
+                      .field { margin-bottom: 10px; }
+                      .label { font-weight: bold; color: #64748b; font-size: 11px; text-transform: uppercase; display: block; }
+                      .value { font-size: 14px; color: #1e293b; }
+                      .footer { margin-top: 50px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #f1f5f9; pt: 10px; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1>MEDICORE IPS</h1>
+                      <p style="margin: 5px 0;">Reporte Consolidado de Resultados</p>
+                      <p><strong>Paciente:</strong> ${patientFullName} &nbsp;&nbsp; | &nbsp;&nbsp; <strong>Fecha:</strong> ${date}</p>
+                  </div>
+                  ${recordsToPrint.map(r => `
+                      <div class="result-item">
+                          <h2>${r.chiefComplaint}</h2>
+                          <p style="font-size: 12px; margin-bottom: 15px;"><strong>Profesional:</strong> ${r.professionalName}</p>
+                          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                              ${Object.entries(r.dynamicData).map(([key, val]) => `
+                                  <div class="field">
+                                      <span class="label">${key.replace('lab_', '').replace('rad_', '').replace(/_/g, ' ')}</span>
+                                      <span class="value">${val}</span>
+                                  </div>
+                              `).join('')}
+                          </div>
+                      </div>
+                  `).join('')}
+                  <div class="footer">
+                      Documento generado electrónicamente por MediCore Pro. Respaldo Digital de Atención v1.0.
+                  </div>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+      }
   };
 
   // --- RENDER FORM ---
