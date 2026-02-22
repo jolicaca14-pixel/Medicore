@@ -109,9 +109,21 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'FILE' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50">
-                      <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
-                      <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                  <div
+                    className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50 relative"
+                    onClick={() => document.getElementById(`file-${field.id}`)?.click()}
+                  >
+                      <input
+                        type="file"
+                        id={`file-${field.id}`}
+                        className="hidden"
+                        onChange={(e) => {
+                            const fileName = e.target.files?.[0]?.name;
+                            if (fileName) setDynamicData({...dynamicData, [field.id]: fileName});
+                        }}
+                      />
+                      <Upload size={20} className={`mx-auto mb-2 ${val ? 'text-green-500' : 'text-slate-400'}`}/>
+                      <p className="text-xs text-slate-500">{val ? `Archivo: ${val}` : 'Click para cargar imágenes (DICOM/JPG)'}</p>
                   </div>
               ) : (
                   <input 
@@ -126,8 +138,67 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Por favor permita las ventanas emergentes para imprimir.");
+
+      const html = `
+        <html>
+          <head>
+            <title>Resultados MediCore - ${patientName}</title>
+            <style>
+              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; }
+              .header { border-bottom: 3px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
+              .logo { font-size: 24px; font-weight: bold; color: #2563eb; }
+              .result-box { border: 1px solid #e2e8f0; padding: 25px; border-radius: 12px; margin-bottom: 25px; background-color: #f8fafc; }
+              h1 { color: #0f172a; margin: 0; }
+              h2 { color: #2563eb; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px; margin-top: 0; font-size: 18px; }
+              .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+              .item { margin-bottom: 10px; }
+              .label { font-weight: 800; font-size: 11px; color: #64748b; uppercase; letter-spacing: 0.05em; }
+              .value { font-size: 14px; color: #1e293b; font-weight: 500; }
+              .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; pt: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div>
+                <div class="logo">MediCore Pro</div>
+                <p style="margin: 5px 0 0 0; color: #64748b;">Reporte Oficial de Resultados</p>
+              </div>
+              <div style="text-align: right;">
+                <h1 style="font-size: 20px;">${patientName}</h1>
+                <p style="margin: 0; color: #64748b;">Fecha: ${date}</p>
+              </div>
+            </div>
+
+            ${completedRecords.filter(r => r.dateCreated.startsWith(date)).map(r => `
+              <div class="result-box">
+                <h2>${r.chiefComplaint}</h2>
+                <div class="grid">
+                  ${Object.entries(r.dynamicData).map(([key, val]) => {
+                    const fieldLabel = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+                    return `
+                      <div class="item">
+                        <div class="label">${fieldLabel}</div>
+                        <div class="value">${val}</div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `).join('')}
+
+            <div class="footer">
+              <p>Este documento es un reporte electrónico generado por MediCore Pro. Firma digital en archivo.</p>
+              <p>Profesional Responsable: ${user.name}</p>
+            </div>
+            <script>setTimeout(() => { window.print(); }, 500);</script>
+          </body>
+        </html>
+      `;
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---
