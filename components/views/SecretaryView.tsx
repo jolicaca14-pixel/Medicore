@@ -34,6 +34,11 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   const [tariffMode, setTariffMode] = useState<'SOAT' | 'PARTICULAR'>('SOAT');
   const [invoices, setInvoices] = useState<Invoice[]>([]); // Cartera
 
+  // Payment Modal State
+  const [isRegPaymentModalOpen, setIsRegPaymentModalOpen] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [currentInvForPayment, setCurrentInvForPayment] = useState<Invoice | null>(null);
+
   // Manual Item
   const [manualItemName, setManualItemName] = useState('');
   const [manualItemPrice, setManualItemPrice] = useState('');
@@ -227,34 +232,92 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Por favor permita las ventanas emergentes para imprimir.");
+
+      const html = `
+        <html>
+          <head>
+            <title>Factura MediCore Pro - ${invoice.id}</title>
+            <style>
+              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e293b; padding: 40px; }
+              .header { text-align: center; margin-bottom: 40px; }
+              .logo { font-size: 24px; font-weight: bold; color: #2563eb; }
+              .details { margin-bottom: 20px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: left; }
+              th { background-color: #f8fafc; }
+              .totals { text-align: right; margin-top: 20px; }
+              .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #64748b; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="logo">MediCore Pro</div>
+              <h1>FACTURA DE VENTA</h1>
+              <p>N° ${invoice.id}</p>
+            </div>
+            <div class="details">
+              <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+              <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+              <p><strong>Estado:</strong> ${invoice.status}</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Descripción</th>
+                  <th>Cant.</th>
+                  <th>Precio Unit.</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${invoice.items.map(item => `
+                  <tr>
+                    <td>${item.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>${formatCurrency(item.price)}</td>
+                    <td>${formatCurrency(item.price * item.quantity)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div class="totals">
+              <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+              <p>Descuento: ${formatCurrency(invoice.discount)}</p>
+              <p style="font-size: 20px; font-weight: bold;">Total: ${formatCurrency(invoice.total)}</p>
+              <p>Saldo Pendiente: ${formatCurrency(invoice.balance)}</p>
+            </div>
+            <div class="footer">
+              <p>Gracias por confiar en MediCore Pro. Este documento es un soporte de venta válido.</p>
+            </div>
+            <script>setTimeout(() => { window.print(); }, 500);</script>
+          </body>
+        </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
-  const registerPayment = (id: string) => {
-      const inv = invoices.find(i => i.id === id);
-      if(!inv) return;
+  const handleOpenPaymentModal = (inv: Invoice) => {
+      setCurrentInvForPayment(inv);
+      setPaymentAmount(inv.balance.toString());
+      setIsRegPaymentModalOpen(true);
+  };
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
+  const registerPayment = () => {
+      if(!currentInvForPayment) return;
+      const amount = parseFloat(paymentAmount);
       
-      if(amount > inv.balance) {
+      if(isNaN(amount) || amount <= 0) return alert("Ingrese un monto válido.");
+      if(amount > currentInvForPayment.balance) {
           alert("El monto ingresado supera el saldo pendiente.");
           return;
       }
 
       setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
+          if (invoice.id !== currentInvForPayment.id) return invoice;
           const newBalance = invoice.balance - amount;
           const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
           return {
@@ -264,6 +327,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
+      setIsRegPaymentModalOpen(false);
       alert("Pago registrado correctamente.");
   };
 
@@ -605,6 +669,34 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           {/* CARTERA TAB (Enhanced) */}
           {activeTab === 'CARTERA' && (
               <div>
+                   {/* PAYMENT MODAL */}
+                   {isRegPaymentModalOpen && currentInvForPayment && (
+                       <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                           <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
+                               <div className="flex justify-between items-center mb-4">
+                                   <h3 className="text-lg font-bold text-slate-800 flex items-center"><DollarSign className="text-green-600 mr-1"/> Registrar Abono</h3>
+                                   <button onClick={() => setIsRegPaymentModalOpen(false)}><X size={20}/></button>
+                               </div>
+                               <div className="space-y-4">
+                                   <div className="bg-slate-50 p-3 rounded border">
+                                       <p className="text-xs text-slate-500 font-bold uppercase">Paciente</p>
+                                       <p className="text-sm font-bold text-slate-700">{currentInvForPayment.patientName}</p>
+                                       <p className="text-xs text-slate-500 mt-2">Saldo Actual: <span className="text-red-600 font-bold">{formatCurrency(currentInvForPayment.balance)}</span></p>
+                                   </div>
+                                   <div>
+                                       <label className="block text-xs font-bold text-slate-500 mb-1">Monto a Pagar</label>
+                                       <input
+                                           type="number"
+                                           className="w-full border p-2 rounded text-lg font-bold text-green-700"
+                                           value={paymentAmount}
+                                           onChange={e => setPaymentAmount(e.target.value)}
+                                       />
+                                   </div>
+                                   <button onClick={registerPayment} className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition-colors">Confirmar Pago</button>
+                               </div>
+                           </div>
+                       </div>
+                   )}
                    <h2 className="text-2xl font-bold text-slate-800 mb-6">Cartera (Cuentas por Cobrar)</h2>
                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                        <table className="w-full text-sm text-left">
@@ -635,7 +727,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                       <td className="p-4 text-right flex justify-end space-x-2">
                                           <button onClick={() => printInvoice(inv)} className="bg-slate-200 text-slate-700 p-2 rounded hover:bg-slate-300" title="Imprimir"><Printer size={16}/></button>
                                           {inv.status !== 'PAID' && (
-                                              <button onClick={() => registerPayment(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
+                                              <button onClick={() => handleOpenPaymentModal(inv)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
                                                   Abonar
                                               </button>
                                           )}
