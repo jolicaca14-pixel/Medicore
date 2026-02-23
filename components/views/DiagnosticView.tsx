@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
+import { useToast } from '../Toast';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
 import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
 
@@ -21,6 +22,7 @@ interface Order {
 }
 
 export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }) => {
+  const { showToast } = useToast();
   const isLab = user.roles.includes(UserRole.BACTERIOLOGIST);
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
@@ -60,7 +62,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) return showToast("No hay plantilla configurada para este examen.", "error");
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,16 +91,37 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showToast("Resultado guardado correctamente.", "success");
+  };
+
+  // --- RANGE PARSER HELPER ---
+  const checkRange = (value: string, placeholder: string) => {
+    if (!value || !placeholder) return { isOut: false, label: '' };
+
+    // Try to find numbers in placeholder like "80-100" or "4.5-5.9"
+    const rangeMatch = placeholder.match(/(\d+\.?\d*)\s*-\s*(\d+\.?\d*)/);
+    if (rangeMatch) {
+      const min = parseFloat(rangeMatch[1]);
+      const max = parseFloat(rangeMatch[2]);
+      const val = parseFloat(value);
+      if (!isNaN(val)) {
+        if (val < min) return { isOut: true, label: 'Bajo' };
+        if (val > max) return { isOut: true, label: 'Alto' };
+      }
+    }
+    return { isOut: false, label: '' };
   };
 
   // --- RENDER FIELD ---
   const renderField = (field: any) => {
       const val = dynamicData[field.id] || '';
+      const rangeStatus = field.type === 'NUMBER' ? checkRange(val, field.placeholder || '') : { isOut: false, label: '' };
+
       return (
           <div key={field.id} className="col-span-1">
-              <label className="block text-xs font-bold text-slate-500 mb-1">
-                  {field.label} {field.unit && <span className="text-slate-400">({field.unit})</span>}
+              <label htmlFor={field.id} className="block text-xs font-bold text-slate-500 mb-1 flex justify-between">
+                  <span>{field.label} {field.unit && <span className="text-slate-400">({field.unit})</span>}</span>
+                  {field.placeholder && <span className="text-[10px] text-slate-400 font-normal">Ref: {field.placeholder}</span>}
               </label>
               
               {field.type === 'TEXTAREA' ? (
@@ -114,12 +137,23 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                       <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
                   </div>
               ) : (
-                  <input 
-                    type={field.type === 'NUMBER' ? 'number' : 'text'} 
-                    className="w-full p-2 border rounded text-sm"
-                    value={val} 
-                    onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})} 
-                  />
+                  <div className="relative">
+                    <input
+                        id={field.id}
+                        type={field.type === 'NUMBER' ? 'number' : 'text'}
+                        className={`w-full p-2 border rounded text-sm transition-colors ${
+                            rangeStatus.isOut ? 'bg-red-50 border-red-300 text-red-900 font-bold' : 'focus:ring-2 focus:ring-blue-500'
+                        }`}
+                        value={val}
+                        placeholder={field.placeholder}
+                        onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}
+                    />
+                    {rangeStatus.isOut && (
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-red-600 uppercase">
+                            {rangeStatus.label}
+                        </span>
+                    )}
+                  </div>
               )}
           </div>
       );
@@ -127,7 +161,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- PRINT VIEW ---
   const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+      showToast(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`, "info");
   };
 
   // --- RENDER FORM ---

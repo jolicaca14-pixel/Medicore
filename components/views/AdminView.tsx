@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useDeferredValue } from 'react';
 import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType, TariffItem, Contract, ContractType, ContractAudit, DisciplinaryAction, PaymentRequest, ClinicalRecord, RecordType, RecordStatus, Patient } from '../../types';
 import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -95,6 +95,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [newFileName, setNewFileName] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [fileSearchTerm, setFileSearchTerm] = useState('');
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const deferredUserSearch = useDeferredValue(userSearchTerm);
   const [selectedUserIdForUpload, setSelectedUserIdForUpload] = useState<string | undefined>(MOCK_USERS[0]?.id);
 
   // Settings / Templates
@@ -464,6 +466,29 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const handleNewSection = () => setIsSectionModalOpen(true);
   const handleNewField = () => setIsFieldModalOpen(true);
 
+  const handleExportUsersCSV = () => {
+    const headers = ['ID', 'Nombre', 'Usuario', 'Documento', 'Roles', 'Estado'];
+    const rows = users.map(u => [
+      u.id,
+      u.name,
+      u.username,
+      u.documentNumber,
+      u.roles.join('|'),
+      u.status
+    ]);
+
+    const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `directorio_usuarios_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
@@ -481,6 +506,38 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'dashboard' && isAdmin) {
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
+
+      // LEDGER: Billing Summary Logic
+      const totalPayroll = users.reduce((acc, u) => {
+          const active = u.contracts?.find(c => c.isActive);
+          if (!active) return acc;
+          return acc + (active.baseSalary || 0) + (active.opsValue || 0);
+      }, 0);
+
+      const BillingSummaryWidget = () => (
+          <div className="bg-slate-900 text-white p-6 rounded-xl shadow-lg border border-slate-700">
+              <h3 className="text-lg font-bold mb-4 flex items-center">
+                  <Calculator className="mr-2 text-blue-400" size={20}/> Costos Operativos Proyectados
+              </h3>
+              <div className="space-y-4">
+                  <div className="flex justify-between items-end border-b border-slate-700 pb-2">
+                      <span className="text-slate-400 text-xs font-bold uppercase">Nómina y OPS</span>
+                      <span className="text-2xl font-mono font-bold text-blue-400">{formatCurrency(totalPayroll)}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div>
+                          <p className="text-[10px] text-slate-400 uppercase font-bold">Base Laboral</p>
+                          <p className="font-bold">{formatCurrency(users.reduce((acc, u) => acc + (u.contracts?.find(c => c.isActive && c.type === ContractType.NOMINA)?.baseSalary || 0), 0))}</p>
+                      </div>
+                      <div>
+                          <p className="text-[10px] text-slate-400 uppercase font-bold">Contratos OPS</p>
+                          <p className="font-bold">{formatCurrency(users.reduce((acc, u) => acc + (u.contracts?.find(c => c.isActive && c.type === ContractType.OPS)?.opsValue || 0), 0))}</p>
+                      </div>
+                  </div>
+                  <p className="text-[10px] text-slate-500 italic">Cálculo basado en {users.filter(u => u.contracts?.some(c => c.isActive)).length} contratos vigentes.</p>
+              </div>
+          </div>
+      );
 
       return (
           <div className="space-y-6 animate-in fade-in duration-500">
@@ -517,7 +574,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               </div>
 
               {/* Advanced Dashboard Charts */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  <div className="lg:col-span-1">
+                      <BillingSummaryWidget />
+                  </div>
                    {/* Main Financial Chart */}
                    <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-96">
                        <h3 className="font-bold text-slate-800 mb-4 text-lg">Balance Financiero: Ingresos vs Egresos</h3>
@@ -1150,7 +1210,27 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full animate-in fade-in duration-500">
             {/* User List Column */}
             <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
-                <h3 className="font-bold text-slate-800 mb-6">Directorio de Usuarios</h3>
+                <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-4">
+                        <h3 className="font-bold text-slate-800">Directorio de Usuarios</h3>
+                        <button
+                            onClick={handleExportUsersCSV}
+                            className="flex items-center text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded border border-blue-200"
+                        >
+                            <Download size={14} className="mr-1"/> Exportar CSV
+                        </button>
+                    </div>
+                    <div className="relative w-64">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                        <input
+                            type="text"
+                            placeholder="Buscar usuario..."
+                            value={userSearchTerm}
+                            onChange={(e) => setUserSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+                </div>
                 <div className="overflow-x-auto flex-1">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0">
@@ -1162,7 +1242,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {users.map(u => (
+                            {users.filter(u =>
+                                u.name.toLowerCase().includes(deferredUserSearch.toLowerCase()) ||
+                                u.username.toLowerCase().includes(deferredUserSearch.toLowerCase()) ||
+                                u.documentNumber?.includes(deferredUserSearch)
+                            ).map(u => (
                                 <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50' : ''}`} onClick={() => handleEditUser(u)}>
                                     <td className="py-3 px-4">
                                         <div className="font-bold text-slate-700">{u.name}</div>
