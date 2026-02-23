@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
+import { useToast } from '../Toast';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
@@ -19,6 +20,7 @@ interface ProfessionalViewProps {
 }
 
 export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, activeTab = 'dashboard' }) => {
+  const { showToast } = useToast();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [patientsError, setPatientsError] = useState<string | null>(null);
@@ -51,6 +53,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [patientSearch, setPatientSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isSaved, setIsSaved] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // ⚡ TRINITY: Fetch Patients from API
@@ -115,27 +118,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       calc_framingham: framinghamValue
   }), [bmiValue, tamValue, tfgValue, framinghamValue]);
 
-  const handleSaveDraft = () => {
-    if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
-    setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = recordToSave;
-        return updated;
-      }
-      return [...prev, recordToSave];
-    });
-
-    // 🎨 Palette: Non-blocking feedback for draft saving
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
-  };
-
   const handleSaveDraft = async () => {
     if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
 
     // ⚡ TRINITY: Persist draft to backend
     try {
@@ -157,7 +142,11 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       }
       return [...prev, recordToSave];
     });
-    alert("Borrador guardado exitosamente.");
+
+    // 🎨 Palette: Non-blocking feedback for draft saving
+    setIsSaved(true);
+    setStatusMessage('Borrador guardado localmente');
+    setTimeout(() => { setIsSaved(false); setStatusMessage(''); }, 2000);
   };
 
   // ⚡ NEO: Keyboard Shortcuts (Ctrl+S for Save)
@@ -318,7 +307,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       setHrUser(updatedUser); // Update local view state
       
       // In a real app, this would call an API.
-      alert("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
+      showToast("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.", "success");
       setShowDescargosModal(false);
   };
 
@@ -332,12 +321,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const handleDownloadContract = () => {
       // 🛡️ MORPHEUS: Audit log for contract download
       logAuditEvent(user.id, 'DOWNLOAD_CONTRACT', 'Contract', `User downloaded a copy of their contract`);
-      alert('Descargando PDF del contrato...');
+      showToast('Descargando PDF del contrato...', 'info');
   };
 
   const handleOpenPaymentModal = () => {
       const activeContract = hrUser.contracts?.find(c => c.isActive && c.type === ContractType.OPS);
-      if (!activeContract) return alert("Solo disponible para contratos OPS Activos.");
+      if (!activeContract) return showToast("Solo disponible para contratos OPS Activos.", "warning");
       
       setNewPayment({
           period: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
@@ -397,7 +386,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           pdfWindow.document.close();
       }
 
-      alert("Cuenta de cobro generada y notificada a Administración.");
+      showToast("Cuenta de cobro generada y notificada a Administración.", "success");
   };
 
 
@@ -526,7 +515,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     if (action === 'FINALIZE') {
         // 🩺 DOC HOUSE: Gender-based clinical validation
         if (selectedPatient.gender === 'M' && (selectedTemplate?.recordType === RecordType.PYP_PREGNANCY || selectedTemplate?.recordType === RecordType.PYP_PUERPERIUM)) {
-            alert("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.");
+            showToast("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.", "error");
             return;
         }
 
@@ -543,14 +532,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         }
 
         if ((!currentRecord.diagnoses || currentRecord.diagnoses.length === 0) && selectedTemplate?.recordType !== RecordType.PROCEDURE) {
-            alert("Es obligatorio seleccionar al menos un diagnóstico CIE-11.");
+            showToast("Es obligatorio seleccionar al menos un diagnóstico CIE-11.", "warning");
             setActiveFormTab('orders_tab');
             return;
         }
         // VALIDATE BARTHEL IF REQUIRED
         if (isFirstTimeRCV && selectedTemplate?.recordType === RecordType.PYP_CV_RISK) {
             if(!dynamicData['global_barthel']) {
-                alert("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.");
+                showToast("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.", "warning");
                 return;
             }
         }
@@ -560,6 +549,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   const confirmAuth = async () => {
     setAuthError('');
+    setStatusMessage('Iniciando proceso de firma...');
 
     // 🛡️ MORPHEUS: Digital signature image verification (mock check)
     if (authAction === 'FINALIZE' && !user.digitalStampUrl) {
@@ -589,10 +579,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         // Simulate API call
         setTimeout(() => {
           setSubmittingMessage('Firmando digitalmente...');
+          setStatusMessage('Firmando digitalmente...');
         }, 800);
 
         setTimeout(() => {
           setSubmittingMessage('Enviando a Plataforma de Interoperabilidad...');
+          setStatusMessage('Enviando a Plataforma de Interoperabilidad...');
         }, 1600);
 
         setTimeout(() => {
@@ -619,7 +611,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           setShowAuthModal(false);
           setViewMode('LIST');
           setSelectedPatient(null);
-          alert(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`);
+          setStatusMessage('Historia finalizada y enviada con éxito');
+          setTimeout(() => setStatusMessage(''), 3000);
+          showToast(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`, "success");
         }, 2500);
       } else {
         setShowAuthModal(false);
@@ -631,7 +625,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   
   const handleAddDiagnosis = (code: string, name: string) => {
       if (!validateCIE11Code(code)) {
-          alert("Código CIE-11 no válido para este paciente.");
+          showToast("Código CIE-11 no válido para este paciente.", "error");
           return;
       }
       if (currentRecord.diagnoses?.some(d => d.code === code)) return;
@@ -683,7 +677,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       const currentAnalysis = dynamicData['d_analisis'] || '';
       const newAnalysis = currentAnalysis + importText;
       setDynamicData({ ...dynamicData, d_analisis: newAnalysis });
-      alert(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
+      showToast(`Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`, "success");
   };
 
   const renderField = (field: any, isReadOnly: boolean) => {
@@ -835,14 +829,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => showToast('Archivo seleccionado', 'info')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Informe de Actividades</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => showToast('Archivo seleccionado', 'info')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
                                       </div>
                                   </div>
                               </div>
@@ -1530,6 +1524,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // --- LIST VIEW ---
   return (
     <div className="p-6">
+        {/* ARIA LIVE REGION FOR STATUS UPDATES */}
+        <div className="sr-only" aria-live="polite" role="status">
+            {statusMessage}
+        </div>
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
             <h2 className="text-2xl font-bold text-slate-800">Mis Pacientes</h2>
             <div className="relative w-full md:w-72">
