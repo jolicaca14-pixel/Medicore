@@ -4,6 +4,20 @@
  * by sanitizing user-provided input before it's stored or rendered.
  */
 
+import { UserRole } from '../types';
+
+/**
+ * Checks if the provided roles include administrative roles.
+ * Administrative roles are ADMIN, MANAGER, and ACCOUNTANT.
+ */
+export const hasAdministrativeAccess = (roles: UserRole[]): boolean => {
+    return roles.some(role =>
+        role === UserRole.ADMIN ||
+        role === UserRole.MANAGER ||
+        role === UserRole.ACCOUNTANT
+    );
+};
+
 /**
  * A simple regex-based sanitizer to strip HTML tags from a string.
  *

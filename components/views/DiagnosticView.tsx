@@ -126,8 +126,56 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const groupRecords = completedRecords.filter(r => r.dateCreated.startsWith(date));
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Por favor permita las ventanas emergentes para imprimir.");
+
+      const html = `
+        <html>
+          <head>
+            <title>Resultados de Diagnóstico - ${patientName}</title>
+            <style>
+              body { font-family: sans-serif; padding: 40px; color: #334155; }
+              .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; mb: 30px; }
+              .result-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+              .result-title { font-weight: bold; color: #1e293b; margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; }
+              .field { display: flex; margin-bottom: 5px; font-size: 14px; }
+              .label { font-weight: bold; width: 200px; color: #64748b; }
+              .footer { margin-top: 50px; font-size: 12px; color: #94a3b8; text-align: center; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>MEDICORE IPS</h1>
+              <h2>Reporte Consolidado de Resultados</h2>
+              <p>Paciente: <strong>${patientName}</strong> | Fecha: <strong>${date}</strong></p>
+            </div>
+
+            ${groupRecords.map(r => `
+              <div class="result-box">
+                <div class="result-title">${r.chiefComplaint}</div>
+                ${Object.entries(r.dynamicData).map(([key, val]) => `
+                  <div class="field">
+                    <span class="label">${key}:</span>
+                    <span>${val}</span>
+                  </div>
+                `).join('')}
+              </div>
+            `).join('')}
+
+            <div class="footer">
+              Este documento es una representación digital de resultados clínicos.
+              Validado por: ${user.name} (${user.professionalLicense || 'Sin Licencia'})
+            </div>
+            <script>window.print();</script>
+          </body>
+        </html>
+      `;
+
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---
