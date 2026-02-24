@@ -1,4 +1,5 @@
-import { sanitizeInput } from './security';
+import { sanitizeInput, hasAdministrativeAccess } from './security';
+import { UserRole } from '../types';
 
 /**
  * 🧪 Smith: Security Unit Tests
@@ -23,6 +24,13 @@ const testSanitizeInput = () => {
   // Test case 4: null/undefined
   console.assert(sanitizeInput(null as any) === '', 'Test 4 Failed');
   console.assert(sanitizeInput(undefined as any) === '', 'Test 5 Failed');
+
+  console.log('Testing hasAdministrativeAccess...');
+  console.assert(hasAdministrativeAccess([UserRole.ADMIN]) === true, 'Admin should have access');
+  console.assert(hasAdministrativeAccess([UserRole.MANAGER]) === true, 'Manager should have access');
+  console.assert(hasAdministrativeAccess([UserRole.ACCOUNTANT]) === true, 'Accountant should have access');
+  console.assert(hasAdministrativeAccess([UserRole.PROFESSIONAL]) === false, 'Professional should NOT have access');
+  console.assert(hasAdministrativeAccess([UserRole.SECRETARY, UserRole.MANAGER]) === true, 'Mixed roles with Manager should have access');
 
   console.log('All security tests passed.');
 };

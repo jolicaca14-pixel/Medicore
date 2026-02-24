@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
+import { clinicalRecordService } from '../../services/clinicalRecordService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
@@ -115,32 +116,16 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       calc_framingham: framinghamValue
   }), [bmiValue, tamValue, tfgValue, framinghamValue]);
 
-  const handleSaveDraft = () => {
-    if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
-    setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = recordToSave;
-        return updated;
-      }
-      return [...prev, recordToSave];
-    });
-
-    // 🎨 Palette: Non-blocking feedback for draft saving
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
-  };
-
   const handleSaveDraft = async () => {
     if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+    const recordToSave = {
+        ...currentRecord,
+        dynamicData: { ...dynamicData, ...allCalculatedValues }
+    } as ClinicalRecord;
 
     // ⚡ TRINITY: Persist draft to backend
     try {
         const savedRecord = await clinicalRecordService.create(recordToSave);
-        // Update local state with the ID from backend if it changed (e.g. from temp to UUID)
         if (savedRecord.id !== currentRecord.id) {
             setCurrentRecord(prev => ({ ...prev, id: savedRecord.id }));
         }
@@ -157,7 +142,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       }
       return [...prev, recordToSave];
     });
-    alert("Borrador guardado exitosamente.");
+
+    // 🎨 Palette: Non-blocking feedback for draft saving
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
   };
 
   // ⚡ NEO: Keyboard Shortcuts (Ctrl+S for Save)
@@ -224,6 +212,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>(MOCK_PAYMENT_REQUESTS);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [newPayment, setNewPayment] = useState<{ period: string, amount: number, files: string[] }>({ period: '', amount: 0, files: [] });
+
+  const handleFileSelect = (fileName: string) => {
+      if (!newPayment.files.includes(fileName)) {
+          setNewPayment({ ...newPayment, files: [...newPayment.files, fileName] });
+      }
+  };
 
   // --- SUB-MODULES STATES ---
   const [procSearch, setProcSearch] = useState('');
@@ -332,7 +326,28 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const handleDownloadContract = () => {
       // 🛡️ MORPHEUS: Audit log for contract download
       logAuditEvent(user.id, 'DOWNLOAD_CONTRACT', 'Contract', `User downloaded a copy of their contract`);
-      alert('Descargando PDF del contrato...');
+
+      const contractContent = `
+        CONTRATO DE VINCULACIÓN PROFESIONAL - MEDICORE IPS
+
+        FECHA: ${new Date().toLocaleDateString()}
+        PROFESIONAL: ${user.name}
+        IDENTIFICACIÓN: ${user.documentNumber}
+
+        Por medio del presente documento se certifica la vinculación vigente del profesional
+        en las instalaciones de MediCore IPS bajo los términos acordados en su respectivo
+        contrato administrativo.
+
+        Firmado Digitalmente por MediCore IPS SAS.
+      `;
+
+      const blob = new Blob([contractContent], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Contrato_${user.name.replace(/\s+/g, '_')}.txt`;
+      link.click();
+      window.URL.revokeObjectURL(url);
   };
 
   const handleOpenPaymentModal = () => {
@@ -350,6 +365,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const handleGeneratePaymentRequest = () => {
       const activeContract = hrUser.contracts?.find(c => c.isActive && c.type === ContractType.OPS);
       if (!activeContract) return;
+
+      if (newPayment.files.length < 2) {
+          return alert("Debe seleccionar ambos soportes (Seguridad Social e Informe de Actividades).");
+      }
 
       const request: PaymentRequest = {
           id: `pay-${Date.now()}`,
@@ -832,17 +851,27 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                   <div className="space-y-2">
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
-                                              <FileText size={16} className="text-slate-400 mr-2"/>
+                                              <FileText size={16} className={newPayment.files.includes('Seguridad_Social.pdf') ? 'text-green-500 mr-2' : 'text-slate-400 mr-2'}/>
                                               <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button
+                                            onClick={() => handleFileSelect('Seguridad_Social.pdf')}
+                                            className={`text-xs px-2 py-1 rounded border transition-colors ${newPayment.files.includes('Seguridad_Social.pdf') ? 'bg-green-100 border-green-300 text-green-700 font-bold' : 'bg-white hover:bg-slate-100'}`}
+                                          >
+                                              {newPayment.files.includes('Seguridad_Social.pdf') ? '✓ Seleccionado' : 'Seleccionar...'}
+                                          </button>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
-                                              <FileText size={16} className="text-slate-400 mr-2"/>
+                                              <FileText size={16} className={newPayment.files.includes('Informe_Actividades.pdf') ? 'text-green-500 mr-2' : 'text-slate-400 mr-2'}/>
                                               <span className="text-xs text-slate-600">Informe de Actividades</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button
+                                            onClick={() => handleFileSelect('Informe_Actividades.pdf')}
+                                            className={`text-xs px-2 py-1 rounded border transition-colors ${newPayment.files.includes('Informe_Actividades.pdf') ? 'bg-green-100 border-green-300 text-green-700 font-bold' : 'bg-white hover:bg-slate-100'}`}
+                                          >
+                                              {newPayment.files.includes('Informe_Actividades.pdf') ? '✓ Seleccionado' : 'Seleccionar...'}
+                                          </button>
                                       </div>
                                   </div>
                               </div>
