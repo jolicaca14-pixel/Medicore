@@ -126,8 +126,74 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const recordsToPrint = completedRecords.filter(r => {
+        const p = MOCK_PATIENTS.find(pt => pt.id === r.patientId);
+        return p?.fullName === patientName && r.dateCreated.startsWith(date);
+      });
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head>
+                  <title>Resultados ${patientName} - ${date}</title>
+                  <style>
+                      body { font-family: sans-serif; padding: 40px; color: #333; }
+                      .header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 20px; }
+                      .patient-info { margin: 20px 0; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
+                      .result-block { margin: 30px 0; border: 1px solid #eee; padding: 20px; border-radius: 10px; }
+                      .result-title { font-size: 1.2em; font-weight: bold; color: #2563eb; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+                      table { width: 100%; border-collapse: collapse; }
+                      th, td { padding: 8px; text-align: left; border-bottom: 1px solid #f1f5f9; }
+                      th { color: #64748b; font-size: 0.8em; text-transform: uppercase; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1>MEDICORE IPS</h1>
+                      <h2>INFORME DE RESULTADOS DIAGNÓSTICOS</h2>
+                  </div>
+                  <div class="patient-info">
+                      <p><strong>Paciente:</strong> ${patientName}</p>
+                      <p><strong>Fecha de Informe:</strong> ${date}</p>
+                  </div>
+                  ${recordsToPrint.map(record => `
+                      <div class="result-block">
+                          <div class="result-title">${record.chiefComplaint}</div>
+                          <table>
+                              <thead>
+                                  <tr>
+                                      <th>Parámetro</th>
+                                      <th>Resultado</th>
+                                  </tr>
+                              </thead>
+                              <tbody>
+                                  ${Object.entries(record.dynamicData).map(([key, val]) => {
+                                      const field = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key);
+                                      return `
+                                          <tr>
+                                              <td>${field?.label || key} ${field?.unit ? `(${field.unit})` : ''}</td>
+                                              <td style="font-weight: bold;">${val}</td>
+                                          </tr>
+                                      `;
+                                  }).join('')}
+                              </tbody>
+                          </table>
+                          <div style="margin-top: 15px; font-size: 0.9em;">
+                              <p><strong>Validado por:</strong> ${record.professionalName}</p>
+                          </div>
+                      </div>
+                  `).join('')}
+                  <div style="margin-top: 50px; text-align: center; font-size: 0.8em; color: #999; border-top: 1px solid #eee; padding-top: 20px;">
+                      <p>Este documento es una representación digital de los resultados almacenados en el sistema MediCore.</p>
+                  </div>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+          printWindow.print();
+      }
   };
 
   // --- RENDER FORM ---
