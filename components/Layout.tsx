@@ -48,12 +48,13 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
     let items: any[] = [];
     const roles = user.roles || [];
 
-    if (roles.includes(UserRole.ADMIN)) {
+    if (roles.includes(UserRole.ADMIN) || roles.includes(UserRole.MANAGER) || roles.includes(UserRole.ACCOUNTANT)) {
       items = [
         ...items,
         { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
         { id: 'users', label: 'Gestión Usuarios', icon: Users },
-        { id: 'hr', label: 'Talento Humano', icon: Briefcase }, // NEW HR MODULE
+        { id: 'hr', label: 'Talento Humano', icon: Briefcase },
+        { id: 'files', label: 'Gestión Archivos', icon: Library }, // Added Files module
         { id: 'reports', label: 'Gestión Financiera', icon: DollarSign },
         { id: 'settings', label: 'Plantillas / Roles', icon: Settings },
       ];
