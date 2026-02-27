@@ -6,9 +6,10 @@ import {
     Shield, Users, FileText, Settings, Plus, Edit, Trash2, X, Save, 
     Download, CheckCircle, Search, LayoutTemplate, List, AlertCircle, 
     ChevronDown, ChevronRight, Calculator, Type, Hash, Calendar, CheckSquare, AlignLeft, Info,
-    Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson
+    Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson, FileType, Filter
 } from 'lucide-react';
 import { UserForm } from '../UserForm';
+import { hasAdministrativeAccess, maskIdentification } from '../../utils/security';
 
 interface AdminViewProps {
   activeTab: string;
@@ -58,12 +59,13 @@ const roleLabels: Record<UserRole, string> = {
 };
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
-  const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
+  const isAdmin = currentUserSession ? hasAdministrativeAccess(currentUserSession.roles) : false;
 
   // --- STATE MANAGEMENT ---
   
   // Users
   const [users, setUsers] = useState<User[]>(MOCK_USERS);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<Partial<User>>({});
 
@@ -457,17 +459,51 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
 
   const downloadRIPS = () => {
-      alert("Descargando paquete .ZIP con archivos TXT/JSON validados...");
+      if (!generatedRips) return;
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(generatedRips));
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href",     dataStr);
+      downloadAnchorNode.setAttribute("download", `RIPS_${ripsStartDate}_${ripsEndDate}.json`);
+      document.body.appendChild(downloadAnchorNode); // required for firefox
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
   };
 
-  const handleNewTemplate = () => setIsTemplateModalOpen(true);
-  const handleNewSection = () => setIsSectionModalOpen(true);
-  const handleNewField = () => setIsFieldModalOpen(true);
+  const handleNewTemplate = () => {
+      const newTpl: RoleTemplate = {
+          id: `tpl-${Date.now()}`,
+          name: 'Nueva Plantilla',
+          description: 'Descripción de la nueva plantilla',
+          active: true,
+          allowedRoles: [UserRole.PROFESSIONAL],
+          sections: [],
+          recordType: RecordType.GENERAL
+      };
+      setTemplates([...templates, newTpl]);
+  };
+  const handleNewSection = () => {
+      const newSec: TemplateSection = {
+          id: `sec-${Date.now()}`,
+          title: 'Nueva Sección',
+          fields: []
+      };
+      setGlobalSections([...globalSections, newSec]);
+  };
+  const handleNewField = () => {
+      const newField: TemplateField = {
+          id: `f-${Date.now()}`,
+          label: 'Nuevo Campo',
+          type: 'TEXT',
+          required: false,
+          isGlobal: true
+      };
+      setGlobalFields([...globalFields, newField]);
+  };
 
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr') && !isAdmin) {
+  if ((['users', 'settings', 'hr', 'reports', 'files'].includes(activeTab)) && !isAdmin) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
@@ -1063,6 +1099,133 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
+  // FILE MANAGEMENT MODULE - ADMIN VIEW
+  if (activeTab === 'files' && isAdmin) {
+    return (
+        <div className="space-y-6">
+            {/* File Upload Modal */}
+            {isFileUploadModalOpen && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                            <UploadCloud className="mr-2 text-blue-600"/> Subir Nuevo Archivo
+                        </h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label htmlFor="user-select-input" className="block text-sm font-bold text-slate-700 mb-1">Asociar a Usuario</label>
+                                <select
+                                    id="user-select-input"
+                                    value={selectedUserIdForUpload}
+                                    onChange={(e) => setSelectedUserIdForUpload(e.target.value)}
+                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                                    disabled={uploadProgress > 0}
+                                >
+                                    {users.map(user => (
+                                        <option key={user.id} value={user.id}>{user.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label htmlFor="file-name-input" className="block text-sm font-bold text-slate-700 mb-1">Nombre del Archivo</label>
+                                <input
+                                    id="file-name-input"
+                                    type="text"
+                                    value={newFileName}
+                                    onChange={(e) => setNewFileName(e.target.value)}
+                                    placeholder="Ej: contrato_firmado.pdf"
+                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    disabled={uploadProgress > 0}
+                                />
+                            </div>
+                            {uploadProgress > 0 ? (
+                                <div>
+                                    <p className="text-sm font-bold text-slate-600 mb-2">Cargando...</p>
+                                    <div className="w-full bg-slate-200 rounded-full h-2.5">
+                                        <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center text-center">
+                                    <p className="text-sm font-bold text-slate-600">Simulación de Carga</p>
+                                    <p className="text-xs text-slate-400">Ingrese un nombre de archivo para simular la carga.</p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsFileUploadModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm" disabled={uploadProgress > 0}>Cancelar</button>
+                            <button onClick={handleConfirmUpload} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700" disabled={uploadProgress > 0}>
+                                {uploadProgress > 0 ? `Cargando... ${uploadProgress}%` : 'Confirmar Subida'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            <h2 className="text-2xl font-bold text-slate-800">Gestión de Archivos</h2>
+            <div className="flex space-x-1 bg-white p-1 rounded-lg border border-slate-200 w-fit">
+                <button onClick={() => setFileManagementTab('CONTRACTS')} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'CONTRACTS' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
+                    Contratos
+                </button>
+                <button onClick={() => setFileManagementTab('PAYMENTS')} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'PAYMENTS' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
+                    Soportes de Pago
+                </button>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                <div className="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 className="font-bold text-lg text-slate-800">
+                            {fileManagementTab === 'CONTRACTS' ? 'Archivos de Contratos' : 'Archivos de Soportes de Pago'}
+                        </h3>
+                        <div className="relative mt-2">
+                           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                           <input
+                               type="text"
+                               placeholder="Buscar por nombre o usuario..."
+                               value={fileSearchTerm}
+                               onChange={(e) => setFileSearchTerm(e.target.value)}
+                               className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm"
+                           />
+                        </div>
+                    </div>
+                    <button onClick={handleUploadFile} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-blue-700">
+                        <Upload size={16} className="mr-2"/> Subir Archivo
+                    </button>
+                </div>
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 text-slate-500 font-medium">
+                        <tr>
+                            <th className="p-3">Nombre del Archivo</th>
+                            <th className="p-3">Usuario</th>
+                            <th className="p-3">Fecha de Subida</th>
+                            <th className="p-3 text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {(fileManagementTab === 'CONTRACTS'
+                            ? users.flatMap(u => u.contracts?.map(c => ({ ...c, userName: u.name, type: 'CONTRACT' })))
+                            : paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl, type: 'PAYMENT' })))
+                            .filter(file =>
+                                (file.fileUrl?.toLowerCase().includes(fileSearchTerm.toLowerCase()) ||
+                                file.userName?.toLowerCase().includes(fileSearchTerm.toLowerCase()))
+                            )
+                            .map((file: any) => (
+                                <tr key={file.id}>
+                                    <td className="p-3 font-medium text-slate-700">{file.fileUrl || `contrato_${file.id}.pdf`}</td>
+                                    <td className="p-3">{file.userName}</td>
+                                    <td className="p-3 text-slate-500">{new Date(file.startDate || file.dateSubmitted).toLocaleDateString()}</td>
+                                    <td className="p-3 text-right">
+                                        <button onClick={() => handleDeleteFile(file.id, file.type)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button>
+                                    </td>
+                                </tr>
+                            ))
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+  }
+
   // 4. REPORTS TAB - NEW RIPS GENERATION
   if (activeTab === 'reports' && isAdmin) {
       return (
@@ -1090,6 +1253,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                           <button onClick={generateRIPS} className="h-full bg-purple-600 text-white px-4 py-2 rounded font-bold text-sm shadow hover:bg-purple-700 flex items-center">
                               <Zap size={16} className="mr-2"/> Generar
                           </button>
+                          {generatedRips && (
+                              <button onClick={downloadRIPS} className="h-full bg-green-600 text-white px-4 py-2 rounded font-bold text-sm shadow hover:bg-green-700 flex items-center ml-2">
+                                  <Download size={16} className="mr-2"/> Descargar
+                              </button>
+                          )}
                       </div>
                   </div>
 
@@ -1144,67 +1312,122 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
-  // 2. USERS LIST - Only Admin
+  // 2. USERS LIST - Only Administrative roles
   if (activeTab === 'users' && isAdmin) {
+      const filteredUsers = users.filter(u =>
+        u.name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+        u.username.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+        u.documentNumber.includes(userSearchTerm)
+      );
+
       return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full animate-in fade-in duration-500">
-            {/* User List Column */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
-                <h3 className="font-bold text-slate-800 mb-6">Directorio de Usuarios</h3>
-                <div className="overflow-x-auto flex-1">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0">
-                            <tr>
-                                <th className="py-3 px-4">Nombre Completo</th>
-                                <th className="py-3 px-4">Roles</th>
-                                <th className="py-3 px-4">Info Profesional</th>
-                                <th className="py-3 px-4 text-right">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {users.map(u => (
-                                <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50' : ''}`} onClick={() => handleEditUser(u)}>
-                                    <td className="py-3 px-4">
-                                        <div className="font-bold text-slate-700">{u.name}</div>
-                                        <div className="font-mono text-xs text-slate-400">@{u.username}</div>
-                                    </td>
-                                    <td className="py-3 px-4">
-                                        <div className="flex flex-wrap gap-1">
-                                            {u.roles?.map(r => <span key={r} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">{roleLabels[r] || r}</span>)}
-                                        </div>
-                                    </td>
-                                    <td className="py-3 px-4">
-                                        {u.roles.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST) ? (
-                                            <div className="text-xs">
-                                                <p><span className="font-bold">Lic:</span> {u.professionalLicense || 'N/A'}</p>
-                                                {u.digitalStampUrl && <span className="text-[9px] text-green-600 bg-green-50 px-1 rounded">Firma OK</span>}
-                                            </div>
-                                        ) : <span className="text-xs text-slate-400">-</span>}
-                                    </td>
-                                    <td className="py-3 px-4 text-right">
-                                        <button onClick={(e) => { e.stopPropagation(); handleEditUser(u); }} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+        <div className="space-y-8 h-full animate-in fade-in duration-500">
+            {/* User Form Section - "Espacio de Creación de Usuarios" */}
+            <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-100">
+                <div className="flex justify-between items-center mb-8 border-b pb-4">
+                    <div>
+                        <h2 className="text-2xl font-bold text-slate-800">Espacio de Creación de Usuarios</h2>
+                        <p className="text-slate-500">Gestione el acceso y roles del personal de la clínica.</p>
+                    </div>
+                    <button
+                        onClick={handleAddNewUser}
+                        className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold flex items-center shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
+                    >
+                        <Plus size={20} className="mr-2"/> Crear Nuevo Usuario
+                    </button>
+                </div>
+
+                <div className="max-w-4xl mx-auto bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                    <UserForm
+                        user={currentUser}
+                        onSave={handleSaveUser}
+                        onCancel={() => setCurrentUser({})}
+                        isEmbedded={true}
+                    />
                 </div>
             </div>
 
-            {/* User Form Column */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-slate-800">
-                        {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
-                    </h3>
-                    <button onClick={handleAddNewUser} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center"><Plus size={14} className="mr-1"/> Agregar Nuevo</button>
-                 </div>
-                 <UserForm
-                    user={currentUser}
-                    onSave={handleSaveUser}
-                    onCancel={() => setCurrentUser({})}
-                    isEmbedded={true}
-                 />
+            {/* User Directory Table Section */}
+            <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-100 flex flex-col">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                    <h3 className="text-xl font-bold text-slate-800">Directorio de Usuarios</h3>
+                    <div className="relative w-full md:w-96">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                        <input
+                            type="text"
+                            placeholder="Buscar por nombre, usuario o documento..."
+                            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+                            value={userSearchTerm}
+                            onChange={(e) => setUserSearchTerm(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
+                            <tr>
+                                <th className="py-4 px-6">Usuario</th>
+                                <th className="py-4 px-6">Documento</th>
+                                <th className="py-4 px-6">Roles</th>
+                                <th className="py-4 px-6">Estado</th>
+                                <th className="py-4 px-6 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {filteredUsers.map(u => (
+                                <tr key={u.id} className={`hover:bg-blue-50/40 transition-colors cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50' : ''}`} onClick={() => handleEditUser(u)}>
+                                    <td className="py-4 px-6">
+                                        <div className="font-bold text-slate-800">{u.name}</div>
+                                        <div className="text-xs text-slate-400 font-mono">@{u.username}</div>
+                                    </td>
+                                    <td className="py-4 px-6 font-mono text-slate-600">
+                                        {maskIdentification(u.documentNumber)}
+                                    </td>
+                                    <td className="py-4 px-6">
+                                        <div className="flex flex-wrap gap-1">
+                                            {u.roles?.map(r => (
+                                                <span key={r} className="text-[10px] bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">
+                                                    {roleLabels[r] || r}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </td>
+                                    <td className="py-4 px-6">
+                                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                                            {u.status === 'ACTIVE' ? 'ACTIVO' : 'INACTIVO'}
+                                        </span>
+                                    </td>
+                                    <td className="py-4 px-6 text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleEditUser(u); }}
+                                                className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                                                title="Editar Usuario"
+                                            >
+                                                <Edit size={18}/>
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); if(confirm('¿Seguro?')) setUsers(users.filter(user => user.id !== u.id)); }}
+                                                className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                                title="Eliminar Usuario"
+                                            >
+                                                <Trash2 size={18}/>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            {filteredUsers.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="py-12 text-center text-slate-400 italic bg-slate-50/30">
+                                        No se encontraron usuarios que coincidan con la búsqueda.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
       );
@@ -1218,33 +1441,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   <h2 className="text-2xl font-bold text-slate-800">Configuración del Sistema</h2>
               </div>
               
-              {isTemplateModalOpen && (
-                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
-                    </div>
-                </div>
-              )}
-              {isSectionModalOpen && (
-                  <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
-                      </div>
-                  </div>
-              )}
-              {isFieldModalOpen && (
-                  <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
-                      </div>
-                  </div>
-              )}
               {/* Settings Nav */}
               <div className="flex space-x-1 bg-white p-1 rounded-lg border border-slate-200 w-fit">
                   <button onClick={() => setSettingsTab('TEMPLATES')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${settingsTab === 'TEMPLATES' ? 'bg-slate-900 text-white shadow' : 'text-slate-500 hover:text-slate-900'}`}>
@@ -1282,8 +1478,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           <LayoutTemplate size={20}/>
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                                          <button
+                                            onClick={() => { const name = prompt('Nuevo nombre:', t.name); if(name) setTemplates(templates.map(tmp => tmp.id === t.id ? {...tmp, name} : tmp)); }}
+                                            className="p-1.5 bg-white border rounded hover:text-blue-600"
+                                          >
+                                            <Edit size={14}/>
+                                          </button>
+                                          <button
+                                            onClick={() => { if(confirm('¿Eliminar plantilla?')) setTemplates(templates.filter(tmp => tmp.id !== t.id)); }}
+                                            className="p-1.5 bg-white border rounded hover:text-red-600"
+                                          >
+                                            <Trash2 size={14}/>
+                                          </button>
                                       </div>
                                   </div>
                                   <h4 className="font-bold text-slate-800">{t.name}</h4>
@@ -1345,7 +1551,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           ))}
                                           {sec.fields.length > 4 && <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] text-slate-500">+{sec.fields.length - 4}</div>}
                                       </div>
-                                      <button className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button
+                                        onClick={() => { const title = prompt('Nuevo título:', sec.title); if(title) setGlobalSections(globalSections.map(s => s.id === sec.id ? {...s, title} : s)); }}
+                                        className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      >
+                                        <Edit size={16}/>
+                                      </button>
+                                      <button
+                                        onClick={() => { if(confirm('¿Eliminar sección?')) setGlobalSections(globalSections.filter(s => s.id !== sec.id)); }}
+                                        className="p-2 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      >
+                                        <Trash2 size={16}/>
+                                      </button>
                                   </div>
                               </div>
                           ))}
@@ -1405,7 +1622,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                               ) : <span className="text-xs text-slate-400">Opcional</span>}
                                           </td>
                                           <td className="p-3 text-right">
-                                              <button className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <div className="flex justify-end gap-1">
+                                                <button
+                                                    onClick={() => { const label = prompt('Nueva etiqueta:', field.label); if(label) setGlobalFields(globalFields.map(f => f.id === field.id ? {...f, label} : f)); }}
+                                                    className="p-1.5 hover:bg-slate-200 rounded text-slate-500"
+                                                >
+                                                    <Edit size={14}/>
+                                                </button>
+                                                <button
+                                                    onClick={() => { if(confirm('¿Eliminar campo?')) setGlobalFields(globalFields.filter(f => f.id !== field.id)); }}
+                                                    className="p-1.5 hover:bg-slate-200 rounded text-red-500"
+                                                >
+                                                    <Trash2 size={14}/>
+                                                </button>
+                                              </div>
                                           </td>
                                       </tr>
                                   ))}
