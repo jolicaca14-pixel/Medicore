@@ -227,44 +227,95 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Habilite las ventanas emergentes para imprimir.");
+
+      printWindow.document.write(`
+          <html>
+          <head>
+              <title>Factura ${invoice.id}</title>
+              <style>
+                  body { font-family: sans-serif; padding: 40px; color: #334155; }
+                  .header { display: flex; justify-content: space-between; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
+                  .invoice-info { text-align: right; }
+                  table { width: 100%; border-collapse: collapse; margin: 30px 0; }
+                  th { text-align: left; padding: 12px; background: #f8fafc; border-bottom: 2px solid #e2e8f0; }
+                  td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+                  .totals { float: right; width: 250px; }
+                  .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
+                  .grand-total { font-size: 1.25rem; font-bold; border-top: 2px solid #e2e8f0; margin-top: 10px; padding-top: 10px; }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <div><h1>MEDICORE IPS</h1><p>NIT: 900.123.456-1</p></div>
+                  <div class="invoice-info">
+                      <h2>FACTURA DE VENTA</h2>
+                      <p><strong>N°:</strong> ${invoice.id}</p>
+                      <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+                  </div>
+              </div>
+              <div style="margin-top: 20px;">
+                  <p><strong>Cliente:</strong> ${invoice.patientName}</p>
+                  <p><strong>Estado:</strong> ${invoice.status}</p>
+              </div>
+              <table>
+                  <thead>
+                      <tr><th>Servicio / Insumo</th><th>Cant.</th><th>Valor Unit.</th><th>Total</th></tr>
+                  </thead>
+                  <tbody>
+                      ${invoice.items.map(item => `
+                          <tr>
+                              <td>${item.name}</td>
+                              <td>${item.quantity}</td>
+                              <td>${formatCurrency(item.price)}</td>
+                              <td>${formatCurrency(item.price * item.quantity)}</td>
+                          </tr>
+                      `).join('')}
+                  </tbody>
+              </table>
+              <div class="totals">
+                  <div class="total-row"><span>Subtotal:</span><span>${formatCurrency(invoice.subtotal)}</span></div>
+                  <div class="total-row"><span>Descuento:</span><span>- ${formatCurrency(invoice.discount)}</span></div>
+                  <div class="total-row grand-total"><strong>Total:</strong><strong>${formatCurrency(invoice.total)}</strong></div>
+                  <div class="total-row"><span>Saldo Pendiente:</span><strong>${formatCurrency(invoice.balance)}</strong></div>
+              </div>
+          </body>
+          </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- CARTERA HANDLERS ---
-  const registerPayment = (id: string) => {
-      const inv = invoices.find(i => i.id === id);
-      if(!inv) return;
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
+  const handleOpenPayment = (inv: Invoice) => {
+      setSelectedInvoice(inv);
+      setPaymentAmount(inv.balance.toString());
+      setIsPaymentModalOpen(true);
+  };
+
+  const confirmPayment = () => {
+      if(!selectedInvoice) return;
+      const amount = parseFloat(paymentAmount);
       
-      if(amount > inv.balance) {
-          alert("El monto ingresado supera el saldo pendiente.");
-          return;
-      }
+      if(amount > selectedInvoice.balance) return alert("El monto supera el saldo.");
 
       setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
+          if (invoice.id !== selectedInvoice.id) return invoice;
           const newBalance = invoice.balance - amount;
-          const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
           return {
               ...invoice,
               balance: newBalance,
-              status: newStatus,
+              status: newBalance <= 0 ? 'PAID' : 'PARTIAL',
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
-      alert("Pago registrado correctamente.");
+      setIsPaymentModalOpen(false);
+      alert("Abono registrado correctamente.");
   };
 
   return (
@@ -296,6 +347,29 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-8">
+          {/* Payment Modal for Cartera */}
+          {isPaymentModalOpen && selectedInvoice && (
+              <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                  <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full">
+                      <h3 className="font-bold text-lg mb-2">Registrar Pago</h3>
+                      <p className="text-sm text-slate-500 mb-4">Factura: {selectedInvoice.id} - {selectedInvoice.patientName}</p>
+
+                      <label className="text-xs font-bold text-slate-500">Monto a Recibir</label>
+                      <input
+                        type="number"
+                        className="w-full border p-3 rounded-lg text-lg font-bold mb-4"
+                        value={paymentAmount}
+                        onChange={e => setPaymentAmount(e.target.value)}
+                        autoFocus
+                      />
+
+                      <div className="flex gap-2">
+                          <button onClick={() => setIsPaymentModalOpen(false)} className="flex-1 py-2 font-bold text-slate-500">Cancelar</button>
+                          <button onClick={confirmPayment} className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold">Confirmar</button>
+                      </div>
+                  </div>
+              </div>
+          )}
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
@@ -635,7 +709,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                       <td className="p-4 text-right flex justify-end space-x-2">
                                           <button onClick={() => printInvoice(inv)} className="bg-slate-200 text-slate-700 p-2 rounded hover:bg-slate-300" title="Imprimir"><Printer size={16}/></button>
                                           {inv.status !== 'PAID' && (
-                                              <button onClick={() => registerPayment(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
+                                              <button onClick={() => handleOpenPayment(inv)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
                                                   Abonar
                                               </button>
                                           )}

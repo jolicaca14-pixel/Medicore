@@ -126,8 +126,57 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientFullName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Habilite las ventanas emergentes para imprimir.");
+
+      const recordsToPrint = completedRecords.filter(r =>
+        MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientFullName &&
+        r.dateCreated.startsWith(date)
+      );
+
+      printWindow.document.write(`
+          <html>
+          <head>
+              <title>Resultados ${patientFullName} - ${date}</title>
+              <style>
+                  body { font-family: sans-serif; padding: 40px; color: #334155; }
+                  .header { text-align: center; border-bottom: 2px solid #e2e8f0; margin-bottom: 30px; padding-bottom: 10px; }
+                  .result-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+                  .result-title { font-weight: bold; font-size: 1.1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 15px; }
+                  .field { display: flex; margin-bottom: 5px; }
+                  .field-label { width: 200px; font-weight: bold; color: #64748b; }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <h1>MEDICORE IPS</h1>
+                  <p>Laboratorio y Apoyo Diagnóstico</p>
+                  <h2>RESULTADOS DE EXAMENES</h2>
+              </div>
+              <div style="margin-bottom: 20px;">
+                  <p><strong>Paciente:</strong> ${patientFullName}</p>
+                  <p><strong>Fecha:</strong> ${date}</p>
+              </div>
+              ${recordsToPrint.map(r => `
+                  <div class="result-card">
+                      <div class="result-title">${r.chiefComplaint}</div>
+                      ${Object.entries(r.dynamicData).map(([key, val]) => {
+                          const label = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+                          return `<div class="field"><span class="field-label">${label}:</span><span>${val}</span></div>`;
+                      }).join('')}
+                  </div>
+              `).join('')}
+              <div style="margin-top: 50px; border-top: 1px solid #e2e8f0; pt-20">
+                  <p>__________________________</p>
+                  <p>Firma Profesional Responsable</p>
+                  <p>${user.name}</p>
+              </div>
+          </body>
+          </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- RENDER FORM ---

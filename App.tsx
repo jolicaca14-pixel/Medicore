@@ -3,6 +3,7 @@ import { User, UserRole } from './types';
 import { MOCK_USERS } from './constants';
 import { useAuth } from './hooks/useAuth';
 import { Layout } from './components/Layout';
+import { hasAdministrativeAccess } from './utils/security';
 import { ProfessionalView } from './components/views/ProfessionalView';
 import { AdminView } from './components/views/AdminView';
 import { SecretaryView } from './components/views/SecretaryView';
@@ -175,7 +176,7 @@ const App: React.FC = () => {
       {user.roles.includes(UserRole.PROFESSIONAL) && <ProfessionalView user={user} onLogout={logout} activeTab={activeTab} />}
       
       {/* Pass activeTab and setter to AdminView for navigation control */}
-      {(user.roles.includes(UserRole.ADMIN) || user.roles.includes(UserRole.ACCOUNTANT) || user.roles.includes(UserRole.MANAGER)) &&
+      {hasAdministrativeAccess(user.roles) &&
         <AdminView activeTab={activeTab} setActiveTab={setActiveTab} currentUserSession={user} />}
       
       {(user.roles.includes(UserRole.BACTERIOLOGIST) || user.roles.includes(UserRole.RADIOLOGIST)) && <DiagnosticView user={user} onLogout={logout} />}
