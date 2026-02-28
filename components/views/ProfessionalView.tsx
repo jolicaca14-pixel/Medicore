@@ -6,7 +6,7 @@ import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, 
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
-import { sanitizeInput } from '../../utils/security';
+import { sanitizeInput, maskIdentification } from '../../utils/security';
 import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calculateTFG, calculateFramingham } from '../../utils/clinicalLogic';
 import { logAuditEvent } from '../../utils/auditLogger';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -115,27 +115,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       calc_framingham: framinghamValue
   }), [bmiValue, tamValue, tfgValue, framinghamValue]);
 
-  const handleSaveDraft = () => {
-    if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
-    setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = recordToSave;
-        return updated;
-      }
-      return [...prev, recordToSave];
-    });
-
-    // 🎨 Palette: Non-blocking feedback for draft saving
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
-  };
-
   const handleSaveDraft = async () => {
     if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
 
     // ⚡ TRINITY: Persist draft to backend
     try {
@@ -157,7 +139,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       }
       return [...prev, recordToSave];
     });
-    alert("Borrador guardado exitosamente.");
+
+    // 🎨 Palette: Non-blocking feedback for draft saving
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
   };
 
   // ⚡ NEO: Keyboard Shortcuts (Ctrl+S for Save)
@@ -332,7 +317,25 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const handleDownloadContract = () => {
       // 🛡️ MORPHEUS: Audit log for contract download
       logAuditEvent(user.id, 'DOWNLOAD_CONTRACT', 'Contract', `User downloaded a copy of their contract`);
-      alert('Descargando PDF del contrato...');
+      const activeContract = hrUser.contracts?.find(c => c.isActive);
+      if (!activeContract) return;
+
+      const content = `CONTRATO DE ${activeContract.type === 'NOMINA' ? 'TRABAJO' : 'PRESTACIÓN DE SERVICIOS'}\n\n` +
+                      `Funcionario: ${user.name}\n` +
+                      `Documento: ${user.documentNumber}\n` +
+                      `Fecha Inicio: ${activeContract.startDate}\n` +
+                      `Estado: ACTIVO\n\n` +
+                      `Este documento es una copia informativa del contrato vigente registrado en el sistema MediCore.`;
+
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `contrato_${user.username}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
   };
 
   const handleOpenPaymentModal = () => {
@@ -1606,7 +1609,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                         </div>
                         <h3 className="font-bold text-slate-800">{p.fullName}</h3>
                         <div className="flex items-center text-sm text-slate-500 mb-1 group">
-                            <span>{p.identification}</span>
+                            <span>{maskIdentification(p.identification)}</span>
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleCopyId(p.identification); }}
                                 className={`ml-2 p-1 transition-all ${copiedId === p.identification ? 'text-green-500 scale-110' : 'text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100'}`}

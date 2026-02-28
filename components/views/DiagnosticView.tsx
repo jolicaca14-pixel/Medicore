@@ -126,8 +126,65 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientFullName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Bloqueador de ventanas emergentes activo.");
+
+      const recordsInDate = completedRecords.filter(r => r.dateCreated.startsWith(date));
+
+      const resultsHtml = recordsInDate.map(r => {
+          const sectionsHtml = MOCK_TEMPLATES.find(t => t.recordType === r.recordType)?.sections.map(sec => `
+            <div style="margin-top: 15px;">
+                <h4 style="border-bottom: 1px solid #eee; padding-bottom: 5px;">${sec.title}</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    ${sec.fields.map(f => `
+                        <div>
+                            <span style="font-size: 0.8em; color: #666; font-weight: bold;">${f.label}:</span>
+                            <span>${r.dynamicData[f.id] || '-'} ${f.unit || ''}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+          `).join('') || '';
+
+          return `
+            <div style="border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="margin-top: 0; color: #2563eb;">${r.chiefComplaint}</h3>
+                <p style="font-size: 0.9em; color: #777;">Realizado por: ${r.professionalName} | ${new Date(r.dateFinalized || '').toLocaleString()}</p>
+                ${sectionsHtml}
+            </div>
+          `;
+      }).join('');
+
+      printWindow.document.write(`
+        <html>
+            <head>
+                <title>Resultados - ${patientFullName} - ${date}</title>
+                <style>
+                    body { font-family: sans-serif; padding: 40px; color: #333; line-height: 1.5; }
+                    .header { text-align: center; margin-bottom: 40px; }
+                    .patient-info { background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e5e7eb; }
+                    @media print { .no-print { display: none; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>MEDICORE IPS - SERVICIOS DIAGNÓSTICOS</h1>
+                    <p>Reporte Consolidado de Resultados</p>
+                </div>
+                <div class="patient-info">
+                    <p><strong>Paciente:</strong> ${patientFullName}</p>
+                    <p><strong>Fecha de Referencia:</strong> ${date}</p>
+                </div>
+                ${resultsHtml}
+                <div style="margin-top: 50px; text-align: center; font-size: 0.8em; color: #999;">
+                    <p>Este documento es una representación impresa de los resultados electrónicos.</p>
+                </div>
+                <script>window.print();</script>
+            </body>
+        </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---

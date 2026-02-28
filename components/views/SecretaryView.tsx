@@ -227,16 +227,69 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Bloqueador de ventanas emergentes activo. Por favor habilite los permisos.");
+
+      const itemsHtml = invoice.items.map(item => `
+        <tr>
+            <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+        </tr>
+      `).join('');
+
+      printWindow.document.write(`
+        <html>
+            <head>
+                <title>Factura ${invoice.id}</title>
+                <style>
+                    body { font-family: sans-serif; color: #333; padding: 40px; }
+                    .header { text-align: center; margin-bottom: 40px; }
+                    .details { margin-bottom: 30px; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                    .totals { text-align: right; }
+                    .footer { margin-top: 50px; text-align: center; font-size: 10px; color: #777; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>MEDICORE IPS SAS</h1>
+                    <p>NIT: 900.123.456-7</p>
+                    <h2>FACTURA DE VENTA N° ${invoice.id}</h2>
+                </div>
+                <div class="details">
+                    <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                    <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleString()}</p>
+                    <p><strong>Estado:</strong> ${invoice.status}</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr style="background: #f5f5f5;">
+                            <th style="padding: 8px; text-align: left;">Descripción</th>
+                            <th style="padding: 8px;">Cant.</th>
+                            <th style="padding: 8px; text-align: right;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHtml}
+                    </tbody>
+                </table>
+                <div class="totals">
+                    <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+                    <p>Descuento: ${formatCurrency(invoice.discount)}</p>
+                    <p style="font-size: 1.2em; font-bold: true;">Total: ${formatCurrency(invoice.total)}</p>
+                    <p>Pagado: ${formatCurrency(invoice.total - invoice.balance)}</p>
+                    <p style="color: #d32f2f;"><strong>Saldo Pendiente: ${formatCurrency(invoice.balance)}</strong></p>
+                </div>
+                <div class="footer">
+                    <p>Esta factura se asimila en sus efectos a la letra de cambio (Art. 774 del Código de Comercio).</p>
+                    <p>MediCore HCE - Software de Gestión Médica</p>
+                </div>
+                <script>window.print();</script>
+            </body>
+        </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
