@@ -9,6 +9,7 @@ import {
     Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson
 } from 'lucide-react';
 import { UserForm } from '../UserForm';
+import { hasAdministrativeAccess } from '../../utils/security';
 
 interface AdminViewProps {
   activeTab: string;
@@ -59,6 +60,7 @@ const roleLabels: Record<UserRole, string> = {
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
   const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
+  const hasAdminAccess = hasAdministrativeAccess(currentUserSession);
 
   // --- STATE MANAGEMENT ---
   
@@ -457,7 +459,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
 
   const downloadRIPS = () => {
-      alert("Descargando paquete .ZIP con archivos TXT/JSON validados...");
+      if (!generatedRips) return;
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(generatedRips, null, 2));
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href",     dataStr);
+      downloadAnchorNode.setAttribute("download", `RIPS_${ripsStartDate}_${ripsEndDate}.json`);
+      document.body.appendChild(downloadAnchorNode); // required for firefox
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
   };
 
   const handleNewTemplate = () => setIsTemplateModalOpen(true);
@@ -467,18 +476,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr') && !isAdmin) {
+  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files' || activeTab === 'reports') && !hasAdminAccess) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
               <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
-              <p className="text-sm">Se requieren permisos de ADMINISTRADOR para acceder a este módulo.</p>
+              <p className="text-sm">Se requieren permisos administrativos para acceder a este módulo.</p>
           </div>
       );
   }
 
   // 1. DASHBOARD (Dynamic & Actionable) - Only for Admins
-  if (activeTab === 'dashboard' && isAdmin) {
+  if (activeTab === 'dashboard' && hasAdminAccess) {
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
@@ -593,7 +602,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // FILE MANAGEMENT MODULE - ADMIN VIEW
-  if (activeTab === 'files' && isAdmin) {
+  if (activeTab === 'files' && hasAdminAccess) {
     return (
         <div className="space-y-6">
             {/* File Upload Modal */}
@@ -719,7 +728,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
     );
   }
   // HR MODULE - ADMIN VIEW
-  if (activeTab === 'hr' && isAdmin) {
+  if (activeTab === 'hr' && hasAdminAccess) {
       return (
           <div className="space-y-6">
               {/* MODALS */}
@@ -1064,7 +1073,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // 4. REPORTS TAB - NEW RIPS GENERATION
-  if (activeTab === 'reports' && isAdmin) {
+  if (activeTab === 'reports' && hasAdminAccess) {
       return (
           <div className="space-y-8 animate-in fade-in duration-500">
               <h2 className="text-2xl font-bold text-slate-800 mb-2">Reportes y Analítica</h2>
@@ -1088,7 +1097,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                               <input type="date" className="border rounded px-2 py-1 text-sm bg-white" value={ripsEndDate} onChange={e => setRipsEndDate(e.target.value)} />
                           </div>
                           <button onClick={generateRIPS} className="h-full bg-purple-600 text-white px-4 py-2 rounded font-bold text-sm shadow hover:bg-purple-700 flex items-center">
-                              <Zap size={16} className="mr-2"/> Generar
+                              <Download size={16} className="mr-2"/> Descargar JSON
                           </button>
                       </div>
                   </div>
@@ -1145,12 +1154,35 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // 2. USERS LIST - Only Admin
-  if (activeTab === 'users' && isAdmin) {
+  if (activeTab === 'users' && hasAdminAccess) {
       return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full animate-in fade-in duration-500">
+        <div className="space-y-8 animate-in fade-in duration-500">
+            {/* User Form Section - Now at the Top */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                 <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-slate-800 text-lg">
+                        <Users className="inline-block mr-2 text-blue-600" size={20}/>
+                        Espacio de Creación de Usuarios
+                    </h3>
+                    {currentUser.id && <button onClick={() => setCurrentUser({})} className="text-sm text-blue-600 hover:underline">Limpiar / Nuevo</button>}
+                 </div>
+                 <UserForm
+                    user={currentUser}
+                    onSave={handleSaveUser}
+                    onCancel={() => setCurrentUser({})}
+                    isEmbedded={true}
+                 />
+            </div>
+
             {/* User List Column */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
-                <h3 className="font-bold text-slate-800 mb-6">Directorio de Usuarios</h3>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-slate-800">Directorio de Usuarios</h3>
+                    <div className="relative w-64">
+                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                         <input type="text" placeholder="Buscar usuario..." className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm" />
+                    </div>
+                </div>
                 <div className="overflow-x-auto flex-1">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0">
@@ -1191,27 +1223,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                 </div>
             </div>
 
-            {/* User Form Column */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-slate-800">
-                        {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
-                    </h3>
-                    <button onClick={handleAddNewUser} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center"><Plus size={14} className="mr-1"/> Agregar Nuevo</button>
-                 </div>
-                 <UserForm
-                    user={currentUser}
-                    onSave={handleSaveUser}
-                    onCancel={() => setCurrentUser({})}
-                    isEmbedded={true}
-                 />
-            </div>
         </div>
       );
   }
 
   // 3. SETTINGS TAB - Only Admin
-  if (activeTab === 'settings' && isAdmin) {
+  if (activeTab === 'settings' && hasAdminAccess) {
       return (
           <div className="space-y-6 animate-in fade-in duration-500">
               <div className="flex justify-between items-center mb-4">

@@ -227,34 +227,111 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const html = `
+        <html>
+          <head>
+            <title>Factura de Venta - ${invoice.id}</title>
+            <style>
+              body { font-family: sans-serif; padding: 40px; color: #334155; }
+              .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+              .invoice-info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 25px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+              .items-table { w-full border-collapse: collapse; margin-bottom: 30px; }
+              .items-table th { background: #f1f5f9; padding: 10px; text-align: left; font-size: 12px; }
+              .items-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+              .totals { margin-left: auto; width: 300px; }
+              .total-row { display: flex; justify-content: space-between; padding: 5px 0; }
+              .grand-total { font-weight: bold; font-size: 18px; border-top: 2px solid #e2e8f0; margin-top: 10px; padding-top: 10px; }
+              .footer { margin-top: 50px; text-align: center; font-size: 10px; color: #94a3b8; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>MediCore IPS SAS</h1>
+              <p>NIT: 900.123.456-7</p>
+              <h2>FACTURA DE VENTA N° ${invoice.id}</h2>
+            </div>
+
+            <div class="invoice-info">
+              <div><strong>Paciente:</strong> ${invoice.patientName}</div>
+              <div><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</div>
+              <div><strong>Estado:</strong> ${invoice.status}</div>
+              <div><strong>Payer:</strong> ${invoice.payerType}</div>
+            </div>
+
+            <table class="items-table" style="width: 100%">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Descripción</th>
+                  <th>Cant.</th>
+                  <th>V. Unitario</th>
+                  <th>V. Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${invoice.items.map(item => `
+                  <tr>
+                    <td>${item.code}</td>
+                    <td>${item.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>${formatCurrency(item.price)}</td>
+                    <td>${formatCurrency(item.price * item.quantity)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+
+            <div class="totals">
+              <div class="total-row"><span>Subtotal:</span> <span>${formatCurrency(invoice.subtotal)}</span></div>
+              <div class="total-row"><span>Descuentos:</span> <span>- ${formatCurrency(invoice.discount)}</span></div>
+              <div class="total-row grand-total"><span>Total:</span> <span>${formatCurrency(invoice.total)}</span></div>
+              <div class="total-row"><span>Pagado:</span> <span>${formatCurrency(invoice.total - invoice.balance)}</span></div>
+              <div class="total-row"><span>Saldo:</span> <span>${formatCurrency(invoice.balance)}</span></div>
+            </div>
+
+            <div class="footer">
+              Gracias por su confianza. Generado por: ${user.name}
+            </div>
+
+            <script>window.print();</script>
+          </body>
+        </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
-  const registerPayment = (id: string) => {
-      const inv = invoices.find(i => i.id === id);
-      if(!inv) return;
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [activeInvoiceForPayment, setActiveInvoiceForPayment] = useState<Invoice | null>(null);
+  const [paymentAmountInput, setPaymentAmountInput] = useState('');
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
+  const handleOpenPaymentModal = (invoice: Invoice) => {
+      setActiveInvoiceForPayment(invoice);
+      setPaymentAmountInput(invoice.balance.toString());
+      setIsPaymentModalOpen(true);
+  };
+
+  const handleRegisterPayment = () => {
+      if(!activeInvoiceForPayment) return;
+      const amount = parseFloat(paymentAmountInput);
       
-      if(amount > inv.balance) {
+      if(isNaN(amount) || amount <= 0) {
+          alert("Ingrese un monto válido.");
+          return;
+      }
+
+      if(amount > activeInvoiceForPayment.balance) {
           alert("El monto ingresado supera el saldo pendiente.");
           return;
       }
 
       setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
+          if (invoice.id !== activeInvoiceForPayment.id) return invoice;
           const newBalance = invoice.balance - amount;
           const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
           return {
@@ -264,6 +341,9 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
+
+      setIsPaymentModalOpen(false);
+      setActiveInvoiceForPayment(null);
       alert("Pago registrado correctamente.");
   };
 
@@ -635,7 +715,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                       <td className="p-4 text-right flex justify-end space-x-2">
                                           <button onClick={() => printInvoice(inv)} className="bg-slate-200 text-slate-700 p-2 rounded hover:bg-slate-300" title="Imprimir"><Printer size={16}/></button>
                                           {inv.status !== 'PAID' && (
-                                              <button onClick={() => registerPayment(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
+                                              <button onClick={() => handleOpenPaymentModal(inv)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
                                                   Abonar
                                               </button>
                                           )}
@@ -646,6 +726,38 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                           </tbody>
                       </table>
                    </div>
+              </div>
+          )}
+
+          {/* PAYMENT MODAL (REPLACES PROMPT) */}
+          {isPaymentModalOpen && activeInvoiceForPayment && (
+              <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-xl shadow-lg p-6 max-w-sm w-full">
+                      <h3 className="font-bold text-lg mb-2">Registrar Pago</h3>
+                      <p className="text-sm text-slate-500 mb-4">Abono para Factura: {activeInvoiceForPayment.id}</p>
+
+                      <div className="bg-slate-50 p-3 rounded-lg mb-4 flex justify-between">
+                          <span className="text-xs font-bold text-slate-500 uppercase">Saldo Pendiente:</span>
+                          <span className="font-mono font-bold text-red-600">{formatCurrency(activeInvoiceForPayment.balance)}</span>
+                      </div>
+
+                      <div className="space-y-4">
+                          <div>
+                              <label className="text-xs font-bold text-slate-500 mb-1 block">Monto a Pagar</label>
+                              <input
+                                  type="number"
+                                  className="w-full border p-2 rounded text-lg font-bold"
+                                  value={paymentAmountInput}
+                                  onChange={e => setPaymentAmountInput(e.target.value)}
+                                  autoFocus
+                              />
+                          </div>
+                          <div className="flex gap-2 pt-2">
+                              <button onClick={() => setIsPaymentModalOpen(false)} className="flex-1 text-slate-600 font-bold py-2">Cancelar</button>
+                              <button onClick={handleRegisterPayment} className="flex-1 bg-green-600 text-white font-bold py-2 rounded-lg hover:bg-green-700">Confirmar</button>
+                          </div>
+                      </div>
+                  </div>
               </div>
           )}
       </div>
