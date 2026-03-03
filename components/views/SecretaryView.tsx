@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { User, Patient, Appointment, Invoice, InvoiceItem, RecordType, RecordStatus, ClinicalRecord, UserRole, TariffItem } from '../../types';
 import { MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_RECORDS, MOCK_SOAT_TARIFF, SMLDV_2024, formatCurrency, MOCK_USERS } from '../../constants';
+import { useToast } from '../ToastProvider';
+import { maskIdentification } from '../../utils/security';
 import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw } from 'lucide-react';
 
 interface SecretaryViewProps {
@@ -9,6 +11,7 @@ interface SecretaryViewProps {
 }
 
 export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) => {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'PATIENTS' | 'AGENDA' | 'BILLING' | 'CARTERA'>('AGENDA');
 
   // --- PATIENTS & AGENDA STATE ---
@@ -67,7 +70,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   const handleSaveAppointment = () => {
       if(!newAppt.patientId || !newAppt.time || !newAppt.reason || !newAppt.professionalId) {
-          alert("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)");
+          showToast("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)", "warning");
           return;
       }
       const patient = patients.find(p => p.id === newAppt.patientId);
@@ -119,9 +122,9 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               status: 'PENDING'
           };
           setInvoices([...invoices, newInvoice]);
-          alert("Cita agendada y Factura creada automáticamente en Cartera.");
+          showToast("Cita agendada y Factura creada automáticamente en Cartera.", "success");
       } else {
-          alert(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
+          showToast(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.", "success");
       }
 
       setIsApptModalOpen(false);
@@ -129,8 +132,8 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   const updateApptStatus = (id: string, status: 'WAITING' | 'CANCELLED') => {
       setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-      if (status === 'WAITING') alert("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
-      if (status === 'CANCELLED') alert("Cita cancelada.");
+      if (status === 'WAITING') showToast("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.", "info");
+      if (status === 'CANCELLED') showToast("Cita cancelada.", "warning");
   };
 
   // --- BILLING HANDLERS ---
@@ -223,20 +226,89 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       setSelectedServices([]);
       setBillingPatient(null);
       setPartialPayment('');
-      alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
+      showToast(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`, "success");
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+          showToast("El navegador bloqueó la ventana emergente de impresión.", "warning");
+          return;
+      }
+
+      const html = `
+        <html>
+        <head>
+          <title>Factura ${invoice.id}</title>
+          <style>
+            body { font-family: sans-serif; padding: 40px; color: #334155; }
+            .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
+            .info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+            th { background: #f8fafc; text-align: left; padding: 12px; border-bottom: 1px solid #e2e8f0; }
+            td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+            .totals { text-align: right; }
+            .total-row { font-weight: bold; font-size: 1.2em; color: #0f172a; }
+            .footer { margin-top: 50px; font-size: 0.8em; text-align: center; color: #94a3b8; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>MEDICORE IPS SAS</h1>
+            <p>NIT: 900.123.456-7 | Tel: (601) 123 4567</p>
+            <h2>FACTURA DE VENTA N° ${invoice.id}</h2>
+          </div>
+
+          <div class="info">
+            <div>
+              <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+              <p><strong>ID:</strong> ${invoice.patientId}</p>
+            </div>
+            <div style="text-align: right">
+              <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+              <p><strong>Estado:</strong> ${invoice.status}</p>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Descripción</th>
+                <th>Cant.</th>
+                <th>V. Unitario</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${invoice.items.map(item => `
+                <tr>
+                  <td>${item.name}</td>
+                  <td>${item.quantity}</td>
+                  <td>${formatCurrency(item.price)}</td>
+                  <td>${formatCurrency(item.price * item.quantity)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+            <p>Descuentos: ${formatCurrency(invoice.discount)}</p>
+            <p class="total-row">TOTAL A PAGAR: ${formatCurrency(invoice.total)}</p>
+            <p>Saldo Pendiente: ${formatCurrency(invoice.balance)}</p>
+          </div>
+
+          <div class="footer">
+            <p>Esta factura se asimila en todos sus efectos a una letra de cambio según el Art. 774 del Código de Comercio.</p>
+            <p>Generado por MediCore Pro - Software de Gestión Clínica</p>
+          </div>
+          <script>window.print();</script>
+        </body>
+        </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
@@ -249,7 +321,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       const amount = parseFloat(amountStr);
       
       if(amount > inv.balance) {
-          alert("El monto ingresado supera el saldo pendiente.");
+          showToast("El monto ingresado supera el saldo pendiente.", "error");
           return;
       }
 
@@ -264,7 +336,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
-      alert("Pago registrado correctamente.");
+      showToast("Pago registrado correctamente.", "success");
   };
 
   return (
@@ -480,7 +552,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                               ).map(p => (
                                                   <div key={p.id} className="p-3 hover:bg-slate-50 cursor-pointer border-b last:border-0" onClick={() => handleSelectBillingPatient(p)}>
                                                       <p className="font-bold text-sm text-slate-800">{p.fullName}</p>
-                                                      <p className="text-xs text-slate-500">{p.identification} - {p.insuranceType}</p>
+                                                      <p className="text-xs text-slate-500">{maskIdentification(p.identification)} - {p.insuranceType}</p>
                                                   </div>
                                               ))}
                                               {patients.filter(p => p.fullName.toLowerCase().includes(billingSearchTerm.toLowerCase())).length === 0 && (

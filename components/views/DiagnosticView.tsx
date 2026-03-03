@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
-import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
+import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X, AlertTriangle } from 'lucide-react';
+import { useToast } from '../ToastProvider';
 
 interface DiagnosticViewProps {
   user: User;
@@ -21,6 +22,7 @@ interface Order {
 }
 
 export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }) => {
+  const { showToast } = useToast();
   const isLab = user.roles.includes(UserRole.BACTERIOLOGIST);
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
@@ -60,7 +62,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) return showToast("No hay plantilla configurada para este examen.", "error");
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,16 +91,30 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showToast("Resultado guardado correctamente.", "success");
+  };
+
+  // --- REFERENCE RANGES (Mock) ---
+  const LAB_RANGES: Record<string, { min: number, max: number }> = {
+    'l_hgb': { min: 12, max: 16 },
+    'l_wbc': { min: 4500, max: 11000 },
+    'l_plt': { min: 150000, max: 450000 },
+    'l_glc': { min: 70, max: 100 },
+    'global_creatinine': { min: 0.7, max: 1.3 },
   };
 
   // --- RENDER FIELD ---
   const renderField = (field: any) => {
       const val = dynamicData[field.id] || '';
+      const range = LAB_RANGES[field.id];
+      const numericVal = parseFloat(val);
+      const isAbnormal = range && !isNaN(numericVal) && (numericVal < range.min || numericVal > range.max);
+
       return (
           <div key={field.id} className="col-span-1">
-              <label className="block text-xs font-bold text-slate-500 mb-1">
-                  {field.label} {field.unit && <span className="text-slate-400">({field.unit})</span>}
+              <label className="block text-xs font-bold text-slate-500 mb-1 flex items-center">
+                  {field.label} {field.unit && <span className="text-slate-400 ml-1">({field.unit})</span>}
+                  {isAbnormal && <AlertTriangle size={12} className="text-red-500 ml-2 animate-pulse" />}
               </label>
               
               {field.type === 'TEXTAREA' ? (
@@ -114,20 +130,91 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                       <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
                   </div>
               ) : (
-                  <input 
-                    type={field.type === 'NUMBER' ? 'number' : 'text'} 
-                    className="w-full p-2 border rounded text-sm"
-                    value={val} 
-                    onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})} 
-                  />
+                  <div className="relative">
+                    <input
+                        type={field.type === 'NUMBER' ? 'number' : 'text'}
+                        className={`w-full p-2 border rounded text-sm transition-colors ${
+                            isAbnormal ? 'bg-red-50 border-red-500 text-red-900 font-bold' : 'bg-white border-slate-300'
+                        }`}
+                        value={val}
+                        onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}
+                    />
+                    {isAbnormal && (
+                        <div className="mt-1 text-[10px] text-red-600 font-bold">
+                            Fuera de rango (${range.min} - ${range.max})
+                        </div>
+                    )}
+                  </div>
               )}
           </div>
       );
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+          showToast("Bloqueador de ventanas emergentes activo.", "warning");
+          return;
+      }
+
+      const results = completedRecords.filter(r =>
+        (MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientName || r.patientId === patientName) &&
+        r.dateCreated.startsWith(date)
+      );
+
+      const html = `
+        <html>
+        <head>
+          <title>Resultados - ${patientName}</title>
+          <style>
+            body { font-family: sans-serif; padding: 40px; color: #1e293b; }
+            .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 30px; }
+            .result-block { margin-bottom: 30px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+            .result-header { background: #f8fafc; padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #e2e8f0; }
+            .result-body { padding: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            .field-row { font-size: 0.9em; border-bottom: 1px solid #f1f5f9; padding: 5px 0; }
+            .abnormal { color: #dc2626; font-weight: bold; }
+            .footer { margin-top: 50px; text-align: center; font-size: 0.8em; color: #64748b; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>MEDICORE IPS SAS</h1>
+            <p><strong>REPORTE CONSOLIDADO DE AYUDAS DIAGNÓSTICAS</strong></p>
+            <p>Paciente: ${patientName} | Fecha: ${date}</p>
+          </div>
+
+          ${results.map(r => `
+            <div class="result-block">
+              <div class="result-header">${r.chiefComplaint}</div>
+              <div class="result-body">
+                ${Object.entries(r.dynamicData).map(([key, val]) => {
+                    const label = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+                    const range = LAB_RANGES[key];
+                    const isAbnormal = range && !isNaN(parseFloat(val as string)) && (parseFloat(val as string) < range.min || parseFloat(val as string) > range.max);
+                    return `
+                        <div class="field-row">
+                            <span style="color: #64748b">${label}:</span>
+                            <span class="${isAbnormal ? 'abnormal' : ''}">${val} ${isAbnormal ? `(Ref: ${range.min}-${range.max})` : ''}</span>
+                        </div>
+                    `;
+                }).join('')}
+              </div>
+            </div>
+          `).join('')}
+
+          <div class="footer">
+            <p>Este reporte es para uso clínico. Todo resultado debe ser interpretado por un médico en el contexto clínico del paciente.</p>
+            <p>Firmado Digitalmente por: ${user.name}</p>
+          </div>
+          <script>window.print();</script>
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---

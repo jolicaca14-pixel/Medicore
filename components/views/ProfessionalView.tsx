@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
+import { useToast } from '../ToastProvider';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
-import { sanitizeInput } from '../../utils/security';
+import { sanitizeInput, maskIdentification } from '../../utils/security';
 import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calculateTFG, calculateFramingham } from '../../utils/clinicalLogic';
 import { logAuditEvent } from '../../utils/auditLogger';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -19,6 +20,7 @@ interface ProfessionalViewProps {
 }
 
 export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, activeTab = 'dashboard' }) => {
+  const { showToast } = useToast();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [patientsError, setPatientsError] = useState<string | null>(null);
@@ -43,9 +45,11 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittingMessage, setSubmittingMessage] = useState('');
 
-  // AI Suggestion State
+  // AI Summary & Suggestion State
   const [isSuggestingCIE, setIsSuggestingCIE] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string>('');
+  const [clinicalSummary, setClinicalSummary] = useState<string>('');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   // UX States
   const [patientSearch, setPatientSearch] = useState('');
@@ -115,27 +119,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       calc_framingham: framinghamValue
   }), [bmiValue, tamValue, tfgValue, framinghamValue]);
 
-  const handleSaveDraft = () => {
-    if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
-    setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = recordToSave;
-        return updated;
-      }
-      return [...prev, recordToSave];
-    });
-
-    // 🎨 Palette: Non-blocking feedback for draft saving
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
-  };
-
   const handleSaveDraft = async () => {
     if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+    const recordToSave = {
+        ...currentRecord,
+        dynamicData: { ...dynamicData, ...allCalculatedValues }
+    } as ClinicalRecord;
 
     // ⚡ TRINITY: Persist draft to backend
     try {
@@ -157,7 +146,11 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       }
       return [...prev, recordToSave];
     });
-    alert("Borrador guardado exitosamente.");
+
+    // 🎨 Palette: Non-blocking feedback for draft saving
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
+    showToast("Borrador guardado exitosamente.", "success");
   };
 
   // ⚡ NEO: Keyboard Shortcuts (Ctrl+S for Save)
@@ -318,7 +311,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       setHrUser(updatedUser); // Update local view state
       
       // In a real app, this would call an API.
-      alert("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
+      showToast("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.", "success");
       setShowDescargosModal(false);
   };
 
@@ -332,12 +325,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const handleDownloadContract = () => {
       // 🛡️ MORPHEUS: Audit log for contract download
       logAuditEvent(user.id, 'DOWNLOAD_CONTRACT', 'Contract', `User downloaded a copy of their contract`);
-      alert('Descargando PDF del contrato...');
+      showToast('Descargando PDF del contrato...', 'info');
   };
 
   const handleOpenPaymentModal = () => {
       const activeContract = hrUser.contracts?.find(c => c.isActive && c.type === ContractType.OPS);
-      if (!activeContract) return alert("Solo disponible para contratos OPS Activos.");
+      if (!activeContract) return showToast("Solo disponible para contratos OPS Activos.", "error");
       
       setNewPayment({
           period: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
@@ -397,7 +390,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           pdfWindow.document.close();
       }
 
-      alert("Cuenta de cobro generada y notificada a Administración.");
+      showToast("Cuenta de cobro generada y notificada a Administración.", "success");
   };
 
 
@@ -526,7 +519,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     if (action === 'FINALIZE') {
         // 🩺 DOC HOUSE: Gender-based clinical validation
         if (selectedPatient.gender === 'M' && (selectedTemplate?.recordType === RecordType.PYP_PREGNANCY || selectedTemplate?.recordType === RecordType.PYP_PUERPERIUM)) {
-            alert("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.");
+            showToast("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.", "error");
             return;
         }
 
@@ -543,14 +536,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         }
 
         if ((!currentRecord.diagnoses || currentRecord.diagnoses.length === 0) && selectedTemplate?.recordType !== RecordType.PROCEDURE) {
-            alert("Es obligatorio seleccionar al menos un diagnóstico CIE-11.");
+            showToast("Es obligatorio seleccionar al menos un diagnóstico CIE-11.", "warning");
             setActiveFormTab('orders_tab');
             return;
         }
         // VALIDATE BARTHEL IF REQUIRED
         if (isFirstTimeRCV && selectedTemplate?.recordType === RecordType.PYP_CV_RISK) {
             if(!dynamicData['global_barthel']) {
-                alert("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.");
+                showToast("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.", "error");
                 return;
             }
         }
@@ -619,7 +612,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           setShowAuthModal(false);
           setViewMode('LIST');
           setSelectedPatient(null);
-          alert(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`);
+          showToast(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`, "success");
         }, 2500);
       } else {
         setShowAuthModal(false);
@@ -631,7 +624,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   
   const handleAddDiagnosis = (code: string, name: string) => {
       if (!validateCIE11Code(code)) {
-          alert("Código CIE-11 no válido para este paciente.");
+          showToast("Código CIE-11 no válido para este paciente.", "error");
           return;
       }
       if (currentRecord.diagnoses?.some(d => d.code === code)) return;
@@ -674,6 +667,116 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       setCurrentRecord(prev => ({ ...prev, performedProcedures: prev.performedProcedures?.filter(p => p.id !== id) }));
   };
 
+  const handlePrintRecord = (record: ClinicalRecord) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        showToast("Popup bloqueado. Por favor permita las ventanas emergentes.", "warning");
+        return;
+    }
+
+    const html = `
+      <html>
+      <head>
+        <title>Historia Clínica - ${selectedPatient?.fullName}</title>
+        <style>
+          body { font-family: sans-serif; padding: 30px; line-height: 1.6; color: #333; }
+          .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+          .section { margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px; }
+          .section-title { font-weight: bold; background: #f4f4f4; padding: 5px 10px; margin: -15px -15px 10px -15px; border-bottom: 1px solid #ddd; text-transform: uppercase; font-size: 0.9em; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+          .field { margin-bottom: 5px; font-size: 0.85em; }
+          .label { font-weight: bold; color: #666; }
+          .signature { margin-top: 50px; text-align: center; float: right; width: 250px; }
+          .signature img { max-width: 200px; height: auto; }
+          .footer { margin-top: 100px; font-size: 0.7em; text-align: center; clear: both; color: #999; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>MEDICORE IPS SAS</h1>
+          <p>Registro de Historia Clínica Electrónica</p>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Información del Paciente</div>
+          <div class="grid">
+            <div class="field"><span class="label">Nombre:</span> ${selectedPatient?.fullName}</div>
+            <div class="field"><span class="label">Documento:</span> ${selectedPatient?.identification}</div>
+            <div class="field"><span class="label">Edad:</span> ${age} años</div>
+            <div class="field"><span class="label">Género:</span> ${selectedPatient?.gender}</div>
+            <div class="field"><span class="label">Entidad:</span> ${selectedPatient?.insuranceType}</div>
+            <div class="field"><span class="label">Rh:</span> ${selectedPatient?.bloodType || 'N/A'}</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Detalles de la Consulta</div>
+          <div class="grid">
+            <div class="field"><span class="label">Fecha:</span> ${new Date(record.dateCreated).toLocaleString()}</div>
+            <div class="field"><span class="label">Tipo:</span> ${record.recordType}</div>
+            <div class="field"><span class="label">Profesional:</span> ${record.professionalName}</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Anamnesis y Hallazgos</div>
+          <p><strong>Motivo de Consulta:</strong> ${record.chiefComplaint || 'No registrado'}</p>
+          <p><strong>Enfermedad Actual:</strong> ${record.historyOfPresentIllness || 'No registrado'}</p>
+          <p><strong>Antecedentes:</strong> ${record.antecedents || 'No registrado'}</p>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Diagnósticos (CIE-11)</div>
+          ${record.diagnoses?.map(d => `<p><strong>[${d.type}] ${d.code}</strong> - ${d.name}</p>`).join('') || '<p>Sin diagnósticos registrados</p>'}
+        </div>
+
+        <div class="section">
+          <div class="section-title">Conducta y Plan</div>
+          <p>${record.plan || 'No registrado'}</p>
+        </div>
+
+        <div class="signature">
+          ${user.digitalStampUrl ? `<img src="${user.digitalStampUrl}" alt="Firma Digital" />` : '<div style="height: 60px;"></div>'}
+          <p>__________________________</p>
+          <p><strong>${user.name}</strong></p>
+          <p>Registro Médico: ${user.professionalLicense || 'N/A'}</p>
+        </div>
+
+        <div class="footer">
+          <p>Documento generado electrónicamente. Cumple con los requisitos de la Resolución 1995 de 1999.</p>
+          <p>MediCore Pro v1.0 - Plataforma HealthTech Segura</p>
+        </div>
+        <script>window.print();</script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  const handleGenerateSummary = async () => {
+    if (!selectedPatient) return;
+    setIsGeneratingSummary(true);
+
+    try {
+        // Aggregate relevant patient data
+        const patientHistory = records
+            .filter(r => r.patientId === selectedPatient.id)
+            .sort((a,b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime())
+            .slice(0, 3)
+            .map(r => `Fecha: ${r.dateCreated}, Motivo: ${r.chiefComplaint}, Diagnósticos: ${r.diagnoses?.map(d => d.name).join(', ')}`)
+            .join('\n');
+
+        const summary = await generateClinicalSummary(`Paciente: ${selectedPatient.fullName}, Edad: ${age}, Alergias: ${selectedPatient.allergies || 'Ninguna'}.\n\nHistorial Reciente:\n${patientHistory}`);
+        setClinicalSummary(summary);
+    } catch (e) {
+        showToast("Error al generar el resumen con IA.", "error");
+    } finally {
+        setIsGeneratingSummary(false);
+    }
+  };
+
   const handleImportResult = (result: ClinicalRecord) => {
       let importText = `\n[RESULTADO EXTERNO - ${result.chiefComplaint} - ${new Date(result.dateCreated).toLocaleDateString()}]\n`;
       Object.entries(result.dynamicData).forEach(([key, val]) => {
@@ -683,7 +786,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       const currentAnalysis = dynamicData['d_analisis'] || '';
       const newAnalysis = currentAnalysis + importText;
       setDynamicData({ ...dynamicData, d_analisis: newAnalysis });
-      alert(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
+      showToast(`Datos de ${result.chiefComplaint} importados correctamente.`, "success");
   };
 
   const renderField = (field: any, isReadOnly: boolean) => {
@@ -835,14 +938,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => showToast('Archivo seleccionado', 'info')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Informe de Actividades</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => showToast('Archivo seleccionado', 'info')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
                                       </div>
                                   </div>
                               </div>
@@ -1193,6 +1296,16 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                         {selectedPatient.bloodType && <span className="ml-2 font-bold text-red-600">| Rh: {selectedPatient.bloodType}</span>}
                     </p>
                 </div>
+                {!isReadOnly && (
+                    <button
+                        onClick={handleGenerateSummary}
+                        disabled={isGeneratingSummary}
+                        className="ml-4 flex items-center text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-1 rounded-full border border-blue-100 hover:bg-blue-100 transition-colors"
+                    >
+                        {isGeneratingSummary ? <Loader2 size={12} className="animate-spin mr-1"/> : <Bot size={12} className="mr-1"/>}
+                        {isGeneratingSummary ? 'Analizando...' : 'Resumen IA'}
+                    </button>
+                )}
             </div>
             {!isReadOnly ? (
                 <div className="flex items-center space-x-3">
@@ -1219,6 +1332,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                         {currentRecord.rdaStatus === RDAStatus.SENT_MINSALUD ? <ShieldCheck size={14}/> : <Clock size={14}/>}
                         <span>{currentRecord.rdaStatus === RDAStatus.SENT_MINSALUD ? 'RDA Enviado (Res. 1888)' : 'RDA Pendiente'}</span>
                     </div>
+                    <button onClick={() => handlePrintRecord(currentRecord as ClinicalRecord)} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200" title="Imprimir Historia">
+                        <Printer size={16}/>
+                    </button>
                     {currentRecord.rdaPayload && (
                         <button onClick={() => setShowRDAModal(true)} className="flex items-center text-xs text-blue-600 hover:text-blue-800 font-medium">
                             <Database size={14} className="mr-1"/> Ver JSON
@@ -1231,6 +1347,15 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
          <div className="flex-1 overflow-y-auto pr-2 grid grid-cols-1 lg:grid-cols-4 gap-6 pb-20">
              
              <div className="lg:col-span-3">
+                 {clinicalSummary && (
+                     <div className="mb-6 bg-blue-50 border border-blue-100 rounded-xl p-4 animate-in fade-in slide-in-from-top-2 relative">
+                         <button onClick={() => setClinicalSummary('')} className="absolute top-2 right-2 text-blue-400 hover:text-blue-600"><X size={16}/></button>
+                         <h4 className="text-xs font-bold text-blue-800 flex items-center mb-2 uppercase tracking-wider">
+                             <Bot size={14} className="mr-2"/> Resumen Rápido Inteligente
+                         </h4>
+                         <p className="text-sm text-slate-700 leading-relaxed">{clinicalSummary}</p>
+                     </div>
+                 )}
                  <div className="flex border-b border-slate-200 mb-6 overflow-x-auto scrollbar-hide bg-white sticky top-0 z-10">
                      {selectedTemplate?.sections.map(s => (
                          <button
@@ -1606,7 +1731,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                         </div>
                         <h3 className="font-bold text-slate-800">{p.fullName}</h3>
                         <div className="flex items-center text-sm text-slate-500 mb-1 group">
-                            <span>{p.identification}</span>
+                            <span>{maskIdentification(p.identification)}</span>
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleCopyId(p.identification); }}
                                 className={`ml-2 p-1 transition-all ${copiedId === p.identification ? 'text-green-500 scale-110' : 'text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100'}`}
