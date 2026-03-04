@@ -318,7 +318,17 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const handleDownloadContract = () => {
       // 🛡️ MORPHEUS: Audit log for contract download
       logAuditEvent(user.id, 'DOWNLOAD_CONTRACT', 'Contract', `User downloaded a copy of their contract`);
-      alert('Descargando PDF del contrato...');
+
+      const content = `CONTRATO DE PRESTACIÓN DE SERVICIOS - MEDICORE IPS\n\nPROFESIONAL: ${user.name}\nDOCUMENTO: ${user.documentNumber}\nFECHA: ${new Date().toLocaleDateString()}\n\nEste es un documento generado automáticamente que simula su contrato laboral.\n`;
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `contrato_${user.name.replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
   };
 
   const handleOpenPaymentModal = () => {
@@ -1588,7 +1598,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                             <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 font-bold text-lg">
                                 {p.fullName.charAt(0)}
                             </div>
-                            <button className="bg-slate-900 text-white px-3 py-1 rounded-full text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Atender</button>
+                            <button onClick={(e) => { e.stopPropagation(); handleCreateRecord(p); }} className="bg-slate-900 text-white px-3 py-1 rounded-full text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Atender</button>
                         </div>
                         <h3 className="font-bold text-slate-800">{p.fullName}</h3>
                         <div className="flex items-center text-sm text-slate-500 mb-1 group">
