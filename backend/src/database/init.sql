@@ -106,3 +106,31 @@ COMMENT ON TABLE usuarios IS 'Tabla de usuarios del sistema con control de acces
 COMMENT ON TABLE sesiones IS 'Tabla de sesiones activas con refresh tokens para autenticación JWT';
 COMMENT ON COLUMN usuarios.password_hash IS 'Hash de contraseña generado con bcrypt (salt rounds >= 12)';
 COMMENT ON COLUMN sesiones.refresh_token IS 'Refresh token JWT con vida de 7 días';
+
+-- Tabla de historias clínicas
+CREATE TABLE IF NOT EXISTS historias_clinicas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    profesional_nombre VARCHAR(255) NOT NULL,
+    tipo_registro VARCHAR(50) NOT NULL,
+    estado VARCHAR(20) DEFAULT 'DRAFT' CHECK (estado IN ('DRAFT', 'FINALIZED')),
+    motivo_consulta TEXT,
+    enfermedad_actual TEXT,
+    antecedentes TEXT,
+    datos_dinamicos JSONB DEFAULT '{}',
+    diagnosticos JSONB DEFAULT '[]',
+    plan_manejo TEXT,
+    prescripciones JSONB DEFAULT '[]',
+    procedimientos_realizados JSONB DEFAULT '[]',
+    rda_status VARCHAR(50),
+    rda_payload TEXT,
+    fecha_creacion TIMESTAMP DEFAULT NOW(),
+    fecha_finalizacion TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para historias clínicas
+CREATE INDEX IF NOT EXISTS idx_hc_paciente ON historias_clinicas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_hc_profesional ON historias_clinicas(profesional_id);
+CREATE INDEX IF NOT EXISTS idx_hc_fecha ON historias_clinicas(fecha_creacion);

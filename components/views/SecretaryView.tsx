@@ -307,6 +307,86 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       alert("Pago registrado correctamente.");
   };
 
+  const handlePrintInvoice = (invoice: Invoice) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const html = `
+          <html>
+          <head>
+              <title>Factura ${invoice.id}</title>
+              <style>
+                  body { font-family: sans-serif; padding: 40px; color: #334155; }
+                  .header { border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px; }
+                  .invoice-id { font-family: monospace; color: #64748b; }
+                  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+                  table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                  th { text-align: left; padding: 12px; border-bottom: 2px solid #f1f5f9; color: #64748b; text-transform: uppercase; font-size: 12px; }
+                  td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+                  .totals { float: right; width: 300px; }
+                  .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
+                  .grand-total { font-size: 18px; font-bold: bold; color: #0f172a; border-top: 2px solid #e2e8f0; margin-top: 10px; padding-top: 10px; }
+                  .footer { margin-top: 100px; text-align: center; font-size: 12px; color: #94a3b8; }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <h1>MEDICORE IPS</h1>
+                  <p>NIT: 900.123.456-7 | Calle 100 #15-20, Bogotá</p>
+                  <p class="invoice-id">FACTURA DE VENTA: ${invoice.id}</p>
+              </div>
+              <div class="grid">
+                  <div>
+                      <h3>DATOS DEL PACIENTE</h3>
+                      <p><strong>Nombre:</strong> ${invoice.patientName}</p>
+                      <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+                  </div>
+                  <div style="text-align: right;">
+                      <h3>PAGADOR</h3>
+                      <p>${invoice.payerType === 'INSURER' ? 'Entidad Aseguradora (EPS/Prepagada)' : 'Particular / Paciente'}</p>
+                      <p><strong>Estado:</strong> ${invoice.status}</p>
+                  </div>
+              </div>
+              <table>
+                  <thead>
+                      <tr>
+                          <th>Descripción</th>
+                          <th>Cant.</th>
+                          <th>Precio Unit.</th>
+                          <th>Total</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      ${invoice.items.map(item => `
+                          <tr>
+                              <td>${item.name}</td>
+                              <td>${item.quantity}</td>
+                              <td>${formatCurrency(item.price)}</td>
+                              <td>${formatCurrency(item.price * item.quantity)}</td>
+                          </tr>
+                      `).join('')}
+                  </tbody>
+              </table>
+              <div class="totals">
+                  <div class="total-row"><span>Subtotal:</span> <span>${formatCurrency(invoice.subtotal)}</span></div>
+                  <div class="total-row"><span>Descuentos:</span> <span>- ${formatCurrency(invoice.discount)}</span></div>
+                  <div class="total-row grand-total"><span>TOTAL A PAGAR:</span> <span>${formatCurrency(invoice.total)}</span></div>
+                  <div class="total-row"><span>Pagos Realizados:</span> <span>${formatCurrency(invoice.total - invoice.balance)}</span></div>
+                  <div class="total-row" style="color: #dc2626; font-weight: bold;"><span>SALDO PENDIENTE:</span> <span>${formatCurrency(invoice.balance)}</span></div>
+              </div>
+              <div class="footer">
+                  <p>Esta factura de venta se asimila en todos sus efectos legales a una letra de cambio según el Art. 774 del código de comercio.</p>
+                  <p>Generado por MediCore Cloud - ${new Date().toLocaleString()}</p>
+              </div>
+              <script>window.print();</script>
+          </body>
+          </html>
+      `;
+
+      printWindow.document.write(html);
+      printWindow.document.close();
+  };
+
   return (
     <div className="flex h-screen bg-slate-50">
       {/* Sidebar simplified for Secretary */}
@@ -677,7 +757,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                           </span>
                                       </td>
                                       <td className="p-4 text-right flex justify-end space-x-2">
-                                          <button onClick={() => printInvoice(inv)} className="bg-slate-200 text-slate-700 p-2 rounded hover:bg-slate-300" title="Imprimir"><Printer size={16}/></button>
+                                          <button onClick={() => handlePrintInvoice(inv)} className="bg-slate-200 text-slate-700 p-2 rounded hover:bg-slate-300" title="Imprimir"><Printer size={16}/></button>
                                           {inv.status !== 'PAID' && (
                                               <button onClick={() => registerPayment(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
                                                   Abonar

@@ -1,16 +1,30 @@
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import authRoutes from './modulos/auth/routes';
 import patientRoutes from './modulos/pacientes/routes';
 import agendaRoutes from './modulos/agenda/routes';
+import clinicalRoutes from './modulos/historias-clinicas/routes';
 
 // Cargar variables de entorno
 dotenv.config();
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
+
+// Middlewares de seguridad
+app.use(helmet());
+
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 10, // 10 intentos por ventana
+    message: { error: 'Demasiados intentos de inicio de sesión. Por favor, intente de nuevo en 15 minutos.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 // Middlewares globales
 app.use(cors({
@@ -22,9 +36,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Rutas
+app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/pacientes', patientRoutes);
 app.use('/api/agenda', agendaRoutes);
+app.use('/api/historias', clinicalRoutes);
 
 // Ruta de health check
 app.get('/health', (req: Request, res: Response) => {

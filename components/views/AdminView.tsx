@@ -471,6 +471,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       alert("Paquete de RIPS generado y descargado exitosamente.");
   };
 
+  const handleExportRIPS = () => {
+      // 📊 The Oracle: Standard RIPS Export Protocol
+      generateRIPS();
+      if (generatedRips) {
+          downloadRIPS();
+      } else {
+          // If generateRIPS didn't set generatedRips immediately (state updates are async),
+          // we show a small toast or alert
+          alert("Preparando datos para exportación. Haga clic en 'Generar' primero para previsualizar.");
+      }
+  };
+
   const handleNewTemplate = () => setIsTemplateModalOpen(true);
   const handleNewSection = () => setIsSectionModalOpen(true);
   const handleNewField = () => setIsFieldModalOpen(true);
