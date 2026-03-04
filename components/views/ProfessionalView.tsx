@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
+import { clinicalRecordService } from '../../services/clinicalRecordService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
@@ -115,27 +116,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       calc_framingham: framinghamValue
   }), [bmiValue, tamValue, tfgValue, framinghamValue]);
 
-  const handleSaveDraft = () => {
-    if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
-    setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = recordToSave;
-        return updated;
-      }
-      return [...prev, recordToSave];
-    });
-
-    // 🎨 Palette: Non-blocking feedback for draft saving
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
-  };
-
   const handleSaveDraft = async () => {
     if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData } as ClinicalRecord;
+    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
 
     // ⚡ TRINITY: Persist draft to backend
     try {
@@ -157,7 +140,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       }
       return [...prev, recordToSave];
     });
-    alert("Borrador guardado exitosamente.");
+
+    // 🎨 Palette: Non-blocking feedback for draft saving
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
   };
 
   // ⚡ NEO: Keyboard Shortcuts (Ctrl+S for Save)
@@ -332,7 +318,31 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const handleDownloadContract = () => {
       // 🛡️ MORPHEUS: Audit log for contract download
       logAuditEvent(user.id, 'DOWNLOAD_CONTRACT', 'Contract', `User downloaded a copy of their contract`);
-      alert('Descargando PDF del contrato...');
+
+      const activeContract = hrUser.contracts?.find(c => c.isActive);
+      const contractText = `
+          CONTRATO DE PRESTACIÓN DE SERVICIOS / LABORAL
+          --------------------------------------------
+          CONTRATANTE: MEDICORE IPS SAS
+          CONTRATISTA: ${user.name}
+          DOCUMENTO: ${user.documentNumber}
+
+          TIPO: ${activeContract?.type || 'N/A'}
+          FECHA INICIO: ${activeContract?.startDate || 'N/A'}
+          VALOR: ${activeContract?.type === 'NOMINA' ? formatCurrency(activeContract?.baseSalary || 0) : formatCurrency(activeContract?.opsValue || 0)}
+
+          Este documento es una copia informativa del contrato vigente.
+      `;
+
+      const blob = new Blob([contractText], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `contrato_${user.username}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
   };
 
   const handleOpenPaymentModal = () => {
@@ -835,14 +845,18 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => setNewPayment({...newPayment, files: [...newPayment.files, 'Seguridad_Social.pdf']})} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">
+                                              {newPayment.files.includes('Seguridad_Social.pdf') ? 'Cargado ✓' : 'Seleccionar...'}
+                                          </button>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Informe de Actividades</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => setNewPayment({...newPayment, files: [...newPayment.files, 'Informe_Actividades.pdf']})} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">
+                                            {newPayment.files.includes('Informe_Actividades.pdf') ? 'Cargado ✓' : 'Seleccionar...'}
+                                          </button>
                                       </div>
                                   </div>
                               </div>
