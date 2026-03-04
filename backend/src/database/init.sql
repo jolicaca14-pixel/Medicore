@@ -50,6 +50,25 @@ CREATE TABLE IF NOT EXISTS pacientes (
 CREATE INDEX IF NOT EXISTS idx_pacientes_identificacion ON pacientes(identificacion);
 CREATE INDEX IF NOT EXISTS idx_pacientes_nombre ON pacientes(nombre_completo);
 
+-- Tabla de citas
+CREATE TABLE IF NOT EXISTS citas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    fecha DATE NOT NULL,
+    hora TIME NOT NULL,
+    motivo VARCHAR(255) NOT NULL,
+    estado VARCHAR(20) DEFAULT 'SCHEDULED' CHECK (estado IN ('SCHEDULED', 'WAITING', 'COMPLETED', 'CANCELLED')),
+    procedimientos JSONB DEFAULT '[]',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para citas
+CREATE INDEX IF NOT EXISTS idx_citas_fecha ON citas(fecha);
+CREATE INDEX IF NOT EXISTS idx_citas_paciente ON citas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_citas_profesional ON citas(profesional_id);
+
 -- Usuario administrador por defecto (password: admin123)
 -- Hash generado con bcrypt, salt rounds = 12
 INSERT INTO usuarios (username, password_hash, rol, nombre_completo, documento, email)

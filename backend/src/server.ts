@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import authRoutes from './modulos/auth/routes';
 import patientRoutes from './modulos/pacientes/routes';
+import agendaRoutes from './modulos/agenda/routes';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -23,6 +24,7 @@ app.use(cookieParser());
 // Rutas
 app.use('/api/auth', authRoutes);
 app.use('/api/pacientes', patientRoutes);
+app.use('/api/agenda', agendaRoutes);
 
 // Ruta de health check
 app.get('/health', (req: Request, res: Response) => {
@@ -42,6 +44,7 @@ app.get('/', (req: Request, res: Response) => {
             health: '/health',
             auth: '/api/auth',
             pacientes: '/api/pacientes',
+            agenda: '/api/agenda',
         }
     });
 });
