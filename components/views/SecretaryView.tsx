@@ -227,16 +227,88 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Bloqueador de ventanas detectado. Habilite los pop-ups para imprimir.");
+
+      const itemsHtml = invoice.items.map(item => `
+          <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}<br/><small style="color: #666;">CUPS: ${item.code}</small></td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price)}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+          </tr>
+      `).join('');
+
+      printWindow.document.write(`
+          <html>
+          <head>
+              <title>Factura ${invoice.id}</title>
+              <style>
+                  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #333; line-height: 1.5; }
+                  .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0f172a; pb: 20px; mb: 20px; }
+                  .company-info { text-align: left; }
+                  .invoice-info { text-align: right; }
+                  .patient-box { background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #e2e8f0; }
+                  table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                  th { background: #f1f5f9; padding: 10px; text-align: left; font-size: 12px; text-transform: uppercase; color: #64748b; }
+                  .totals { float: right; width: 300px; margin-top: 20px; }
+                  .total-row { display: flex; justify-content: space-between; padding: 5px 0; }
+                  .grand-total { font-size: 18px; font-weight: bold; border-top: 2px solid #0f172a; margin-top: 10px; padding-top: 10px; }
+                  .footer { margin-top: 100px; text-align: center; font-size: 10px; color: #94a3b8; }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <div class="company-info">
+                      <h1 style="margin: 0; color: #0f172a;">MEDICORE IPS SAS</h1>
+                      <p style="margin: 0;">NIT: 900.123.456-7</p>
+                      <p style="margin: 0;">Calle 100 # 15-20, Bogotá</p>
+                  </div>
+                  <div class="invoice-info">
+                      <h2 style="margin: 0; color: #0f172a;">FACTURA DE VENTA</h2>
+                      <p style="font-size: 20px; font-weight: bold; margin: 5px 0;">No. ${invoice.id}</p>
+                      <p style="margin: 0;">Fecha: ${new Date(invoice.date).toLocaleDateString()}</p>
+                  </div>
+              </div>
+
+              <div class="patient-box">
+                  <p style="margin: 0;"><strong>CLIENTE / PACIENTE:</strong> ${invoice.patientName}</p>
+                  <p style="margin: 0;"><strong>IDENTIFICACIÓN:</strong> ${invoice.patientId}</p>
+              </div>
+
+              <table>
+                  <thead>
+                      <tr>
+                          <th>Descripción Servicio</th>
+                          <th style="text-align: center;">Cant.</th>
+                          <th style="text-align: right;">Vlr Unitario</th>
+                          <th style="text-align: right;">Total</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      ${itemsHtml}
+                  </tbody>
+              </table>
+
+              <div class="totals">
+                  <div class="total-row"><span>Subtotal:</span> <span>${formatCurrency(invoice.subtotal)}</span></div>
+                  <div class="total-row"><span>Descuentos:</span> <span>- ${formatCurrency(invoice.discount)}</span></div>
+                  <div class="total-row grand-total"><span>TOTAL A PAGAR:</span> <span>${formatCurrency(invoice.total)}</span></div>
+                  <div class="total-row" style="color: #059669;"><span>Pagado:</span> <span>${formatCurrency(invoice.total - invoice.balance)}</span></div>
+                  <div class="total-row" style="color: #dc2626; font-weight: bold;"><span>Saldo Pendiente:</span> <span>${formatCurrency(invoice.balance)}</span></div>
+              </div>
+
+              <div style="clear: both;"></div>
+
+              <div class="footer">
+                  <p>Resolución Facturación Electrónica No. 18764000000123 de 2024-01-01</p>
+                  <p>MediCore HCE - Software de Gestión Médica Segura</p>
+              </div>
+          </body>
+          </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- CARTERA HANDLERS ---

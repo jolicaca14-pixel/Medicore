@@ -109,9 +109,21 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'FILE' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50">
+                  <div
+                    className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50 relative"
+                    onClick={() => document.getElementById(`file-input-${field.id}`)?.click()}
+                  >
                       <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
-                      <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                      <p className="text-xs text-slate-500">{val || 'Click para cargar imágenes (DICOM/JPG)'}</p>
+                      <input
+                        id={`file-input-${field.id}`}
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) setDynamicData({...dynamicData, [field.id]: file.name});
+                        }}
+                      />
                   </div>
               ) : (
                   <input 
@@ -126,8 +138,67 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientFullName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Bloqueador de ventanas detectado.");
+
+      const recordsToPrint = completedRecords.filter(r =>
+          r.dateCreated.startsWith(date) &&
+          MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientFullName
+      );
+
+      const resultsHtml = recordsToPrint.map(r => `
+          <div style="margin-bottom: 30px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+              <div style="background: #f8fafc; padding: 10px 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #0f172a;">
+                  ${r.chiefComplaint} (Ref: ${r.id})
+              </div>
+              <div style="padding: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                  ${Object.entries(r.dynamicData).map(([key, val]) => {
+                      const fieldLabel = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+                      return `<div><strong style="font-size: 11px; color: #64748b; text-transform: uppercase;">${fieldLabel}:</strong><br/>${val}</div>`;
+                  }).join('')}
+              </div>
+          </div>
+      `).join('');
+
+      printWindow.document.write(`
+          <html>
+          <head>
+              <title>Resultados - ${patientFullName}</title>
+              <style>
+                  body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #333; line-height: 1.4; }
+                  .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #3b82f6; pb: 15px; mb: 20px; }
+                  .patient-info { background: #eff6ff; padding: 15px; border-radius: 8px; margin-bottom: 30px; }
+                  .footer { margin-top: 50px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; pt: 10px; }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <div>
+                      <h1 style="margin: 0; color: #1e40af;">MEDICORE IPS</h1>
+                      <p style="margin: 0; font-size: 12px;">Departamento de Apoyo Diagnóstico</p>
+                  </div>
+                  <div style="text-align: right;">
+                      <h2 style="margin: 0; color: #64748b;">REPORTE DE RESULTADOS</h2>
+                      <p style="margin: 0; font-size: 12px;">Fecha de Impresión: ${new Date().toLocaleString()}</p>
+                  </div>
+              </div>
+
+              <div class="patient-info">
+                  <h3 style="margin: 0 0 5px 0;">${patientFullName}</h3>
+                  <p style="margin: 0; font-size: 12px; color: #1e40af;">Fecha de Exámenes: ${date}</p>
+              </div>
+
+              ${resultsHtml}
+
+              <div class="footer">
+                  <p>Documento generado electrónicamente por el sistema MediCore HCE. Los resultados deben ser interpretados por su médico tratante.</p>
+              </div>
+          </body>
+          </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- RENDER FORM ---
