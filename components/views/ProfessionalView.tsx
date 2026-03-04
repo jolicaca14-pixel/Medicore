@@ -3,6 +3,7 @@ import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
 import { clinicalRecordService } from '../../services/clinicalRecordService';
+import { icdService } from '../../services/icdService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
@@ -10,7 +11,7 @@ import { calculateTotalWithSurcharge } from '../../utils/finance';
 import { sanitizeInput } from '../../utils/security';
 import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calculateTFG, calculateFramingham } from '../../utils/clinicalLogic';
 import { logAuditEvent } from '../../utils/auditLogger';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line, Legend } from 'recharts';
 import RecentResultsWidget from '../RecentResultsWidget';
 
 interface ProfessionalViewProps {
@@ -30,6 +31,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [viewMode, setViewMode] = useState<'LIST' | 'CREATE' | 'VIEW'>('LIST');
   const [showRDAModal, setShowRDAModal] = useState(false);
   const [activeFormTab, setActiveFormTab] = useState<string>(''); 
+  const [showTrends, setShowTrends] = useState(false);
 
   // Form State
   const [currentRecord, setCurrentRecord] = useState<Partial<ClinicalRecord>>({});
@@ -247,13 +249,23 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // Bolt ⚡: Memoize filtered results to prevent re-calculating on every render.
   // This is a crucial optimization for search inputs within large components.
   // The filter operation runs only when the search term changes, not on every keystroke that causes a re-render.
+  const vitalTrends = useMemo(() => {
+      if (!selectedPatient) return [];
+      return records
+          .filter(r => r.patientId === selectedPatient.id && r.status === RecordStatus.FINALIZED)
+          .sort((a, b) => new Date(a.dateCreated).getTime() - new Date(b.dateCreated).getTime())
+          .map(r => ({
+              date: new Date(r.dateCreated).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
+              fc: parseFloat(r.dynamicData?.v_fc) || null,
+              sat: parseFloat(r.dynamicData?.v_sat) || null,
+              sys: parseFloat(r.dynamicData?.v_sys_bp) || null,
+              dia: parseFloat(r.dynamicData?.v_dia_bp) || null
+          }))
+          .filter(d => d.fc || d.sat || d.sys);
+  }, [records, selectedPatient]);
+
   const filteredDiagnoses = useMemo(() => {
-      if (!diagSearch) return [];
-      const lowerCaseSearch = diagSearch.toLowerCase();
-      return MOCK_CIE11.filter(t =>
-          t.name.toLowerCase().includes(lowerCaseSearch) ||
-          t.code.toLowerCase().includes(lowerCaseSearch)
-      );
+      return icdService.search(diagSearch);
   }, [diagSearch]);
 
   const filteredProcedures = useMemo(() => {
@@ -682,6 +694,37 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       alert(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
   };
 
+  const handleLoadNormalExam = () => {
+      const normalExam = {
+          v_temp: '36.5',
+          v_fc: '72',
+          v_fr: '16',
+          v_sys_bp: '120',
+          v_dia_bp: '80',
+          v_sat: '98',
+          d_examen_fisico: 'Paciente alerta, orientado en 3 esferas. Cabeza y cuello sin hallazgos. Tórax simétrico, ruidos cardiacos rítmicos sin soplos. Pulmones con murmullo vesicular conservado. Abdomen blando, depresible, no doloroso. Extremidades sin edemas.'
+      };
+      setDynamicData(prev => ({ ...prev, ...normalExam }));
+      alert("✅ Examen físico normal cargado.");
+  };
+
+  const handleRepeatLastPlan = () => {
+      const lastRecord = records
+          .filter(r => r.patientId === selectedPatient?.id && r.status === RecordStatus.FINALIZED)
+          .sort((a, b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime())[0];
+
+      if (lastRecord) {
+          setCurrentRecord(prev => ({
+              ...prev,
+              plan: lastRecord.plan,
+              diagnoses: lastRecord.diagnoses
+          }));
+          alert("✅ Plan y diagnósticos de la atención anterior cargados.");
+      } else {
+          alert("No hay registros anteriores para este paciente.");
+      }
+  };
+
   const renderField = (field: any, isReadOnly: boolean) => {
       if (field.type === 'HEADER') return <h4 className="text-sm font-bold text-slate-700 mt-4 border-b pb-1 col-span-2">{field.label}</h4>;
       if (field.type === 'INFO') return <div className="col-span-2 bg-blue-50 p-2 rounded text-xs text-blue-800 mb-2">{field.label}</div>;
@@ -694,6 +737,15 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
       const age = selectedPatient ? new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear() : undefined;
       const vitalWarning = getVitalWarning(field.id, val, age);
+
+      // 🎨 Palette: Nutrition & Psychology Specific Styling
+      const isNutrition = currentRecord.recordType === RecordType.NUTRITION;
+      const isPsychology = currentRecord.recordType === RecordType.PSYCHOLOGY;
+
+      const specialtyClasses =
+        isNutrition ? 'border-green-100 bg-green-50/30' :
+        isPsychology ? 'border-blue-100 bg-blue-50/30' :
+        'border-slate-200 bg-slate-50';
 
       return (
           <div key={field.id} className={`${field.type === 'TEXTAREA' ? 'col-span-2' : 'col-span-1'}`}>
@@ -750,7 +802,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                     className={`w-full p-2 border rounded text-sm transition-colors ${
                         showBarthelAlert ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-200' :
                         vitalWarning ? 'bg-red-50 border-red-500 ring-1 ring-red-100 text-red-900 font-bold' :
-                        'bg-slate-50 focus:bg-white border-slate-200'
+                        `focus:bg-white ${specialtyClasses}`
                     }`}
                     value={val} 
                     onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})} 
@@ -1183,12 +1235,27 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
             <div className="flex items-center">
                 <button aria-label="Volver a la lista de pacientes" onClick={() => { setViewMode('LIST'); setSelectedPatient(null); }} className="mr-4 p-2 hover:bg-slate-100 rounded-full"><ChevronRight className="rotate-180" size={20}/></button>
                 <div>
-                    <h2 className="text-xl font-bold text-slate-800">{selectedPatient.fullName}</h2>
+                    <div className="flex items-center">
+                        <h2 className="text-xl font-bold text-slate-800">{selectedPatient.fullName}</h2>
+                        {currentRecord.recordType === RecordType.NUTRITION && (
+                            <span className="ml-3 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full border border-green-200">NUTRICIÓN</span>
+                        )}
+                        {currentRecord.recordType === RecordType.PSYCHOLOGY && (
+                            <span className="ml-3 px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full border border-blue-200">PSICOLOGÍA</span>
+                        )}
+                    </div>
                     <p className="text-xs text-slate-500">
                         {selectedPatient.insuranceType} | {new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear()} años
                         {selectedPatient.bloodType && <span className="ml-2 font-bold text-red-600">| Rh: {selectedPatient.bloodType}</span>}
                     </p>
                 </div>
+                <button
+                    onClick={() => setShowTrends(!showTrends)}
+                    className={`ml-4 p-2 rounded-full transition-colors ${showTrends ? 'bg-blue-100 text-blue-600' : 'hover:bg-slate-100 text-slate-400'}`}
+                    title="Ver tendencias de signos vitales"
+                >
+                    <TrendingUp size={20}/>
+                </button>
             </div>
             {!isReadOnly ? (
                 <div className="flex items-center space-x-3">
@@ -1204,6 +1271,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                         className={`px-4 py-2 border rounded-lg font-bold text-sm transition-all duration-300 ${isSaved ? 'bg-green-50 border-green-500 text-green-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
                     >
                         {isSaved ? '¡Guardado!' : 'Guardar'}
+                    </button>
+                    <button onClick={handleLoadNormalExam} className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg font-bold text-xs hover:bg-blue-100 flex items-center" title="Cargar Examen Normal">
+                        <UserCheck size={14} className="mr-1"/> Examen Normal
+                    </button>
+                    <button onClick={handleRepeatLastPlan} className="px-3 py-2 bg-purple-50 text-purple-700 rounded-lg font-bold text-xs hover:bg-purple-100 flex items-center" title="Repetir Plan Anterior">
+                        <RotateCcw size={14} className="mr-1"/> Repetir Plan
                     </button>
                     <button onClick={() => initiateAuth('FINALIZE')} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm hover:bg-slate-800 flex items-center">
                         <Lock size={14} className="mr-2"/> Finalizar & RDA
@@ -1227,6 +1300,33 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
          <div className="flex-1 overflow-y-auto pr-2 grid grid-cols-1 lg:grid-cols-4 gap-6 pb-20">
              
              <div className="lg:col-span-3">
+                 {showTrends && vitalTrends.length > 0 && (
+                     <div className="mb-6 bg-white p-6 rounded-xl shadow-sm border border-blue-100 animate-in zoom-in-95 duration-300">
+                         <div className="flex justify-between items-center mb-4">
+                             <h3 className="font-bold text-slate-700 flex items-center">
+                                 <Activity size={18} className="mr-2 text-blue-600"/> Tendencias de Signos Vitales
+                             </h3>
+                             <button onClick={() => setShowTrends(false)} className="text-slate-400 hover:text-slate-600"><X size={16}/></button>
+                         </div>
+                         <div className="h-64 w-full">
+                             <ResponsiveContainer width="100%" height="100%">
+                                 <LineChart data={vitalTrends}>
+                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                     <XAxis dataKey="date" tick={{fontSize: 10}} />
+                                     <YAxis tick={{fontSize: 10}} />
+                                     <Tooltip
+                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                     />
+                                     <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
+                                     <Line type="monotone" dataKey="fc" name="FC (LPM)" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                                     <Line type="monotone" dataKey="sat" name="SpO2 (%)" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                                     <Line type="monotone" dataKey="sys" name="Sistólica" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                                 </LineChart>
+                             </ResponsiveContainer>
+                         </div>
+                     </div>
+                 )}
+
                  <div className="flex border-b border-slate-200 mb-6 overflow-x-auto scrollbar-hide bg-white sticky top-0 z-10">
                      {selectedTemplate?.sections.map(s => (
                          <button

@@ -27,9 +27,12 @@ interface LayoutProps {
   setActiveTab: (tab: string) => void;
 }
 
+import { Menu } from 'lucide-react';
+
 export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, setActiveTab }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>(MOCK_NOTIFICATIONS);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   if (!user) return <>{children}</>;
 
@@ -107,9 +110,17 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 overflow-hidden relative">
+      {/* Mobile Backdrop */}
+      {isSidebarOpen && (
+          <div
+              className="fixed inset-0 bg-slate-900/50 z-30 md:hidden backdrop-blur-sm"
+              onClick={() => setIsSidebarOpen(false)}
+          />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shadow-sm z-10">
+      <aside className={`fixed inset-y-0 left-0 w-64 bg-white border-r border-slate-200 flex flex-col shadow-sm z-40 transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <button
           className="p-6 border-b border-slate-100 flex items-center space-x-3 cursor-pointer hover:bg-slate-50 transition-colors w-full text-left"
           onClick={() => setActiveTab('dashboard')}
@@ -133,7 +144,10 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                      setActiveTab(item.id);
+                      setIsSidebarOpen(false);
+                  }}
                   title={item.label}
                   aria-label={item.label}
                   className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
@@ -176,12 +190,21 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto relative">
-        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-200 px-8 py-4 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-slate-800 capitalize">
-            {getMenuItems().find(i => i.id === activeTab)?.label || 'Panel Principal'}
-          </h2>
-          <div className="flex items-center space-x-4">
-            <span className="px-3 py-1 bg-primary-50 text-primary-700 text-xs font-semibold rounded-full border border-primary-100">
+        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 md:px-8 py-4 flex justify-between items-center">
+          <div className="flex items-center">
+              <button
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="p-2 mr-3 text-slate-500 hover:bg-slate-100 rounded-lg md:hidden"
+                  aria-label="Abrir menú"
+              >
+                  <Menu size={24} />
+              </button>
+              <h2 className="text-lg md:text-xl font-semibold text-slate-800 capitalize">
+                {getMenuItems().find(i => i.id === activeTab)?.label || 'Panel Principal'}
+              </h2>
+          </div>
+          <div className="flex items-center space-x-2 md:space-x-4">
+            <span className="hidden sm:inline-block px-3 py-1 bg-primary-50 text-primary-700 text-xs font-semibold rounded-full border border-primary-100">
               {new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </span>
             
@@ -223,7 +246,7 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
             </div>
           </div>
         </header>
-        <div className="p-8 max-w-7xl mx-auto pb-20">
+        <div className="p-4 md:p-8 max-w-7xl mx-auto pb-20">
           {children}
         </div>
       </main>
