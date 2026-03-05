@@ -126,8 +126,61 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const recordsToPrint = completedRecords.filter(r =>
+        (MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientName) &&
+        r.dateCreated.startsWith(date)
+      );
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Por favor permita las ventanas emergentes para imprimir.");
+
+      const html = `
+        <html>
+          <head>
+            <title>Resultados de Diagnóstico - ${patientName}</title>
+            <style>
+              body { font-family: sans-serif; padding: 40px; color: #334155; }
+              .header { border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; mb: 30px; }
+              .patient-info { background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; }
+              .result-card { border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+              .result-title { font-weight: bold; font-size: 1.1em; color: #1e293b; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; margin-bottom: 15px; }
+              .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+              .label { font-weight: bold; font-size: 0.85em; color: #64748b; }
+              .footer { margin-top: 50px; font-size: 0.8em; text-align: center; color: #94a3b8; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1 style="margin:0; color: #0f172a;">MEDICORE IPS</h1>
+              <p style="margin:5px 0 0 0;">Reporte Consolidado de Ayudas Diagnósticas</p>
+            </div>
+            <div class="patient-info">
+              <p><strong>Paciente:</strong> ${patientName}</p>
+              <p><strong>Fecha de Atención:</strong> ${date}</p>
+            </div>
+            ${recordsToPrint.map(r => `
+              <div class="result-card">
+                <div class="result-title">${r.chiefComplaint}</div>
+                <div class="grid">
+                  ${Object.entries(r.dynamicData).map(([key, val]) => `
+                    <div>
+                      <span class="label">${MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key}:</span>
+                      <span>${val}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `).join('')}
+            <div class="footer">
+              <p>Este documento es un reporte oficial de resultados. Emitido el ${new Date().toLocaleString()}</p>
+            </div>
+            <script>window.onload = () => { window.print(); window.close(); }</script>
+          </body>
+        </html>
+      `;
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---
