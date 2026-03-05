@@ -829,16 +829,20 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
                                               <FileText size={16} className="text-slate-400 mr-2"/>
-                                              <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
+                                              <span className="text-xs text-slate-600">
+                                                  {newPayment.files.some(f => f.includes('seguridad_social')) ? '✅ seguridad_social.pdf' : 'Planilla Seguridad Social'}
+                                              </span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => setNewPayment(prev => ({ ...prev, files: [...prev.files, `seguridad_social_${Date.now()}.pdf`] }))} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
                                               <FileText size={16} className="text-slate-400 mr-2"/>
-                                              <span className="text-xs text-slate-600">Informe de Actividades</span>
+                                              <span className="text-xs text-slate-600">
+                                                  {newPayment.files.some(f => f.includes('informe_actividades')) ? '✅ informe_actividades.pdf' : 'Informe de Actividades'}
+                                              </span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => setNewPayment(prev => ({ ...prev, files: [...prev.files, `informe_actividades_${Date.now()}.pdf`] }))} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
                                       </div>
                                   </div>
                               </div>

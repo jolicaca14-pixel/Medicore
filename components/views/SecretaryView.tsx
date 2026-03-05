@@ -267,16 +267,77 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Por favor permita las ventanas emergentes para imprimir la factura.");
+
+      const html = `
+        <html>
+          <head>
+            <title>Factura de Venta - ${invoice.id}</title>
+            <style>
+              body { font-family: 'Helvetica', sans-serif; padding: 40px; color: #333; }
+              .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
+              .details { display: flex; justify-content: space-between; margin: 20px 0; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; }
+              .total-section { margin-top: 30px; text-align: right; }
+              .footer { margin-top: 50px; font-size: 0.8em; text-align: center; color: #666; }
+              @media print { .no-print { display: none; } }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>MEDICORE IPS SAS</h1>
+              <p>NIT: 900.123.456-7</p>
+              <p>Calle 100 #15-32, Bogotá D.C.</p>
+              <h2>FACTURA DE VENTA N° ${invoice.id}</h2>
+            </div>
+            <div class="details">
+              <div>
+                <p><strong>CLIENTE:</strong> ${invoice.patientName}</p>
+                <p><strong>FECHA:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+              </div>
+              <div style="text-align: right">
+                <p><strong>ESTADO:</strong> ${invoice.status}</p>
+                <p><strong>PAGO:</strong> ${invoice.payerType === 'PATIENT' ? 'Particular' : 'Entidad Responsable'}</p>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Descripción / CUPS</th>
+                  <th>Cant.</th>
+                  <th>P. Unitario</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${invoice.items.map(item => `
+                  <tr>
+                    <td>${item.name} (${item.code})</td>
+                    <td>${item.quantity}</td>
+                    <td>${formatCurrency(item.price)}</td>
+                    <td>${formatCurrency(item.price * item.quantity)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div class="total-section">
+              <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+              <p>Descuento: ${formatCurrency(invoice.discount)}</p>
+              <h3 style="color: #000">TOTAL A PAGAR: ${formatCurrency(invoice.total)}</h3>
+              <p>Pagado: ${formatCurrency(invoice.total - invoice.balance)}</p>
+              <p><strong>Saldo Pendiente: ${formatCurrency(invoice.balance)}</strong></p>
+            </div>
+            <div class="footer">
+              <p>Esta factura de venta se asimila en sus efectos legales a la letra de cambio (Art. 774 del Código de Comercio).</p>
+            </div>
+            <script>window.onload = () => { window.print(); window.close(); }</script>
+          </body>
+        </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
