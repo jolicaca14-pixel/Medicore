@@ -109,9 +109,10 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'FILE' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50">
+                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50" onClick={() => document.getElementById(`file-${field.id}`)?.click()}>
                       <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
-                      <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                      <p className="text-xs text-slate-500">{val || 'Click para cargar imágenes (DICOM/JPG)'}</p>
+                      <input type="file" id={`file-${field.id}`} className="hidden" onChange={(e) => setDynamicData({...dynamicData, [field.id]: e.target.files?.[0]?.name})} />
                   </div>
               ) : (
                   <input 
@@ -126,8 +127,56 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientFullName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Habilite ventanas emergentes para imprimir.");
+
+      const results = completedRecords.filter(r =>
+        r.dateCreated.startsWith(date) &&
+        MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientFullName
+      );
+
+      const html = `
+          <html>
+              <head>
+                  <title>Resultados ${patientFullName} - ${date}</title>
+                  <style>
+                      body { font-family: sans-serif; padding: 40px; color: #334155; }
+                      .header { text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px; }
+                      .result-block { margin-bottom: 40px; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; }
+                      h4 { margin-top: 0; color: #1e40af; border-bottom: 1px solid #bfdbfe; padding-bottom: 8px; }
+                      .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+                      .field-label { font-weight: bold; font-size: 12px; color: #64748b; }
+                      .field-value { font-size: 14px; margin-bottom: 8px; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1>MEDICORE IPS - RESULTADOS DIAGNÓSTICOS</h1>
+                      <p><strong>Paciente:</strong> ${patientFullName} | <strong>Fecha:</strong> ${date}</p>
+                  </div>
+                  ${results.map(r => `
+                      <div class="result-block">
+                          <h4>${r.chiefComplaint}</h4>
+                          <div class="data-grid">
+                              ${Object.entries(r.dynamicData).map(([key, val]) => `
+                                  <div>
+                                      <div class="field-label">${key.toUpperCase()}</div>
+                                      <div class="field-value">${val}</div>
+                                  </div>
+                              `).join('')}
+                          </div>
+                          <div style="margin-top: 12px; font-size: 12px; font-style: italic;">
+                              Validado por: ${r.professionalName}
+                          </div>
+                      </div>
+                  `).join('')}
+              </body>
+          </html>
+      `;
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- RENDER FORM ---

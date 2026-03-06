@@ -267,16 +267,73 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Por favor permita las ventanas emergentes para imprimir.");
+
+      const html = `
+          <html>
+              <head>
+                  <title>Factura ${invoice.id}</title>
+                  <style>
+                      body { font-family: sans-serif; padding: 40px; color: #334155; }
+                      .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px; }
+                      .info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+                      table { width: 100%; border-collapse: collapse; }
+                      th { background: #f8fafc; text-align: left; padding: 12px; border-bottom: 1px solid #e2e8f0; }
+                      td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+                      .totals { margin-top: 30px; text-align: right; }
+                      .status { display: inline-block; padding: 4px 12px; rounded-radius: 9999px; font-weight: bold; font-size: 12px; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1>MEDICORE IPS</h1>
+                      <p>Factura de Venta N° ${invoice.id}</p>
+                  </div>
+                  <div class="info">
+                      <div>
+                          <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                          <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+                      </div>
+                      <div style="text-align: right;">
+                          <p><strong>Estado:</strong> ${invoice.status}</p>
+                      </div>
+                  </div>
+                  <table>
+                      <thead>
+                          <tr>
+                              <th>Descripción</th>
+                              <th>Cant.</th>
+                              <th>V. Unitario</th>
+                              <th>Total</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          ${invoice.items.map(item => `
+                              <tr>
+                                  <td>${item.name}</td>
+                                  <td>${item.quantity}</td>
+                                  <td>${formatCurrency(item.price)}</td>
+                                  <td>${formatCurrency(item.price * item.quantity)}</td>
+                              </tr>
+                          `).join('')}
+                      </tbody>
+                  </table>
+                  <div class="totals">
+                      <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+                      <p>Descuentos: -${formatCurrency(invoice.discount)}</p>
+                      <p style="font-size: 20px; font-bold: bold; color: #0f172a;">Total: ${formatCurrency(invoice.total)}</p>
+                      <p>Saldo Pendiente: ${formatCurrency(invoice.balance)}</p>
+                  </div>
+                  <div style="margin-top: 50px; text-align: center; font-size: 10px; color: #94a3b8;">
+                      Factura generada electrónicamente por MediCore Pro.
+                  </div>
+              </body>
+          </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- CARTERA HANDLERS ---

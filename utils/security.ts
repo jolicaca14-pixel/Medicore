@@ -25,3 +25,20 @@ export const sanitizeInput = (input: string | undefined | null): string => {
   // For a production environment, a more robust, well-tested library like DOMPurify is strongly recommended.
   return input.replace(/<|>/g, '');
 };
+
+/**
+ * 🛡️ Sentinel: Administrative Access Helper
+ * Checks if a user has administrative roles (ADMIN, MANAGER, or ACCOUNTANT).
+ *
+ * @param roles Array of UserRole
+ * @returns boolean indicating if the user has administrative access.
+ */
+import { UserRole } from '../types';
+
+export const hasAdministrativeAccess = (roles: UserRole[]): boolean => {
+  return roles.some(role =>
+    role === UserRole.ADMIN ||
+    role === UserRole.MANAGER ||
+    role === UserRole.ACCOUNTANT
+  );
+};
