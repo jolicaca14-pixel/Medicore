@@ -60,8 +60,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         setIsLoadingPatients(true);
         try {
             const data = await patientService.getPatients();
-            setPatients(data);
-            setPatientsError(null);
+            if (data && data.length > 0) {
+                setPatients(data);
+                setPatientsError(null);
+            } else {
+                setPatients(MOCK_PATIENTS);
+            }
         } catch (err: any) {
             console.error("Error fetching patients:", err);
             setPatientsError("No se pudo conectar con el servidor. Usando datos locales.");
@@ -117,29 +121,38 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   }), [bmiValue, tamValue, tfgValue, framinghamValue]);
 
   const handleSaveDraft = async () => {
-    if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
+    const recordToSave = {
+        ...currentRecord,
+        dynamicData: { ...dynamicData, ...allCalculatedValues }
+    } as ClinicalRecord;
 
     // ⚡ TRINITY: Persist draft to backend
     try {
         const savedRecord = await clinicalRecordService.create(recordToSave);
-        // Update local state with the ID from backend if it changed (e.g. from temp to UUID)
-        if (savedRecord.id !== currentRecord.id) {
-            setCurrentRecord(prev => ({ ...prev, id: savedRecord.id }));
-        }
+        // Update local state with the ID from backend
+        setCurrentRecord(prev => ({ ...prev, id: savedRecord.id }));
+
+        setRecords(prev => {
+            const existing = prev.findIndex(r => r.id === savedRecord.id || r.id === currentRecord.id);
+            if (existing >= 0) {
+                const updated = [...prev];
+                updated[existing] = savedRecord;
+                return updated;
+            }
+            return [savedRecord, ...prev];
+        });
     } catch (e) {
         console.warn("No se pudo persistir en backend, usando local storage");
+        setRecords(prev => {
+            const existing = prev.findIndex(r => r.id === currentRecord.id);
+            if (existing >= 0) {
+                const updated = [...prev];
+                updated[existing] = recordToSave;
+                return updated;
+            }
+            return [recordToSave, ...prev];
+        });
     }
-
-    setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = recordToSave;
-        return updated;
-      }
-      return [...prev, recordToSave];
-    });
 
     // 🎨 Palette: Non-blocking feedback for draft saving
     setIsSaved(true);
@@ -231,18 +244,6 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // Expand State for Result Widget
   const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
 
-  // ⚡ TRINITY: Fetch patients from API with fallback to MOCK
-  useEffect(() => {
-    const fetchPatients = async () => {
-        try {
-            const data = await patientService.getAll();
-            if (data && data.length > 0) setPatients(data);
-        } catch (error) {
-            console.warn("Usando datos locales de pacientes (Servidor no disponible)");
-        }
-    };
-    fetchPatients();
-  }, []);
 
   // Bolt ⚡: Memoize filtered results to prevent re-calculating on every render.
   // This is a crucial optimization for search inputs within large components.
@@ -457,7 +458,6 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     const inheritedAntecedents = lastRecord ? lastRecord.antecedents : '';
 
     setCurrentRecord({
-      id: `r${Date.now()}`,
       patientId: patient.id,
       professionalId: user.id,
       professionalName: user.name,

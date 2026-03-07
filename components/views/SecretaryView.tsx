@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Patient, Appointment, Invoice, InvoiceItem, RecordType, RecordStatus, ClinicalRecord, UserRole, TariffItem } from '../../types';
 import { MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_RECORDS, MOCK_SOAT_TARIFF, SMLDV_2024, formatCurrency, MOCK_USERS } from '../../constants';
 import { appointmentService } from '../../services/appointmentService';
+import { invoiceService } from '../../services/invoiceService';
 import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw, Loader2 } from 'lucide-react';
 
 interface SecretaryViewProps {
@@ -34,6 +35,24 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
     };
     fetchAppts();
   }, [selectedDate]);
+
+  // ⚡ TRINITY: Fetch invoices from API
+  React.useEffect(() => {
+    const fetchInvoices = async () => {
+        setIsLoadingInvoices(true);
+        try {
+            const data = await invoiceService.getAll();
+            setInvoices(data);
+        } catch (err) {
+            console.warn("Error al cargar facturas de la API");
+        } finally {
+            setIsLoadingInvoices(false);
+        }
+    };
+    if (activeTab === 'CARTERA') {
+        fetchInvoices();
+    }
+  }, [activeTab]);
   
   // Agenda Modal
   const [isApptModalOpen, setIsApptModalOpen] = useState(false);
@@ -52,6 +71,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   const [partialPayment, setPartialPayment] = useState<string>('');
   const [tariffMode, setTariffMode] = useState<'SOAT' | 'PARTICULAR'>('SOAT');
   const [invoices, setInvoices] = useState<Invoice[]>([]); // Cartera
+  const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
 
   // Manual Item
   const [manualItemName, setManualItemName] = useState('');
@@ -138,8 +158,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           
           const total = calculateProcedureTotal(apptProcedures);
 
-          const newInvoice: Invoice = {
-              id: `INV-${Date.now()}`,
+          const newInvoice: Partial<Invoice> = {
               patientId: patient!.id,
               patientName: patient!.fullName,
               date: new Date().toISOString(),
@@ -148,12 +167,17 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               discount: 0,
               total: total,
               balance: total, 
-              payments: [],
               payerType: 'INSURER', 
               status: 'PENDING'
           };
-          setInvoices([...invoices, newInvoice]);
-          alert("Cita agendada y Factura creada automáticamente en Cartera.");
+
+          try {
+              const savedInvoice = await invoiceService.create(newInvoice);
+              setInvoices([savedInvoice, ...invoices]);
+              alert("Cita agendada y Factura creada automáticamente en Cartera.");
+          } catch (err) {
+              alert("Cita agendada pero falló la creación de factura en el servidor.");
+          }
       } else {
           alert(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
       }
@@ -237,7 +261,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       return { subtotal, totalDiscount, total, totalItemDiscounts, globalDiscountAmount };
   };
 
-  const finalizeInvoice = () => {
+  const finalizeInvoice = async () => {
       if(!billingPatient) return;
       const { total, subtotal, totalDiscount } = calculateTotal();
       
@@ -245,8 +269,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       const balance = total - initialPayment;
       const status = balance <= 0 ? 'PAID' : (initialPayment > 0 ? 'PARTIAL' : 'PENDING');
 
-      const newInvoice: Invoice = {
-          id: `INV-${Date.now()}`,
+      const newInvoice: Partial<Invoice> = {
           patientId: billingPatient.id,
           patientName: billingPatient.fullName,
           date: new Date().toISOString(),
@@ -255,15 +278,29 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           discount: totalDiscount,
           total,
           balance,
-          payments: initialPayment > 0 ? [{ id: `pay-${Date.now()}`, date: new Date().toISOString(), amount: initialPayment, method: 'CASH' }] : [],
           payerType: tariffMode === 'PARTICULAR' ? 'PATIENT' : 'INSURER',
           status
       };
-      setInvoices([...invoices, newInvoice]);
-      setSelectedServices([]);
-      setBillingPatient(null);
-      setPartialPayment('');
-      alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
+
+      try {
+          const savedInvoice = await invoiceService.create(newInvoice);
+
+          if (initialPayment > 0) {
+              await invoiceService.addPayment(savedInvoice.id, initialPayment, 'CASH');
+              // Reload invoice to get updated status/balance
+              const updatedAll = await invoiceService.getAll();
+              setInvoices(updatedAll);
+          } else {
+              setInvoices([savedInvoice, ...invoices]);
+          }
+
+          setSelectedServices([]);
+          setBillingPatient(null);
+          setPartialPayment('');
+          alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
+      } catch (err) {
+          alert("Error al guardar la factura en el servidor.");
+      }
   };
 
   const printInvoice = (invoice: Invoice) => {
@@ -280,7 +317,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   // --- CARTERA HANDLERS ---
-  const registerPayment = (id: string) => {
+  const registerPayment = async (id: string) => {
       const inv = invoices.find(i => i.id === id);
       if(!inv) return;
 
@@ -293,18 +330,15 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           return;
       }
 
-      setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
-          const newBalance = invoice.balance - amount;
-          const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
-          return {
-              ...invoice,
-              balance: newBalance,
-              status: newStatus,
-              payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
-          };
-      }));
-      alert("Pago registrado correctamente.");
+      try {
+          await invoiceService.addPayment(id, amount, 'CASH');
+          // Reload invoices from server
+          const data = await invoiceService.getAll();
+          setInvoices(data);
+          alert("Pago registrado correctamente.");
+      } catch (err) {
+          alert("Error al registrar el pago en el servidor.");
+      }
   };
 
   return (

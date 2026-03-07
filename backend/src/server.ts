@@ -5,6 +5,9 @@ import dotenv from 'dotenv';
 import authRoutes from './modulos/auth/routes';
 import patientRoutes from './modulos/pacientes/routes';
 import agendaRoutes from './modulos/agenda/routes';
+import hceRoutes from './modulos/historias-clinicas/routes';
+import billingRoutes from './modulos/facturacion/routes';
+import { errorHandler } from './middlewares/errorMiddleware';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -25,6 +28,11 @@ app.use(cookieParser());
 app.use('/api/auth', authRoutes);
 app.use('/api/pacientes', patientRoutes);
 app.use('/api/agenda', agendaRoutes);
+app.use('/api/hce', hceRoutes);
+app.use('/api/facturacion', billingRoutes);
+
+// Manejo de errores centralizado
+app.use(errorHandler);
 
 // Ruta de health check
 app.get('/health', (req: Request, res: Response) => {
@@ -45,6 +53,8 @@ app.get('/', (req: Request, res: Response) => {
             auth: '/api/auth',
             pacientes: '/api/pacientes',
             agenda: '/api/agenda',
+            hce: '/api/hce',
+            facturacion: '/api/facturacion',
         }
     });
 });

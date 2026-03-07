@@ -101,6 +101,68 @@ VALUES
 ('Aquiles Brinco', '87654321', '1992-03-24', 'M', 'Compensar', 'Aspirina')
 ON CONFLICT (identificacion) DO NOTHING;
 
+-- Tabla de historias clínicas
+CREATE TABLE IF NOT EXISTS historias_clinicas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    profesional_nombre VARCHAR(255),
+    tipo_registro VARCHAR(50) NOT NULL,
+    fecha_creacion TIMESTAMP DEFAULT NOW(),
+    fecha_finalizacion TIMESTAMP,
+    estado VARCHAR(20) DEFAULT 'DRAFT' CHECK (estado IN ('DRAFT', 'FINALIZED')),
+    motivo_consulta TEXT,
+    enfermedad_actual TEXT,
+    antecedentes TEXT,
+    datos_dinamicos JSONB DEFAULT '{}',
+    diagnosticos JSONB DEFAULT '[]',
+    plan TEXT,
+    prescripciones JSONB DEFAULT '[]',
+    procedimientos_realizados JSONB DEFAULT '[]',
+    rda_status VARCHAR(20) DEFAULT 'PENDING',
+    rda_payload JSONB,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para historias clínicas
+CREATE INDEX IF NOT EXISTS idx_hce_paciente ON historias_clinicas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_hce_profesional ON historias_clinicas(profesional_id);
+CREATE INDEX IF NOT EXISTS idx_hce_estado ON historias_clinicas(estado);
+
+-- Tabla de facturas
+CREATE TABLE IF NOT EXISTS facturas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    numero_factura VARCHAR(50) UNIQUE NOT NULL,
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    paciente_nombre VARCHAR(255) NOT NULL,
+    fecha TIMESTAMP DEFAULT NOW(),
+    items JSONB DEFAULT '[]',
+    subtotal DECIMAL(15, 2) NOT NULL,
+    descuento DECIMAL(15, 2) DEFAULT 0,
+    total DECIMAL(15, 2) NOT NULL,
+    saldo DECIMAL(15, 2) NOT NULL,
+    tipo_pagador VARCHAR(20) CHECK (tipo_pagador IN ('PATIENT', 'INSURER')),
+    estado VARCHAR(20) DEFAULT 'PENDING' CHECK (estado IN ('PAID', 'PENDING', 'PARTIAL', 'CANCELLED')),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Tabla de pagos
+CREATE TABLE IF NOT EXISTS pagos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    factura_id UUID REFERENCES facturas(id) ON DELETE CASCADE,
+    fecha TIMESTAMP DEFAULT NOW(),
+    monto DECIMAL(15, 2) NOT NULL,
+    metodo VARCHAR(20) CHECK (metodo IN ('CASH', 'CARD', 'TRANSFER')),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para facturación
+CREATE INDEX IF NOT EXISTS idx_facturas_paciente ON facturas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_facturas_estado ON facturas(estado);
+CREATE INDEX IF NOT EXISTS idx_pagos_factura ON pagos(factura_id);
+
 -- Comentarios para documentación
 COMMENT ON TABLE usuarios IS 'Tabla de usuarios del sistema con control de acceso basado en roles (RBAC)';
 COMMENT ON TABLE sesiones IS 'Tabla de sesiones activas con refresh tokens para autenticación JWT';
