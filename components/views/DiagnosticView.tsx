@@ -126,8 +126,59 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const recordsToPrint = completedRecords.filter(r => r.dateCreated.startsWith(date));
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Habilite las ventanas emergentes.");
+
+      printWindow.document.write(`
+          <html>
+              <head>
+                  <title>Resultados - ${patientName}</title>
+                  <style>
+                      body { font-family: sans-serif; padding: 40px; color: #334155; }
+                      .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 30px; }
+                      .patient-info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 30px; }
+                      .result-block { border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+                      .result-title { font-weight: bold; font-size: 16px; color: #1e293b; border-bottom: 1px solid #f1f5f9; margin-bottom: 10px; }
+                      .field { display: grid; grid-template-columns: 200px 1fr; margin-bottom: 5px; font-size: 14px; }
+                      .field-label { font-weight: bold; color: #64748b; }
+                      .footer { margin-top: 50px; text-align: center; font-size: 10px; color: #94a3b8; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1>MEDICORE IPS - RESULTADOS DIAGNÓSTICOS</h1>
+                      <p>Fecha de Atención: ${date}</p>
+                  </div>
+                  <div class="patient-info">
+                      <strong>Paciente:</strong> ${patientName}
+                  </div>
+                  ${recordsToPrint.map(record => `
+                      <div class="result-block">
+                          <div class="result-title">${record.chiefComplaint}</div>
+                          ${Object.entries(record.dynamicData).map(([key, val]) => {
+                              const fieldLabel = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+                              return `
+                                  <div class="field">
+                                      <span class="field-label">${fieldLabel}:</span>
+                                      <span>${val}</span>
+                                  </div>
+                              `;
+                          }).join('')}
+                          <div style="margin-top: 15px; font-size: 12px; color: #64748b;">
+                              Interpretado por: ${record.professionalName}
+                          </div>
+                      </div>
+                  `).join('')}
+                  <div class="footer">
+                      Este documento es un reporte de resultados. Debe ser interpretado por su médico tratante.
+                  </div>
+                  <script>window.print();</script>
+              </body>
+          </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---

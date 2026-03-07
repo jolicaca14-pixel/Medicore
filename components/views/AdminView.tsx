@@ -9,6 +9,7 @@ import {
     Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson
 } from 'lucide-react';
 import { UserForm } from '../UserForm';
+import { hasAdministrativeAccess } from '../../utils/security';
 
 interface AdminViewProps {
   activeTab: string;
@@ -58,7 +59,7 @@ const roleLabels: Record<UserRole, string> = {
 };
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
-  const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
+  const isAdmin = hasAdministrativeAccess(currentUserSession);
 
   // --- STATE MANAGEMENT ---
   
@@ -105,6 +106,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
   const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
+
+  const [editingTemplate, setEditingTemplate] = useState<RoleTemplate | null>(null);
+  const [editingSection, setEditingSection] = useState<TemplateSection | null>(null);
+  const [editingField, setEditingField] = useState<TemplateField | null>(null);
 
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
@@ -238,6 +243,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
     // --- FILE MANAGEMENT HANDLERS ---
   const handleUploadFile = () => {
       setNewFileName('');
+      setSelectedUserIdForUpload(users[0]?.id);
       setIsFileUploadModalOpen(true);
   };
 
@@ -471,9 +477,78 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       alert("Paquete de RIPS generado y descargado exitosamente.");
   };
 
-  const handleNewTemplate = () => setIsTemplateModalOpen(true);
-  const handleNewSection = () => setIsSectionModalOpen(true);
-  const handleNewField = () => setIsFieldModalOpen(true);
+  const handleNewTemplate = () => { setEditingTemplate(null); setIsTemplateModalOpen(true); };
+  const handleNewSection = () => { setEditingSection(null); setIsSectionModalOpen(true); };
+  const handleNewField = () => { setEditingField(null); setIsFieldModalOpen(true); };
+
+  const handleEditTemplate = (t: RoleTemplate) => { setEditingTemplate(t); setIsTemplateModalOpen(true); };
+  const handleEditSection = (s: TemplateSection) => { setEditingSection(s); setIsSectionModalOpen(true); };
+  const handleEditField = (f: TemplateField) => { setEditingField(f); setIsFieldModalOpen(true); };
+
+  const handleSaveTemplate = (data: Partial<RoleTemplate>) => {
+      if (editingTemplate) {
+          setTemplates(prev => prev.map(t => t.id === editingTemplate.id ? { ...t, ...data } : t));
+      } else {
+          const newT: RoleTemplate = {
+              id: `t-${Date.now()}`,
+              name: data.name || 'Nueva Plantilla',
+              description: data.description || '',
+              active: true,
+              allowedRoles: [UserRole.PROFESSIONAL],
+              sections: [],
+              recordType: RecordType.GENERAL
+          };
+          setTemplates(prev => [...prev, newT]);
+      }
+      setIsTemplateModalOpen(false);
+  };
+
+  const handleSaveSection = (data: Partial<TemplateSection>) => {
+      if (editingSection) {
+          setGlobalSections(prev => prev.map(s => s.id === editingSection.id ? { ...s, ...data } : s));
+      } else {
+          const newS: TemplateSection = {
+              id: `s-${Date.now()}`,
+              title: data.title || 'Nueva Sección',
+              fields: []
+          };
+          setGlobalSections(prev => [...prev, newS]);
+      }
+      setIsSectionModalOpen(false);
+  };
+
+  const handleSaveField = (data: Partial<TemplateField>) => {
+      if (editingField) {
+          setGlobalFields(prev => prev.map(f => f.id === editingField.id ? { ...f, ...data } : f));
+      } else {
+          const newF: TemplateField = {
+              id: `f-${Date.now()}`,
+              label: data.label || 'Nuevo Campo',
+              type: 'TEXT',
+              required: false
+          };
+          setGlobalFields(prev => [...prev, newF]);
+      }
+      setIsFieldModalOpen(false);
+  };
+
+  const handleDeleteTemplate = (id: string) => {
+      if(window.confirm("¿Eliminar esta plantilla?")) {
+          setTemplates(prev => prev.filter(t => t.id !== id));
+      }
+  };
+
+  const handleDeleteSection = (id: string) => {
+      if(window.confirm("¿Eliminar esta sección?")) {
+          setGlobalSections(prev => prev.filter(s => s.id !== id));
+      }
+  };
+
+  const handleDeleteField = (id: string) => {
+      if(window.confirm("¿Eliminar este campo?")) {
+          setGlobalFields(prev => prev.filter(f => f.id !== id));
+      }
+  };
 
   // --- RENDER LOGIC ---
 
@@ -1247,27 +1322,72 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">{editingTemplate ? 'Editar' : 'Nueva'} Plantilla</h3>
+                        <div className="space-y-4">
+                            <label className="block text-xs font-bold text-slate-500">Nombre</label>
+                            <input id="tpl-name" className="w-full border p-2 rounded" placeholder="Nombre" defaultValue={editingTemplate?.name} />
+                            <label className="block text-xs font-bold text-slate-500">Descripción</label>
+                            <textarea id="tpl-desc" className="w-full border p-2 rounded" placeholder="Descripción" defaultValue={editingTemplate?.description} />
+                        </div>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2">Cancelar</button>
+                            <button
+                                onClick={() => {
+                                    const name = (document.getElementById('tpl-name') as HTMLInputElement).value;
+                                    const desc = (document.getElementById('tpl-desc') as HTMLTextAreaElement).value;
+                                    handleSaveTemplate({ name, description: desc });
+                                }}
+                                className="px-4 py-2 bg-slate-900 text-white rounded font-bold"
+                            >
+                                Guardar
+                            </button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">{editingSection ? 'Editar' : 'Nueva'} Sección</h3>
+                          <div className="space-y-4">
+                              <label className="block text-xs font-bold text-slate-500">Título</label>
+                              <input id="sec-title" className="w-full border p-2 rounded" placeholder="Título" defaultValue={editingSection?.title} />
+                          </div>
+                          <div className="mt-6 flex justify-end gap-2">
+                              <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2">Cancelar</button>
+                              <button
+                                onClick={() => {
+                                    const title = (document.getElementById('sec-title') as HTMLInputElement).value;
+                                    handleSaveSection({ title });
+                                }}
+                                className="px-4 py-2 bg-slate-900 text-white rounded font-bold"
+                              >
+                                Guardar
+                              </button>
+                          </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">{editingField ? 'Editar' : 'Nuevo'} Campo</h3>
+                          <div className="space-y-4">
+                              <label className="block text-xs font-bold text-slate-500">Etiqueta</label>
+                              <input id="fld-label" className="w-full border p-2 rounded" placeholder="Etiqueta" defaultValue={editingField?.label} />
+                          </div>
+                          <div className="mt-6 flex justify-end gap-2">
+                              <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2">Cancelar</button>
+                              <button
+                                onClick={() => {
+                                    const label = (document.getElementById('fld-label') as HTMLInputElement).value;
+                                    handleSaveField({ label });
+                                }}
+                                className="px-4 py-2 bg-slate-900 text-white rounded font-bold"
+                              >
+                                Guardar
+                              </button>
+                          </div>
                       </div>
                   </div>
               )}
@@ -1308,8 +1428,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           <LayoutTemplate size={20}/>
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button onClick={() => setIsTemplateModalOpen(true)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button onClick={() => window.confirm('¿Eliminar esta plantilla?') && alert('Plantilla eliminada')} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                                          <button onClick={() => handleEditTemplate(t)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
+                                          <button onClick={() => handleDeleteTemplate(t.id)} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
                                       </div>
                                   </div>
                                   <h4 className="font-bold text-slate-800">{t.name}</h4>
@@ -1371,7 +1491,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           ))}
                                           {sec.fields.length > 4 && <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] text-slate-500">+{sec.fields.length - 4}</div>}
                                       </div>
-                                      <button onClick={() => setIsSectionModalOpen(true)} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <div className="flex space-x-1">
+                                          <button onClick={() => handleEditSection(sec)} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                          <button onClick={() => handleDeleteSection(sec.id)} className="p-2 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button>
+                                      </div>
                                   </div>
                               </div>
                           ))}
@@ -1431,7 +1554,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                               ) : <span className="text-xs text-slate-400">Opcional</span>}
                                           </td>
                                           <td className="p-3 text-right">
-                                              <button onClick={() => setIsFieldModalOpen(true)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button onClick={() => handleEditField(field)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button onClick={() => handleDeleteField(field.id)} className="p-1.5 hover:bg-slate-200 rounded text-red-500"><Trash2 size={14}/></button>
                                           </td>
                                       </tr>
                                   ))}

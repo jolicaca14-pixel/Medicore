@@ -1,33 +1,28 @@
-import { sanitizeInput } from './security';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { sanitizeInput, hasAdministrativeAccess } from './security';
+import { UserRole, User } from '../types';
 
-/**
- * 🧪 Smith: Security Unit Tests
- * Run with: node utils/security.test.js (after compilation)
- */
-const testSanitizeInput = () => {
-  console.log('Testing sanitizeInput...');
+test('sanitizeInput', () => {
+  assert.strictEqual(sanitizeInput('hello'), 'hello');
+  assert.strictEqual(sanitizeInput('<script>alert("xss")</script>'), 'scriptalert("xss")/script');
+  assert.strictEqual(sanitizeInput('<div><b>Bold</b></div>'), 'divbBold/b/div');
+  assert.strictEqual(sanitizeInput(null as any), '');
+  assert.strictEqual(sanitizeInput(undefined as any), '');
+});
 
-  // Test case 1: Simple string
-  console.assert(sanitizeInput('hello') === 'hello', 'Test 1 Failed');
+test('hasAdministrativeAccess', () => {
+  const adminUser: User = { roles: [UserRole.ADMIN] } as User;
+  const managerUser: User = { roles: [UserRole.MANAGER] } as User;
+  const accountantUser: User = { roles: [UserRole.ACCOUNTANT] } as User;
+  const healthUser: User = { roles: [UserRole.PROFESSIONAL] } as User;
+  const mixedUser: User = { roles: [UserRole.PROFESSIONAL, UserRole.MANAGER] } as User;
 
-  // Test case 2: Script tag
-  const input2 = '<script>alert("xss")</script>';
-  const expected2 = 'scriptalert("xss")/script';
-  console.assert(sanitizeInput(input2) === expected2, 'Test 2 Failed');
-
-  // Test case 3: Nested tags
-  const input3 = '<div><b>Bold</b></div>';
-  const expected3 = 'divbBold/b/div';
-  console.assert(sanitizeInput(input3) === expected3, 'Test 3 Failed');
-
-  // Test case 4: null/undefined
-  console.assert(sanitizeInput(null as any) === '', 'Test 4 Failed');
-  console.assert(sanitizeInput(undefined as any) === '', 'Test 5 Failed');
-
-  console.log('All security tests passed.');
-};
-
-// Auto-execute if run directly (logic for test runner would go here)
-if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-    testSanitizeInput();
-}
+  assert.strictEqual(hasAdministrativeAccess(adminUser), true);
+  assert.strictEqual(hasAdministrativeAccess(managerUser), true);
+  assert.strictEqual(hasAdministrativeAccess(accountantUser), true);
+  assert.strictEqual(hasAdministrativeAccess(healthUser), false);
+  assert.strictEqual(hasAdministrativeAccess(mixedUser), true);
+  assert.strictEqual(hasAdministrativeAccess(null), false);
+  assert.strictEqual(hasAdministrativeAccess({ roles: [] } as any), false);
+});

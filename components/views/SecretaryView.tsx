@@ -267,16 +267,76 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Habilite las ventanas emergentes para imprimir.");
+
+      printWindow.document.write(`
+          <html>
+              <head>
+                  <title>Factura ${invoice.id}</title>
+                  <style>
+                      body { font-family: sans-serif; padding: 40px; color: #334155; }
+                      .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
+                      .info { margin-bottom: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+                      .table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                      .table th { background: #f8fafc; text-align: left; padding: 12px; border-bottom: 2px solid #e2e8f0; }
+                      .table td { padding: 12px; border-bottom: 1px solid #e2e8f0; }
+                      .totals { text-align: right; }
+                      .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #94a3b8; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1>MEDICORE IPS</h1>
+                      <p>Factura de Venta N° ${invoice.id}</p>
+                      <p>Fecha: ${new Date(invoice.date).toLocaleDateString()}</p>
+                  </div>
+                  <div class="info">
+                      <div>
+                          <strong>Cliente / Paciente:</strong><br/>
+                          ${invoice.patientName}
+                      </div>
+                      <div style="text-align: right">
+                          <strong>Estado:</strong> ${invoice.status}<br/>
+                          <strong>Payer:</strong> ${invoice.payerType}
+                      </div>
+                  </div>
+                  <table class="table">
+                      <thead>
+                          <tr>
+                              <th>Servicio / Producto</th>
+                              <th>Cant.</th>
+                              <th>Precio</th>
+                              <th>Total</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          ${invoice.items.map(item => `
+                              <tr>
+                                  <td>${item.name}</td>
+                                  <td>${item.quantity}</td>
+                                  <td>${formatCurrency(item.price)}</td>
+                                  <td>${formatCurrency(item.price * item.quantity)}</td>
+                              </tr>
+                          `).join('')}
+                      </tbody>
+                  </table>
+                  <div class="totals">
+                      <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+                      <p>Descuentos: -${formatCurrency(invoice.discount)}</p>
+                      <p style="font-size: 20px; font-bold: true;">Total: ${formatCurrency(invoice.total)}</p>
+                      <hr/>
+                      <p>Pagado: ${formatCurrency(invoice.total - invoice.balance)}</p>
+                      <p style="color: #dc2626"><strong>Saldo Pendiente: ${formatCurrency(invoice.balance)}</strong></p>
+                  </div>
+                  <div class="footer">
+                      Gracias por confiar en MEDICORE IPS. Resolucion DIAN 12345678.
+                  </div>
+                  <script>window.print();</script>
+              </body>
+          </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
