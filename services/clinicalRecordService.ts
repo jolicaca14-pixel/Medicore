@@ -5,7 +5,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 export const clinicalRecordService = {
   async getByPatientId(patientId: string): Promise<ClinicalRecord[]> {
     try {
-      const response = await fetch(`${API_URL}/historias/paciente/${patientId}`, {
+      const response = await fetch(`${API_URL}/hce/paciente/${patientId}`, {
         headers: {
           'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
         }
@@ -20,7 +20,7 @@ export const clinicalRecordService = {
 
   async create(record: Partial<ClinicalRecord>): Promise<ClinicalRecord> {
     try {
-      const response = await fetch(`${API_URL}/historias`, {
+      const response = await fetch(`${API_URL}/hce`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -38,7 +38,7 @@ export const clinicalRecordService = {
 
   async finalize(id: string, signature: string): Promise<ClinicalRecord> {
     try {
-      const response = await fetch(`${API_URL}/historias/${id}/finalizar`, {
+      const response = await fetch(`${API_URL}/hce/${id}/finalizar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
