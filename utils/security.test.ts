@@ -1,33 +1,47 @@
-import { sanitizeInput } from './security';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { sanitizeInput, hasAdministrativeAccess } from './security';
+import { UserRole, User } from '../types';
 
-/**
- * 🧪 Smith: Security Unit Tests
- * Run with: node utils/security.test.js (after compilation)
- */
-const testSanitizeInput = () => {
-  console.log('Testing sanitizeInput...');
+test('sanitizeInput', async (t) => {
+  await t.test('should return empty string for null or undefined', () => {
+    assert.strictEqual(sanitizeInput(null), '');
+    assert.strictEqual(sanitizeInput(undefined), '');
+  });
 
-  // Test case 1: Simple string
-  console.assert(sanitizeInput('hello') === 'hello', 'Test 1 Failed');
+  await t.test('should remove < and > characters', () => {
+    assert.strictEqual(sanitizeInput('<script>alert("xss")</script>'), 'scriptalert("xss")/script');
+    assert.strictEqual(sanitizeInput('<b>Hello</b>'), 'bHello/b');
+  });
 
-  // Test case 2: Script tag
-  const input2 = '<script>alert("xss")</script>';
-  const expected2 = 'scriptalert("xss")/script';
-  console.assert(sanitizeInput(input2) === expected2, 'Test 2 Failed');
+  await t.test('should leave normal strings alone', () => {
+    assert.strictEqual(sanitizeInput('Hello World'), 'Hello World');
+    assert.strictEqual(sanitizeInput('12345'), '12345');
+  });
+});
 
-  // Test case 3: Nested tags
-  const input3 = '<div><b>Bold</b></div>';
-  const expected3 = 'divbBold/b/div';
-  console.assert(sanitizeInput(input3) === expected3, 'Test 3 Failed');
+test('hasAdministrativeAccess', async (t) => {
+  const adminUser: Partial<User> = { roles: [UserRole.ADMIN] };
+  const managerUser: Partial<User> = { roles: [UserRole.MANAGER] };
+  const accountantUser: Partial<User> = { roles: [UserRole.ACCOUNTANT] };
+  const professionalUser: Partial<User> = { roles: [UserRole.PROFESSIONAL] };
+  const multipleRolesUser: Partial<User> = { roles: [UserRole.PROFESSIONAL, UserRole.MANAGER] };
 
-  // Test case 4: null/undefined
-  console.assert(sanitizeInput(null as any) === '', 'Test 4 Failed');
-  console.assert(sanitizeInput(undefined as any) === '', 'Test 5 Failed');
+  await t.test('should return true for ADMIN, MANAGER, or ACCOUNTANT', () => {
+    assert.strictEqual(hasAdministrativeAccess(adminUser as User), true);
+    assert.strictEqual(hasAdministrativeAccess(managerUser as User), true);
+    assert.strictEqual(hasAdministrativeAccess(accountantUser as User), true);
+  });
 
-  console.log('All security tests passed.');
-};
+  await t.test('should return true if at least one role is administrative', () => {
+    assert.strictEqual(hasAdministrativeAccess(multipleRolesUser as User), true);
+  });
 
-// Auto-execute if run directly (logic for test runner would go here)
-if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-    testSanitizeInput();
-}
+  await t.test('should return false for non-administrative roles', () => {
+    assert.strictEqual(hasAdministrativeAccess(professionalUser as User), false);
+  });
+
+  await t.test('should return false for undefined user', () => {
+    assert.strictEqual(hasAdministrativeAccess(undefined), false);
+  });
+});
