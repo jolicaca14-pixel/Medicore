@@ -109,9 +109,22 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'FILE' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50">
+                  <div
+                    className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50 relative"
+                    onClick={() => document.getElementById(`file-input-${field.id}`)?.click()}
+                  >
+                      <input
+                        id={`file-input-${field.id}`}
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) setDynamicData({...dynamicData, [field.id]: file.name});
+                        }}
+                      />
                       <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
-                      <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                      <p className="text-xs text-slate-500 font-bold">{val || 'Click para cargar imágenes (DICOM/JPG)'}</p>
+                      {val && <p className="text-[10px] text-green-600 mt-1">Archivo seleccionado</p>}
                   </div>
               ) : (
                   <input 
@@ -126,8 +139,73 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientFullName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+          alert("Por favor, permita las ventanas emergentes para imprimir los resultados.");
+          return;
+      }
+
+      const recordsForDate = completedRecords.filter(r =>
+          MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientFullName &&
+          r.dateCreated.startsWith(date)
+      );
+
+      const html = `
+        <html>
+          <head>
+            <title>Resultados - ${patientFullName} - ${date}</title>
+            <style>
+              body { font-family: sans-serif; padding: 40px; color: #334155; }
+              .header { border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; text-align: center; }
+              .patient-info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+              .result-card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; break-inside: avoid; }
+              .result-title { font-size: 18px; font-weight: bold; color: #1e293b; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; }
+              .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+              .field-label { font-weight: bold; font-size: 12px; color: #64748b; }
+              .field-value { font-size: 14px; margin-bottom: 10px; }
+              .footer { margin-top: 50px; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 12px; }
+              @media print { .no-print { display: none; } }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1 style="margin: 0;">MEDICORE IPS</h1>
+              <p style="color: #64748b;">Reporte Consolidado de Ayudas Diagnósticas</p>
+            </div>
+
+            <div class="patient-info">
+              <div><strong>Paciente:</strong> ${patientFullName}</div>
+              <div><strong>Fecha de Reporte:</strong> ${date}</div>
+            </div>
+
+            ${recordsForDate.map(record => `
+              <div class="result-card">
+                <div class="result-title">${record.chiefComplaint}</div>
+                <div class="field-grid">
+                  ${Object.entries(record.dynamicData).map(([key, val]) => `
+                    <div>
+                      <div class="field-label">${MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key}</div>
+                      <div class="field-value">${val}</div>
+                    </div>
+                  `).join('')}
+                </div>
+                <div style="margin-top: 15px; font-size: 12px; color: #94a3b8;">
+                  Interpretado por: ${record.professionalName}
+                </div>
+              </div>
+            `).join('')}
+
+            <div class="footer">
+              <p>Este documento es una representación impresa de un resultado electrónico. Validez verificada digitalmente.</p>
+              <button class="no-print" onclick="window.print()" style="padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Imprimir Reporte</button>
+            </div>
+          </body>
+        </html>
+      `;
+
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---
