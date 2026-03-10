@@ -267,16 +267,73 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert('Por favor, permita las ventanas emergentes para imprimir.');
+
+      const html = `
+          <html>
+              <head>
+                  <title>Factura de Venta - ${invoice.id}</title>
+                  <style>
+                      body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+                      .header { border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+                      .company { font-size: 24px; font-bold: true; }
+                      .invoice-info { margin-bottom: 20px; }
+                      .items { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                      .items th, .items td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                      .items th { background: #f4f4f4; }
+                      .totals { text-align: right; }
+                      .totals p { margin: 5px 0; font-size: 14px; }
+                      .final-total { font-size: 18px; font-weight: bold; border-top: 2px solid #333; padding-top: 10px; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <div class="company">MEDICORE IPS SAS</div>
+                      <div>NIT: 900.123.456-7</div>
+                      <div>Dirección: Calle 100 # 15-20, Bogotá D.C.</div>
+                  </div>
+                  <div class="invoice-info">
+                      <h2>FACTURA DE VENTA N° ${invoice.id}</h2>
+                      <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleString()}</p>
+                      <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                      <p><strong>Identificación:</strong> ${MOCK_PATIENTS.find(p => p.id === invoice.patientId)?.identification || 'N/A'}</p>
+                  </div>
+                  <table class="items">
+                      <thead>
+                          <tr>
+                              <th>Cód. CUPS</th>
+                              <th>Descripción</th>
+                              <th>Cant.</th>
+                              <th>Precio Unit.</th>
+                              <th>Subtotal</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          ${invoice.items.map(item => `
+                              <tr>
+                                  <td>${item.code}</td>
+                                  <td>${item.name}</td>
+                                  <td>${item.quantity}</td>
+                                  <td>${formatCurrency(item.price)}</td>
+                                  <td>${formatCurrency(item.price * item.quantity)}</td>
+                              </tr>
+                          `).join('')}
+                      </tbody>
+                  </table>
+                  <div class="totals">
+                      <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+                      <p>Descuentos: - ${formatCurrency(invoice.discount)}</p>
+                      <p class="final-total">TOTAL A PAGAR: ${formatCurrency(invoice.total)}</p>
+                      <p>Abonos: ${formatCurrency(invoice.total - invoice.balance)}</p>
+                      <p>Saldo Pendiente: ${formatCurrency(invoice.balance)}</p>
+                  </div>
+              </body>
+          </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- CARTERA HANDLERS ---
