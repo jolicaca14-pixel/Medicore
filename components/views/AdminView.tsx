@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType, TariffItem, Contract, ContractType, ContractAudit, DisciplinaryAction, PaymentRequest, ClinicalRecord, RecordType, RecordStatus, Patient } from '../../types';
+import { hasAdministrativeAccess } from '../../utils/security';
 import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
 import { 
@@ -58,7 +59,7 @@ const roleLabels: Record<UserRole, string> = {
 };
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
-  const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
+  const isAdmin = hasAdministrativeAccess(currentUserSession?.roles);
 
   // --- STATE MANAGEMENT ---
   
@@ -472,8 +473,42 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
 
   const handleNewTemplate = () => setIsTemplateModalOpen(true);
+  const handleSaveNewTemplate = (name: string, description: string) => {
+      const newTpl: RoleTemplate = {
+          id: `t_${Date.now()}`,
+          name,
+          description,
+          active: true,
+          allowedRoles: [UserRole.PROFESSIONAL],
+          sections: [],
+          recordType: RecordType.GENERAL
+      };
+      setTemplates([...templates, newTpl]);
+      setIsTemplateModalOpen(false);
+  };
+
   const handleNewSection = () => setIsSectionModalOpen(true);
+  const handleSaveNewSection = (title: string) => {
+      const newSec: TemplateSection = {
+          id: `sec_${Date.now()}`,
+          title,
+          fields: []
+      };
+      setGlobalSections([...globalSections, newSec]);
+      setIsSectionModalOpen(false);
+  };
+
   const handleNewField = () => setIsFieldModalOpen(true);
+  const handleSaveNewField = (label: string, type: string) => {
+      const newFld: TemplateField = {
+          id: `f_${Date.now()}`,
+          label,
+          type: type as FieldType,
+          required: false
+      };
+      setGlobalFields([...globalFields, newFld]);
+      setIsFieldModalOpen(false);
+  };
 
   // --- RENDER LOGIC ---
 
@@ -1166,7 +1201,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* User Form Space (Top) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <div className="bg-slate-50 p-6 rounded-xl border-2 border-dashed border-slate-200 mb-8">
+                 <h2 className="text-xl font-black text-slate-800 mb-4 uppercase tracking-tighter flex items-center">
+                    <Plus className="mr-2 text-blue-600"/> Espacio de Creación de Usuarios
+                 </h2>
+                 <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-100">
                  <div className="flex justify-between items-center mb-6 border-b pb-4">
                     <div>
                         <h3 className="text-lg font-bold text-slate-800">
@@ -1185,6 +1224,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         onCancel={() => setCurrentUser({})}
                         isEmbedded={true}
                     />
+                 </div>
                  </div>
             </div>
 
@@ -1246,29 +1286,87 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                    <form
+                        className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6"
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = new FormData(e.currentTarget);
+                            handleSaveNewTemplate(formData.get('name') as string, formData.get('description') as string);
+                        }}
+                    >
                         <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
-                    </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Nombre de la Plantilla</label>
+                                <input name="name" type="text" required className="w-full border p-2 rounded" placeholder="Ej: Consulta General" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Descripción</label>
+                                <textarea name="description" required className="w-full border p-2 rounded" rows={3} placeholder="Descripción de la plantilla..."></textarea>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button type="button" onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                            <button type="submit" className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm">Guardar</button>
+                        </div>
+                    </form>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                      <form
+                        className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6"
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = new FormData(e.currentTarget);
+                            handleSaveNewSection(formData.get('title') as string);
+                        }}
+                      >
                           <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
-                      </div>
+                          <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Título de la Sección</label>
+                                <input name="title" type="text" required className="w-full border p-2 rounded" placeholder="Ej: Antecedentes" />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button type="button" onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                            <button type="submit" className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm">Guardar</button>
+                        </div>
+                      </form>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                      <form
+                        className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6"
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = new FormData(e.currentTarget);
+                            handleSaveNewField(formData.get('label') as string, formData.get('type') as string);
+                        }}
+                      >
                           <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
-                      </div>
+                          <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Etiqueta del Campo</label>
+                                <input name="label" type="text" required className="w-full border p-2 rounded" placeholder="Ej: Tensión Arterial" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Tipo de Dato</label>
+                                <select name="type" required className="w-full border p-2 rounded">
+                                    <option value="TEXT">TEXT</option>
+                                    <option value="NUMBER">NUMBER</option>
+                                    <option value="SELECT">SELECT</option>
+                                    <option value="TEXTAREA">TEXTAREA</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button type="button" onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                            <button type="submit" className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm">Guardar</button>
+                        </div>
+                      </form>
                   </div>
               )}
               {/* Settings Nav */}
@@ -1309,7 +1407,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                           <button onClick={() => setIsTemplateModalOpen(true)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button onClick={() => window.confirm('¿Eliminar esta plantilla?') && alert('Plantilla eliminada')} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                                          <button onClick={() => { if(window.confirm('¿Eliminar esta plantilla?')) setTemplates(templates.filter(temp => temp.id !== t.id)); }} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
                                       </div>
                                   </div>
                                   <h4 className="font-bold text-slate-800">{t.name}</h4>
@@ -1372,6 +1470,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           {sec.fields.length > 4 && <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] text-slate-500">+{sec.fields.length - 4}</div>}
                                       </div>
                                       <button onClick={() => setIsSectionModalOpen(true)} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => { if(window.confirm('¿Eliminar esta sección?')) setGlobalSections(globalSections.filter(s => s.id !== sec.id)); }} className="p-2 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button>
                                   </div>
                               </div>
                           ))}
@@ -1432,6 +1531,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           </td>
                                           <td className="p-3 text-right">
                                               <button onClick={() => setIsFieldModalOpen(true)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button onClick={() => { if(window.confirm('¿Eliminar este campo?')) setGlobalFields(globalFields.filter(f => f.id !== field.id)); }} className="p-1.5 hover:bg-slate-200 rounded text-red-500"><Trash2 size={14}/></button>
                                           </td>
                                       </tr>
                                   ))}
