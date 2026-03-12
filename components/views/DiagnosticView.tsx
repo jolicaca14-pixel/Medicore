@@ -109,9 +109,21 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'FILE' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50">
-                      <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
-                      <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                  <div
+                    className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50 transition-colors"
+                    onClick={() => document.getElementById(`file-input-${field.id}`)?.click()}
+                  >
+                      <Upload size={20} className={`mx-auto mb-2 ${val ? 'text-green-500' : 'text-slate-400'}`}/>
+                      <p className="text-xs font-bold text-slate-700">{val || 'Click para cargar imágenes (DICOM/JPG)'}</p>
+                      <input
+                        type="file"
+                        id={`file-input-${field.id}`}
+                        className="hidden"
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if(file) setDynamicData({...dynamicData, [field.id]: file.name});
+                        }}
+                      />
                   </div>
               ) : (
                   <input 
@@ -126,8 +138,59 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientFullName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Habilite las ventanas emergentes para imprimir.");
+
+      // Filter records for this specific patient and date
+      const groupResults = completedRecords.filter(r =>
+        MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientFullName &&
+        r.dateCreated.startsWith(date)
+      );
+
+      const content = `
+        <html>
+        <head>
+          <title>Resultados - ${patientFullName} - ${date}</title>
+          <style>
+            body { font-family: sans-serif; padding: 40px; color: #334155; line-height: 1.5; }
+            .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px; }
+            .patient-info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 30px; }
+            .result-block { border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px; page-break-inside: avoid; }
+            .result-title { font-weight: bold; font-size: 1.1rem; border-bottom: 1px solid #cbd5e1; margin-bottom: 10px; padding-bottom: 5px; color: #1e293b; }
+            .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9rem; }
+            .footer { margin-top: 50px; text-align: center; font-size: 0.8rem; color: #64748b; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>MEDICORE IPS</h1>
+            <p>Laboratorio Clínico y Apoyo Diagnóstico</p>
+          </div>
+          <div class="patient-info">
+            <p><strong>PACIENTE:</strong> ${patientFullName}</p>
+            <p><strong>FECHA DE ESTUDIO:</strong> ${date}</p>
+          </div>
+          ${groupResults.map(r => `
+            <div class="result-block">
+              <div class="result-title">${r.chiefComplaint}</div>
+              <div class="data-grid">
+                ${Object.entries(r.dynamicData).map(([key, val]) => {
+                  const label = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+                  return `<div><strong>${label}:</strong> ${val}</div>`;
+                }).join('')}
+              </div>
+            </div>
+          `).join('')}
+          <div class="footer">
+            <p>Información confidencial para uso médico. Firma digital: ${user.name}</p>
+          </div>
+          <script>window.print();</script>
+        </body>
+        </html>
+      `;
+      printWindow.document.write(content);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---

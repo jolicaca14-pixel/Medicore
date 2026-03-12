@@ -828,17 +828,25 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                   <div className="space-y-2">
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
-                                              <FileText size={16} className="text-slate-400 mr-2"/>
-                                              <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
+                                              <FileText size={16} className={`${newPayment.files.includes('seguridad_social.pdf') ? 'text-green-500' : 'text-slate-400'} mr-2`}/>
+                                              <span className="text-xs text-slate-600">
+                                                {newPayment.files.includes('seguridad_social.pdf') ? 'seguridad_social.pdf' : 'Planilla Seguridad Social'}
+                                              </span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => setNewPayment({...newPayment, files: [...newPayment.files, 'seguridad_social.pdf']})} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">
+                                            {newPayment.files.includes('seguridad_social.pdf') ? 'Cambiado' : 'Seleccionar...'}
+                                          </button>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
-                                              <FileText size={16} className="text-slate-400 mr-2"/>
-                                              <span className="text-xs text-slate-600">Informe de Actividades</span>
+                                              <FileText size={16} className={`${newPayment.files.includes('informe_actividades.pdf') ? 'text-green-500' : 'text-slate-400'} mr-2`}/>
+                                              <span className="text-xs text-slate-600">
+                                                {newPayment.files.includes('informe_actividades.pdf') ? 'informe_actividades.pdf' : 'Informe de Actividades'}
+                                              </span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => setNewPayment({...newPayment, files: [...newPayment.files, 'informe_actividades.pdf']})} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">
+                                            {newPayment.files.includes('informe_actividades.pdf') ? 'Cambiado' : 'Seleccionar...'}
+                                          </button>
                                       </div>
                                   </div>
                               </div>
