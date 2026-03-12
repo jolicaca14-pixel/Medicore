@@ -267,16 +267,81 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Habilite las ventanas emergentes para imprimir.");
+
+      const content = `
+        <html>
+        <head>
+          <title>Factura ${invoice.id}</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #334155; }
+            .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px; }
+            .factura-info { display: flex; justify-content: space-between; margin-bottom: 30px; }
+            .table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+            .table th, .table td { padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            .table th { background-color: #f8fafc; }
+            .totals { float: right; width: 300px; }
+            .totals div { display: flex; justify-content: space-between; padding: 5px 0; }
+            .total-final { font-size: 1.25rem; font-bold: true; border-top: 2px solid #334155; margin-top: 10px; padding-top: 10px; }
+            .footer { margin-top: 100px; text-align: center; font-size: 0.75rem; color: #94a3b8; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>MEDICORE IPS SAS</h1>
+            <p>NIT: 900.123.456-7 | Cra 15 # 93-02, Bogotá</p>
+            <h2>FACTURA DE VENTA N° ${invoice.id}</h2>
+          </div>
+          <div class="factura-info">
+            <div>
+              <p><strong>CLIENTE:</strong> ${invoice.patientName}</p>
+              <p><strong>FECHA:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+            </div>
+            <div>
+              <p><strong>ESTADO:</strong> ${invoice.status}</p>
+              <p><strong>TIPO:</strong> ${invoice.payerType === 'PATIENT' ? 'PARTICULAR' : 'ENTIDAD'}</p>
+            </div>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Descripción</th>
+                <th>Cant.</th>
+                <th>Precio Unit.</th>
+                <th>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${invoice.items.map(item => `
+                <tr>
+                  <td>${item.code}</td>
+                  <td>${item.name}</td>
+                  <td>${item.quantity}</td>
+                  <td>${formatCurrency(item.price)}</td>
+                  <td>${formatCurrency(item.price * item.quantity)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="totals">
+            <div><span>Subtotal:</span> <span>${formatCurrency(invoice.subtotal)}</span></div>
+            <div><span>Descuento:</span> <span>- ${formatCurrency(invoice.discount)}</span></div>
+            <div class="total-final"><span>TOTAL:</span> <span>${formatCurrency(invoice.total)}</span></div>
+            <div style="margin-top: 10px;"><span>Pagado:</span> <span>${formatCurrency(invoice.total - invoice.balance)}</span></div>
+            <div style="font-bold: true; color: #dc2626;"><span>SALDO PENDIENTE:</span> <span>${formatCurrency(invoice.balance)}</span></div>
+          </div>
+          <div style="clear: both;"></div>
+          <div class="footer">
+            <p>Representación gráfica de factura electrónica. Gracias por su confianza.</p>
+          </div>
+          <script>window.print();</script>
+        </body>
+        </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+      printWindow.document.write(content);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
