@@ -296,7 +296,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       // Update the disciplinary action with the response
       const updatedHistory = hrUser.disciplinaryHistory?.map(action => 
           action.id === selectedActionId 
-          ? { ...action, response: descargoText } 
+          ? { ...action, response: descargoText, status: 'RESOLVED' as const }
           : action
       );
 
@@ -304,7 +304,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       setHrUser(updatedUser); // Update local view state
       
       // In a real app, this would call an API.
-      alert("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
+      // alert("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
       setShowDescargosModal(false);
   };
 
@@ -393,7 +393,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           pdfWindow.document.close();
       }
 
-      alert("Cuenta de cobro generada y notificada a Administración.");
+      // alert("Cuenta de cobro generada y notificada a Administración.");
   };
 
 
@@ -829,16 +829,24 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
                                               <FileText size={16} className="text-slate-400 mr-2"/>
-                                              <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
+                                              <span className="text-xs text-slate-600">
+                                                  {newPayment.files.find(f => f.includes('Social')) ? '✅ Planilla Cargada' : 'Planilla Seguridad Social'}
+                                              </span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => setNewPayment(prev => ({ ...prev, files: [...prev.files, 'Seguridad_Social.pdf'] }))} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">
+                                              {newPayment.files.find(f => f.includes('Social')) ? 'Cambiar' : 'Seleccionar...'}
+                                          </button>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
                                               <FileText size={16} className="text-slate-400 mr-2"/>
-                                              <span className="text-xs text-slate-600">Informe de Actividades</span>
+                                              <span className="text-xs text-slate-600">
+                                                  {newPayment.files.find(f => f.includes('Actividades')) ? '✅ Informe Cargado' : 'Informe de Actividades'}
+                                              </span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => setNewPayment(prev => ({ ...prev, files: [...prev.files, 'Informe_Actividades.pdf'] }))} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">
+                                              {newPayment.files.find(f => f.includes('Actividades')) ? 'Cambiar' : 'Seleccionar...'}
+                                          </button>
                                       </div>
                                   </div>
                               </div>
