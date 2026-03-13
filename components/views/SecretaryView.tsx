@@ -267,16 +267,86 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank', 'width=800,height=800');
+      if (!printWindow) return alert("Por favor permita las ventanas emergentes para imprimir la factura.");
+
+      const html = `
+        <html>
+          <head>
+            <title>Factura de Venta - ${invoice.id}</title>
+            <style>
+              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; }
+              .header { display: flex; justify-content: space-between; border-bottom: 2px solid #334155; padding-bottom: 20px; margin-bottom: 30px; }
+              .company-info h1 { margin: 0; color: #2563eb; }
+              .invoice-details { text-align: right; }
+              .invoice-details h2 { margin: 0; color: #64748b; }
+              .client-info { margin-bottom: 30px; background: #f8fafc; padding: 20px; border-radius: 8px; }
+              table { w-full; border-collapse: collapse; margin-bottom: 30px; width: 100%; }
+              th { text-align: left; background: #f1f5f9; padding: 12px; border-bottom: 2px solid #e2e8f0; }
+              td { padding: 12px; border-bottom: 1px solid #e2e8f0; }
+              .totals { margin-left: auto; width: 300px; }
+              .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
+              .grand-total { font-weight: bold; font-size: 1.2rem; border-top: 2px solid #334155; margin-top: 10px; padding-top: 10px; }
+              .footer { margin-top: 50px; text-align: center; font-size: 0.8rem; color: #94a3b8; }
+              @media print { .no-print { display: none; } }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="company-info">
+                <h1>MEDICORE IPS SAS</h1>
+                <p>NIT: 900.123.456-7<br>Calle 100 # 15-20, Bogotá<br>Tel: (601) 123 4567</p>
+              </div>
+              <div class="invoice-details">
+                <h2>FACTURA DE VENTA</h2>
+                <p><strong>N°:</strong> ${invoice.id}<br><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+              </div>
+            </div>
+
+            <div class="client-info">
+              <p><strong>CLIENTE:</strong> ${invoice.patientName}</p>
+              <p><strong>TIPO:</strong> ${invoice.payerType === 'INSURER' ? 'Institucional' : 'Particular'}</p>
+              <p><strong>ESTADO:</strong> ${invoice.status}</p>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Descripción</th>
+                  <th>Cant.</th>
+                  <th>Precio Unit.</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${invoice.items.map(item => `
+                  <tr>
+                    <td>${item.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>${formatCurrency(item.price)}</td>
+                    <td>${formatCurrency(item.price * item.quantity)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+
+            <div class="totals">
+              <div class="total-row"><span>Subtotal:</span> <span>${formatCurrency(invoice.subtotal)}</span></div>
+              <div class="total-row"><span>Descuentos:</span> <span>- ${formatCurrency(invoice.discount)}</span></div>
+              <div class="total-row grand-total"><span>TOTAL:</span> <span>${formatCurrency(invoice.total)}</span></div>
+              <div class="total-row"><span>Pagado:</span> <span>${formatCurrency(invoice.total - invoice.balance)}</span></div>
+              <div class="total-row" style="color: #dc2626; font-weight: bold;"><span>SALDO PENDIENTE:</span> <span>${formatCurrency(invoice.balance)}</span></div>
+            </div>
+
+            <div class="footer">
+              <p>Esta factura se asimila en todos sus efectos a una letra de cambio según el Art. 774 del código de comercio.</p>
+              <button class="no-print" onclick="window.print()" style="margin-top: 20px; padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">Imprimir Factura</button>
+            </div>
+          </body>
+        </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---

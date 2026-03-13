@@ -126,8 +126,59 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientFullName: string, date: string) => {
+      const recordsToPrint = completedRecords.filter(r =>
+          MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientFullName &&
+          r.dateCreated.startsWith(date)
+      );
+
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      if (!printWindow) return alert("Por favor permita las ventanas emergentes para imprimir.");
+
+      const html = `
+        <html>
+          <head>
+            <title>Resultados de Diagnóstico - ${patientFullName}</title>
+            <style>
+              body { font-family: sans-serif; padding: 40px; color: #334155; }
+              .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+              .patient-info { margin-bottom: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+              .record { margin-bottom: 40px; padding: 20px; border: 1px solid #e2e8f0; rounded: 8px; }
+              .record-title { font-weight: bold; font-size: 1.2rem; color: #1e293b; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; }
+              .field { margin-bottom: 8px; display: grid; grid-template-columns: 200px 1fr; }
+              .label { font-weight: bold; color: #64748b; font-size: 0.8rem; }
+              .value { font-size: 0.9rem; }
+              @media print { button { display: none; } }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>MEDICORE IPS</h1>
+              <h2>Reporte de Resultados Diagnósticos</h2>
+            </div>
+            <div class="patient-info">
+              <div><strong>Paciente:</strong> ${patientFullName}</div>
+              <div><strong>Fecha de Reporte:</strong> ${date}</div>
+            </div>
+            ${recordsToPrint.map(r => `
+              <div class="record">
+                <div class="record-title">${r.chiefComplaint}</div>
+                ${Object.entries(r.dynamicData).map(([key, val]) => `
+                  <div class="field">
+                    <span class="label">${key.toUpperCase()}:</span>
+                    <span class="value">${val}</span>
+                  </div>
+                `).join('')}
+              </div>
+            `).join('')}
+            <div style="margin-top: 50px; text-align: center;">
+              <button onclick="window.print()" style="padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">Imprimir ahora</button>
+            </div>
+          </body>
+        </html>
+      `;
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---
