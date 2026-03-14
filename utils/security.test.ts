@@ -1,4 +1,5 @@
-import { sanitizeInput } from './security';
+import { sanitizeInput, hasAdministrativeAccess } from './security';
+import { UserRole } from '../types';
 
 /**
  * 🧪 Smith: Security Unit Tests
@@ -27,7 +28,27 @@ const testSanitizeInput = () => {
   console.log('All security tests passed.');
 };
 
+const testHasAdministrativeAccess = () => {
+    console.log('Testing hasAdministrativeAccess...');
+
+    const adminUser = { roles: [UserRole.ADMIN] };
+    const managerUser = { roles: [UserRole.MANAGER] };
+    const accountantUser = { roles: [UserRole.ACCOUNTANT] };
+    const normalUser = { roles: [UserRole.PROFESSIONAL] };
+    const mixedUser = { roles: [UserRole.PROFESSIONAL, UserRole.MANAGER] };
+
+    console.assert(hasAdministrativeAccess(adminUser) === true, 'Admin access failed');
+    console.assert(hasAdministrativeAccess(managerUser) === true, 'Manager access failed');
+    console.assert(hasAdministrativeAccess(accountantUser) === true, 'Accountant access failed');
+    console.assert(hasAdministrativeAccess(normalUser) === false, 'Normal user should not have admin access');
+    console.assert(hasAdministrativeAccess(mixedUser) === true, 'Mixed user access failed');
+    console.assert(hasAdministrativeAccess(null) === false, 'Null user failed');
+
+    console.log('Administrative access tests passed.');
+};
+
 // Auto-execute if run directly (logic for test runner would go here)
 if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
     testSanitizeInput();
+    testHasAdministrativeAccess();
 }

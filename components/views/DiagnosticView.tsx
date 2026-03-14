@@ -126,8 +126,63 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        alert("Habilite ventanas emergentes.");
+        return;
+    }
+
+    const filteredForPrint = completedRecords.filter(r => {
+        const pName = MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName || 'Desconocido';
+        return pName === patientName && r.dateCreated.startsWith(date);
+    });
+
+    const resultsHtml = filteredForPrint.map(r => {
+        const template = MOCK_TEMPLATES.find(t => t.recordType === r.recordType);
+        const dataRows = Object.entries(r.dynamicData).map(([key, val]) => {
+            const fieldLabel = template?.sections.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+            return `<div style="margin-bottom: 5px;"><strong>${fieldLabel}:</strong> ${val}</div>`;
+        }).join('');
+
+        return `
+            <div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: #2563eb; border-bottom: 1px solid #eee; padding-bottom: 5px;">${r.chiefComplaint}</h3>
+                <p style="font-size: 0.85em; color: #666;">Realizado por: ${r.professionalName}</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    ${dataRows}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>Resultados - ${patientName}</title>
+                <style>
+                    body { font-family: sans-serif; padding: 30px; line-height: 1.5; color: #333; }
+                    .header { text-align: center; margin-bottom: 30px; border-bottom: 3px double #333; padding-bottom: 10px; }
+                    @media print { .no-print { display: none; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>MEDICORE IPS</h1>
+                    <h2>REPORTE CONSOLIDADO DE AYUDAS DIAGNÓSTICAS</h2>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <p><strong>PACIENTE:</strong> ${patientName}</p>
+                    <p><strong>FECHA DE REPORTE:</strong> ${date}</p>
+                </div>
+                <div>${resultsHtml}</div>
+                <div class="no-print" style="margin-top: 30px;">
+                    <button onclick="window.print()" style="padding: 10px 20px; cursor: pointer;">Imprimir Todo</button>
+                </div>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
   };
 
   // --- RENDER FORM ---
