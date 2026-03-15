@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
+import { sanitizeInput } from '../../utils/security';
 import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
 
 interface DiagnosticViewProps {
@@ -109,9 +110,22 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'FILE' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50">
+                  <label
+                    className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50 block"
+                  >
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                                setDynamicData({...dynamicData, [field.id]: file.name});
+                            }
+                        }}
+                      />
                       <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
-                      <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                      <p className="text-xs text-slate-700 font-bold">{val || 'Click para cargar imágenes (DICOM/JPG)'}</p>
+                      {val && <p className="text-[10px] text-green-600 font-bold mt-1">Archivo seleccionado</p>}
                   </div>
               ) : (
                   <input 
@@ -126,8 +140,64 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientFullName: string, date: string) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        alert("Por favor, habilite las ventanas emergentes para imprimir.");
+        return;
+    }
+
+    const patientRecords = completedRecords.filter(r =>
+        MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientFullName &&
+        r.dateCreated.startsWith(date)
+    );
+
+    const resultsHtml = patientRecords.map(record => {
+        const fieldsHtml = Object.entries(record.dynamicData).map(([key, val]) => {
+            const label = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+            return `<div style="margin-bottom: 5px;"><strong>${sanitizeInput(label)}:</strong> ${sanitizeInput(String(val))}</div>`;
+        }).join('');
+
+        return `
+            <div style="border: 1px solid #eee; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="margin-top: 0; color: #1e40af; border-bottom: 1px solid #eee; padding-bottom: 5px;">${sanitizeInput(record.chiefComplaint)}</h3>
+                <div style="font-size: 0.9em; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    ${fieldsHtml}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>Resultados - ${sanitizeInput(patientFullName)} - ${sanitizeInput(date)}</title>
+                <style>
+                    body { font-family: sans-serif; padding: 40px; color: #333; }
+                    .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
+                    .patient-info { margin-bottom: 30px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
+                    .footer { margin-top: 50px; font-size: 0.8em; text-align: center; color: #666; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1 style="margin: 0;">MEDICORE IPS</h1>
+                    <p style="margin: 5px 0;">REPORTE DE AYUDAS DIAGNÓSTICAS</p>
+                </div>
+                <div class="patient-info">
+                    <p style="margin: 5px 0;"><strong>Paciente:</strong> ${sanitizeInput(patientFullName)}</p>
+                    <p style="margin: 5px 0;"><strong>Fecha de Reporte:</strong> ${sanitizeInput(date)}</p>
+                </div>
+                ${resultsHtml}
+                <div class="footer">
+                    <p>Este reporte es una representación digital de los resultados de laboratorio/imagenología.</p>
+                    <p>Firmado digitalmente por: ${sanitizeInput(user.name)} - Reg. Prof: ${sanitizeInput(user.professionalLicense || 'N/A')}</p>
+                </div>
+                <script>window.print();</script>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
   };
 
   // --- RENDER FORM ---

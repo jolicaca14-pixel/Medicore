@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Patient, Appointment, Invoice, InvoiceItem, RecordType, RecordStatus, ClinicalRecord, UserRole, TariffItem } from '../../types';
 import { MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_RECORDS, MOCK_SOAT_TARIFF, SMLDV_2024, formatCurrency, MOCK_USERS } from '../../constants';
 import { appointmentService } from '../../services/appointmentService';
+import { sanitizeInput } from '../../utils/security';
 import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw, Loader2 } from 'lucide-react';
 
 interface SecretaryViewProps {
@@ -267,16 +268,82 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        alert("Por favor, habilite las ventanas emergentes para imprimir.");
+        return;
+    }
+
+    const itemsHtml = invoice.items.map(item => `
+        <tr>
+            <td style="padding: 8px; border-bottom: 1px solid #eee;">${sanitizeInput(item.name)}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price)}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+        </tr>
+    `).join('');
+
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>Factura ${sanitizeInput(invoice.id)}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; padding: 40px; }
+                    .header { display: flex; justify-content: space-between; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
+                    .info { margin-bottom: 30px; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                    th { background: #f9f9f9; text-align: left; padding: 8px; border-bottom: 2px solid #eee; }
+                    .totals { float: right; width: 300px; }
+                    .total-row { display: flex; justify-content: space-between; padding: 5px 0; }
+                    .grand-total { font-size: 1.2em; font-bold; border-top: 2px solid #333; margin-top: 10px; padding-top: 10px; }
+                    .footer { margin-top: 100px; font-size: 0.8em; color: #777; text-align: center; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div>
+                        <h1 style="margin: 0;">MEDICORE IPS</h1>
+                        <p style="margin: 5px 0;">NIT: 900.123.456-7</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <h2 style="margin: 0;">FACTURA DE VENTA</h2>
+                        <p style="margin: 5px 0;">N° ${sanitizeInput(invoice.id)}</p>
+                        <p style="margin: 5px 0;">Fecha: ${new Date(invoice.date).toLocaleDateString()}</p>
+                    </div>
+                </div>
+                <div class="info">
+                    <p><strong>Paciente:</strong> ${sanitizeInput(invoice.patientName)}</p>
+                    <p><strong>ID:</strong> ${sanitizeInput(invoice.patientId)}</p>
+                    <p><strong>Estado:</strong> ${sanitizeInput(invoice.status)}</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Descripción</th>
+                            <th style="text-align: center;">Cant.</th>
+                            <th style="text-align: right;">Precio Unit.</th>
+                            <th style="text-align: right;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHtml}
+                    </tbody>
+                </table>
+                <div class="totals">
+                    <div class="total-row"><span>Subtotal:</span> <span>${formatCurrency(invoice.subtotal)}</span></div>
+                    <div class="total-row"><span>Descuento:</span> <span>- ${formatCurrency(invoice.discount)}</span></div>
+                    <div class="total-row grand-total"><strong>Total:</strong> <strong>${formatCurrency(invoice.total)}</strong></div>
+                    <div class="total-row"><span>Saldo Pendiente:</span> <span style="color: red;">${formatCurrency(invoice.balance)}</span></div>
+                </div>
+                <div style="clear: both;"></div>
+                <div class="footer">
+                    <p>Gracias por confiar en MEDICORE IPS. Esta factura cumple con los requisitos legales de la DIAN.</p>
+                </div>
+                <script>window.print();</script>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
