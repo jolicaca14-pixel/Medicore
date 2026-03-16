@@ -825,8 +825,23 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                     <td className="p-3 font-medium text-slate-700">{file.fileUrl || `contrato_${file.id}.pdf`}</td>
                                     <td className="p-3">{file.userName}</td>
                                     <td className="p-3 text-slate-500">{new Date(file.startDate || file.dateSubmitted).toLocaleDateString()}</td>
-                                    <td className="p-3 text-right">
-                                        <button onClick={() => handleDeleteFile(file.id, file.type)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button>
+                                    <td className="p-3 text-right flex justify-end space-x-1">
+                                        <button
+                                            onClick={() => {
+                                                const blob = new Blob([`Contenido simulado de ${file.fileUrl || file.id}`], { type: 'text/plain' });
+                                                const url = URL.createObjectURL(blob);
+                                                const link = document.createElement('a');
+                                                link.href = url;
+                                                link.download = file.fileUrl || `archivo_${file.id}.txt`;
+                                                link.click();
+                                                URL.revokeObjectURL(url);
+                                            }}
+                                            className="p-1.5 hover:bg-slate-200 rounded text-blue-500"
+                                            title="Descargar"
+                                        >
+                                            <Download size={14}/>
+                                        </button>
+                                        <button onClick={() => handleDeleteFile(file.id, file.type)} className="p-1.5 hover:bg-slate-200 rounded text-red-400" title="Eliminar"><Trash2 size={14}/></button>
                                     </td>
                                 </tr>
                             ))
