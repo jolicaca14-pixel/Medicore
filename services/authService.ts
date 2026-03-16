@@ -29,11 +29,22 @@ export const authService = {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error en la autenticación');
+        let errorMsg = 'Error en la autenticación';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch (e) {
+          errorMsg = 'Credenciales inválidas o error de servidor';
+        }
+        throw new Error(errorMsg);
       }
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        throw new Error('Respuesta de servidor inválida');
+      }
       return mapUser(data);
     } catch (error: any) {
       console.warn('Backend connection failed, falling back to mock data:', error.message);

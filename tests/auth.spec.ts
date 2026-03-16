@@ -38,6 +38,6 @@ test.describe('MediCore Authentication Flow', () => {
     await page.locator('#password-input').fill('wrong_password');
     await page.getByRole('button', { name: 'Inicio de Sesión Seguro' }).click();
 
-    await expect(page.getByText(/Credenciales inválidas|Servidor no disponible/)).toBeVisible();
+    await expect(page.getByText(/Credenciales inválidas|Servidor no disponible|error de servidor/)).toBeVisible();
   });
 });

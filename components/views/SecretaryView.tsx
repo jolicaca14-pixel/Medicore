@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Patient, Appointment, Invoice, InvoiceItem, RecordType, RecordStatus, ClinicalRecord, UserRole, TariffItem } from '../../types';
 import { MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_RECORDS, MOCK_SOAT_TARIFF, SMLDV_2024, formatCurrency, MOCK_USERS } from '../../constants';
 import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw } from 'lucide-react';
+import { useToast } from '../ToastProvider';
 
 interface SecretaryViewProps {
   user: User;
@@ -9,6 +10,7 @@ interface SecretaryViewProps {
 }
 
 export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) => {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'PATIENTS' | 'AGENDA' | 'BILLING' | 'CARTERA'>('AGENDA');
 
   // --- PATIENTS & AGENDA STATE ---
@@ -67,7 +69,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   const handleSaveAppointment = () => {
       if(!newAppt.patientId || !newAppt.time || !newAppt.reason || !newAppt.professionalId) {
-          alert("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)");
+          showToast("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)", "error");
           return;
       }
       const patient = patients.find(p => p.id === newAppt.patientId);
@@ -119,9 +121,9 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               status: 'PENDING'
           };
           setInvoices([...invoices, newInvoice]);
-          alert("Cita agendada y Factura creada automáticamente en Cartera.");
+          showToast("Cita agendada y Factura creada automáticamente en Cartera.", "success");
       } else {
-          alert(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
+          showToast(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.", "success");
       }
 
       setIsApptModalOpen(false);
@@ -129,8 +131,8 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   const updateApptStatus = (id: string, status: 'WAITING' | 'CANCELLED') => {
       setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-      if (status === 'WAITING') alert("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
-      if (status === 'CANCELLED') alert("Cita cancelada.");
+      if (status === 'WAITING') showToast("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.", "info");
+      if (status === 'CANCELLED') showToast("Cita cancelada.", "info");
   };
 
   // --- BILLING HANDLERS ---
@@ -223,12 +225,15 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       setSelectedServices([]);
       setBillingPatient(null);
       setPartialPayment('');
-      alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
+      showToast(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`, "success");
   };
 
   const printInvoice = (invoice: Invoice) => {
       const printWindow = window.open('', '_blank');
-      if (!printWindow) return alert("Habilite las ventanas emergentes para imprimir.");
+      if (!printWindow) {
+        showToast("Habilite las ventanas emergentes para imprimir.", "error");
+        return;
+      }
 
       printWindow.document.write(`
           <html>
@@ -302,7 +307,10 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       if(!selectedInvoice) return;
       const amount = parseFloat(paymentAmount);
       
-      if(amount > selectedInvoice.balance) return alert("El monto supera el saldo.");
+      if(amount > selectedInvoice.balance) {
+        showToast("El monto supera el saldo.", "error");
+        return;
+      }
 
       setInvoices(invoices.map(invoice => {
           if (invoice.id !== selectedInvoice.id) return invoice;
@@ -315,7 +323,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           };
       }));
       setIsPaymentModalOpen(false);
-      alert("Abono registrado correctamente.");
+      showToast("Abono registrado correctamente.", "success");
   };
 
   return (

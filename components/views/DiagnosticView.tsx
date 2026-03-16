@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
 import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
+import { useToast } from '../ToastProvider';
 
 interface DiagnosticViewProps {
   user: User;
@@ -21,6 +22,7 @@ interface Order {
 }
 
 export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }) => {
+  const { showToast } = useToast();
   const isLab = user.roles.includes(UserRole.BACTERIOLOGIST);
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
@@ -60,7 +62,10 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) {
+        showToast("No hay plantilla configurada para este examen.", "error");
+        return;
+      }
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +94,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showToast("Resultado guardado correctamente.", "success");
   };
 
   // --- RENDER FIELD ---
@@ -128,7 +133,10 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   // --- PRINT VIEW ---
   const handlePrintDate = (patientFullName: string, date: string) => {
       const printWindow = window.open('', '_blank');
-      if (!printWindow) return alert("Habilite las ventanas emergentes para imprimir.");
+      if (!printWindow) {
+        showToast("Habilite las ventanas emergentes para imprimir.", "error");
+        return;
+      }
 
       const recordsToPrint = completedRecords.filter(r =>
         MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientFullName &&

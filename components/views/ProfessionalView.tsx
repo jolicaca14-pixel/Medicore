@@ -9,6 +9,7 @@ import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
 import { sanitizeInput } from '../../utils/security';
 import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calculateTFG, calculateFramingham } from '../../utils/clinicalLogic';
+import { useToast } from '../ToastProvider';
 import { logAuditEvent } from '../../utils/auditLogger';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import RecentResultsWidget from '../RecentResultsWidget';
@@ -20,6 +21,7 @@ interface ProfessionalViewProps {
 }
 
 export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, activeTab = 'dashboard' }) => {
+  const { showToast } = useToast();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [patientsError, setPatientsError] = useState<string | null>(null);
@@ -304,7 +306,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       setHrUser(updatedUser); // Update local view state
       
       // In a real app, this would call an API.
-      alert("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
+      showToast("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.", "success");
       setShowDescargosModal(false);
   };
 
@@ -332,7 +334,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   const handleOpenPaymentModal = () => {
       const activeContract = hrUser.contracts?.find(c => c.isActive && c.type === ContractType.OPS);
-      if (!activeContract) return alert("Solo disponible para contratos OPS Activos.");
+      if (!activeContract) {
+        showToast("Solo disponible para contratos OPS Activos.", "error");
+        return;
+      }
       
       setNewPayment({
           period: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
@@ -392,7 +397,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           pdfWindow.document.close();
       }
 
-      alert("Cuenta de cobro generada y notificada a Administración.");
+      showToast("Cuenta de cobro generada y notificada a Administración.", "success");
   };
 
 
@@ -521,7 +526,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     if (action === 'FINALIZE') {
         // 🩺 DOC HOUSE: Gender-based clinical validation
         if (selectedPatient.gender === 'M' && (selectedTemplate?.recordType === RecordType.PYP_PREGNANCY || selectedTemplate?.recordType === RecordType.PYP_PUERPERIUM)) {
-            alert("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.");
+            showToast("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.", "error");
             return;
         }
 
@@ -538,14 +543,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         }
 
         if ((!currentRecord.diagnoses || currentRecord.diagnoses.length === 0) && selectedTemplate?.recordType !== RecordType.PROCEDURE) {
-            alert("Es obligatorio seleccionar al menos un diagnóstico CIE-11.");
+            showToast("Es obligatorio seleccionar al menos un diagnóstico CIE-11.", "error");
             setActiveFormTab('orders_tab');
             return;
         }
         // VALIDATE BARTHEL IF REQUIRED
         if (isFirstTimeRCV && selectedTemplate?.recordType === RecordType.PYP_CV_RISK) {
             if(!dynamicData['global_barthel']) {
-                alert("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.");
+                showToast("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.", "error");
                 return;
             }
         }
@@ -614,7 +619,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           setShowAuthModal(false);
           setViewMode('LIST');
           setSelectedPatient(null);
-          alert(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`);
+          showToast(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`, "success");
         }, 2500);
       } else {
         setShowAuthModal(false);
@@ -626,7 +631,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   
   const handleAddDiagnosis = (code: string, name: string) => {
       if (!validateCIE11Code(code)) {
-          alert("Código CIE-11 no válido para este paciente.");
+          showToast("Código CIE-11 no válido para este paciente.", "error");
           return;
       }
       if (currentRecord.diagnoses?.some(d => d.code === code)) return;
@@ -678,7 +683,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       const currentAnalysis = dynamicData['d_analisis'] || '';
       const newAnalysis = currentAnalysis + importText;
       setDynamicData({ ...dynamicData, d_analisis: newAnalysis });
-      alert(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
+      showToast(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`, "success");
   };
 
   const renderField = (field: any, isReadOnly: boolean) => {
