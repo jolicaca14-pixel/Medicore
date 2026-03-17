@@ -46,9 +46,6 @@ export const logAuditEvent = (userId: string, action: string, resource: string, 
     ipAddress: '127.0.0.1' // Simulated
   };
 
-  // For simulation purposes, we log to console and could also store in a hidden global state/localStorage
-  console.log('🛡️ [AUDIT LOG]', entry);
-
   // Optional: persist in a 'system_audit' key in localStorage for session-wide tracking
   if (typeof localStorage !== 'undefined') {
     const logs = JSON.parse(localStorage.getItem('medicore_audit_logs') || '[]');
