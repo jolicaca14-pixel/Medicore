@@ -4,10 +4,13 @@ import { MOCK_USERS } from './constants';
 import { useAuth } from './hooks/useAuth';
 import { Layout } from './components/Layout';
 import { ToastProvider } from './components/Toast';
-import { ProfessionalView } from './components/views/ProfessionalView';
-import { AdminView } from './components/views/AdminView';
-import { SecretaryView } from './components/views/SecretaryView';
-import { DiagnosticView } from './components/views/DiagnosticView';
+import { SessionTimeoutHandler } from './components/SessionTimeoutHandler';
+
+// ⚡ NEO: Dynamic imports for code splitting
+const ProfessionalView = React.lazy(() => import('./components/views/ProfessionalView').then(m => ({ default: m.ProfessionalView })));
+const AdminView = React.lazy(() => import('./components/views/AdminView').then(m => ({ default: m.AdminView })));
+const SecretaryView = React.lazy(() => import('./components/views/SecretaryView').then(m => ({ default: m.SecretaryView })));
+const DiagnosticView = React.lazy(() => import('./components/views/DiagnosticView').then(m => ({ default: m.DiagnosticView })));
 
 // 🛡️ SENTINEL: Utility to introduce a delay, preventing timing-based user enumeration.
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -138,6 +141,12 @@ const Login: React.FC<{ onLogin: (u: string, p: string) => Promise<any>, isLoadi
   );
 };
 
+const ViewLoader = () => (
+  <div className="flex items-center justify-center h-full p-20">
+    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+  </div>
+);
+
 const App: React.FC = () => {
   const { user, isLoading, login, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -174,21 +183,27 @@ const App: React.FC = () => {
   if (user.roles.includes(UserRole.SECRETARY)) {
       return (
         <ToastProvider>
-          <SecretaryView user={user} onLogout={logout} />
+          <SessionTimeoutHandler onLogout={logout} />
+          <React.Suspense fallback={<ViewLoader />}>
+            <SecretaryView user={user} onLogout={logout} />
+          </React.Suspense>
         </ToastProvider>
       );
   }
 
   return (
     <ToastProvider>
+      <SessionTimeoutHandler onLogout={logout} />
       <Layout user={user} onLogout={logout} activeTab={activeTab} setActiveTab={setActiveTab}>
-        {user.roles.includes(UserRole.PROFESSIONAL) && <ProfessionalView user={user} onLogout={logout} activeTab={activeTab} />}
+        <React.Suspense fallback={<ViewLoader />}>
+          {user.roles.includes(UserRole.PROFESSIONAL) && <ProfessionalView user={user} onLogout={logout} activeTab={activeTab} />}
 
-        {/* Pass activeTab and setter to AdminView for navigation control */}
-        {(user.roles.includes(UserRole.ADMIN) || user.roles.includes(UserRole.ACCOUNTANT) || user.roles.includes(UserRole.MANAGER)) &&
-          <AdminView activeTab={activeTab} setActiveTab={setActiveTab} currentUserSession={user} />}
+          {/* Pass activeTab and setter to AdminView for navigation control */}
+          {(user.roles.includes(UserRole.ADMIN) || user.roles.includes(UserRole.ACCOUNTANT) || user.roles.includes(UserRole.MANAGER)) &&
+            <AdminView activeTab={activeTab} setActiveTab={setActiveTab} currentUserSession={user} />}
 
-        {(user.roles.includes(UserRole.BACTERIOLOGIST) || user.roles.includes(UserRole.RADIOLOGIST)) && <DiagnosticView user={user} onLogout={logout} />}
+          {(user.roles.includes(UserRole.BACTERIOLOGIST) || user.roles.includes(UserRole.RADIOLOGIST)) && <DiagnosticView user={user} onLogout={logout} />}
+        </React.Suspense>
       </Layout>
     </ToastProvider>
   );

@@ -30,6 +30,20 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activeTab, setActiveTab }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>(MOCK_NOTIFICATIONS);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(window.navigator.onLine);
+
+  React.useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   if (!user) return <>{children}</>;
 
@@ -180,6 +194,10 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
             {getMenuItems().find(i => i.id === activeTab)?.label || 'Panel Principal'}
           </h2>
           <div className="flex items-center space-x-4">
+            <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-[10px] font-bold border transition-colors ${isOnline ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                <span>{isOnline ? 'EN LÍNEA' : 'DESCONECTADO'}</span>
+            </div>
             <span className="px-3 py-1 bg-primary-50 text-primary-700 text-xs font-semibold rounded-full border border-primary-100">
               {new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </span>

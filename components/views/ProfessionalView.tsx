@@ -3,8 +3,11 @@ import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote
 import { useToast } from '../Toast';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
+import { clinicalRecordService } from '../../services/clinicalRecordService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
-import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
+import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS, CLINICAL_TEMPLATES } from '../../constants';
+import { PatientSkeleton } from '../Skeleton';
+import { EmptyState } from '../EmptyState';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
 import { sanitizeInput } from '../../utils/security';
@@ -31,6 +34,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [viewMode, setViewMode] = useState<'LIST' | 'CREATE' | 'VIEW'>('LIST');
   const [showRDAModal, setShowRDAModal] = useState(false);
   const [activeFormTab, setActiveFormTab] = useState<string>(''); 
+
+  // --- HR / TALENT MODULE STATES ---
+  const [showDescargosModal, setShowDescargosModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Form State
   const [currentRecord, setCurrentRecord] = useState<Partial<ClinicalRecord>>({});
@@ -158,16 +165,31 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
+          // Ctrl+S: Save Draft
           if ((e.ctrlKey || e.metaKey) && e.key === 's') {
               if (viewMode === 'CREATE') {
                   e.preventDefault();
                   saveRef.current();
               }
           }
+          // Ctrl+F: Focus Search
+          if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+              if (viewMode === 'LIST') {
+                  e.preventDefault();
+                  document.getElementById('patient-search')?.focus();
+              }
+          }
+          // Esc: Cancel/Close
+          if (e.key === 'Escape') {
+              if (showAuthModal) setShowAuthModal(false);
+              if (showRDAModal) setShowRDAModal(false);
+              if (showDescargosModal) setShowDescargosModal(false);
+              if (showPaymentModal) setShowPaymentModal(false);
+          }
       };
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [viewMode]);
+  }, [viewMode, showAuthModal, showRDAModal, showDescargosModal, showPaymentModal]);
 
   // ⚡ NEO: Debounce search to optimize performance and audit logging
   useEffect(() => {
@@ -205,13 +227,11 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   // --- HR / TALENT MODULE STATES ---
   const [hrUser, setHrUser] = useState<User>(user); // Local state to update user with descargo
-  const [showDescargosModal, setShowDescargosModal] = useState(false);
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
   const [descargoText, setDescargoText] = useState('');
   
   // Payment Request (Cuenta de Cobro) States
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>(MOCK_PAYMENT_REQUESTS);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [newPayment, setNewPayment] = useState<{ period: string, amount: number, files: string[] }>({ period: '', amount: 0, files: [] });
 
   // --- SUB-MODULES STATES ---
@@ -431,9 +451,39 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
        return uniqueProcs.slice(0, 5);
   }, [records, user.id]);
 
+  const handleRestoreDraft = (draftId: string) => {
+      const saved = localStorage.getItem(`medicore_draft_${draftId}`);
+      if (saved) {
+          const { currentRecord: savedRecord, dynamicData: savedData } = JSON.parse(saved);
+          setCurrentRecord(savedRecord);
+          setDynamicData(savedData);
+          showToast("Borrador recuperado con éxito", "success");
+      }
+  };
+
   const handleCreateRecord = (patient: Patient) => {
+    // Check for existing draft in localStorage
+    const draftKey = Object.keys(localStorage).find(key => key.startsWith('medicore_draft_') && key.includes(patient.id));
+
     setSelectedPatient(patient);
     setViewMode('CREATE');
+
+    if (draftKey) {
+        const draftId = draftKey.replace('medicore_draft_', '');
+        showToast(
+            <div className="flex flex-col gap-2">
+                <p className="font-bold">Borrador detectado</p>
+                <p className="text-xs">Tienes un borrador sin guardar para este paciente.</p>
+                <button
+                    onClick={() => handleRestoreDraft(draftId)}
+                    className="bg-blue-600 text-white px-2 py-1 rounded text-[10px] font-bold"
+                >
+                    Recuperar ahora
+                </button>
+            </div>,
+            "info"
+        );
+    }
     
     // Check previous records for RCV History
     const prevRCV = records.some(r => r.patientId === patient.id && r.recordType === RecordType.PYP_CV_RISK && r.status === RecordStatus.FINALIZED);
@@ -588,6 +638,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         }, 1600);
 
         setTimeout(() => {
+          // Cleanup draft from localStorage on finalization
+          localStorage.removeItem(`medicore_draft_${currentRecord.id}`);
+
           const finalizedRecord = {
             ...fullRecord,
             status: RecordStatus.FINALIZED,
@@ -680,6 +733,13 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       showToast(`Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`, "success");
   };
 
+  const insertTemplate = (fieldId: string, text: string) => {
+      const currentVal = dynamicData[fieldId] || '';
+      const newVal = currentVal ? `${currentVal}\n${text}` : text;
+      setDynamicData({ ...dynamicData, [fieldId]: newVal });
+      showToast("Plantilla insertada", "success");
+  };
+
   const renderField = (field: any, isReadOnly: boolean) => {
       if (field.type === 'HEADER') return <h4 className="text-sm font-bold text-slate-700 mt-4 border-b pb-1 col-span-2">{field.label}</h4>;
       if (field.type === 'INFO') return <div className="col-span-2 bg-blue-50 p-2 rounded text-xs text-blue-800 mb-2">{field.label}</div>;
@@ -704,11 +764,24 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
               
               {field.type === 'TEXTAREA' ? (
                   <div className="relative">
+                      {!isReadOnly && (
+                          <div className="flex gap-1 mb-1 overflow-x-auto scrollbar-hide py-1">
+                              {CLINICAL_TEMPLATES.map(tpl => (
+                                  <button
+                                      key={tpl.id}
+                                      onClick={() => insertTemplate(field.id, tpl.text)}
+                                      className="text-[9px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border hover:bg-slate-200 transition-colors whitespace-nowrap"
+                                  >
+                                      {tpl.label}
+                                  </button>
+                              ))}
+                          </div>
+                      )}
                       <textarea
                         id={field.id}
                         disabled={isReadOnly}
                         className="w-full p-2 border rounded text-sm bg-slate-50 focus:bg-white pr-10"
-                        rows={2}
+                        rows={3}
                         value={val}
                         onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}
                       />
@@ -1199,9 +1272,11 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                     </select>
                     <button
                         onClick={handleSaveDraft}
+                        title="Guardar borrador (Ctrl+S)"
                         className={`px-4 py-2 border rounded-lg font-bold text-sm transition-all duration-300 ${isSaved ? 'bg-green-50 border-green-500 text-green-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
                     >
                         {isSaved ? '¡Guardado!' : 'Guardar'}
+                        <span className="ml-2 text-[9px] opacity-50 font-normal">Ctrl+S</span>
                     </button>
                     <button onClick={() => initiateAuth('FINALIZE')} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm hover:bg-slate-800 flex items-center">
                         <Lock size={14} className="mr-2"/> Finalizar & RDA
@@ -1532,6 +1607,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
             <h2 className="text-2xl font-bold text-slate-800">Mis Pacientes</h2>
             <div className="relative w-full md:w-72">
                 <Search size={18} className="absolute left-3 top-[50%] translate-y-[-50%] text-slate-400" />
+                <span className="absolute right-10 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-300 bg-slate-50 border px-1 rounded hidden md:block">Ctrl+F</span>
                 <label htmlFor="patient-search" className="sr-only">Buscar pacientes</label>
                 <input
                     id="patient-search"
@@ -1555,9 +1631,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         </div>
 
         {isLoadingPatients ? (
-            <div className="flex flex-col items-center justify-center p-20 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                <Loader2 className="h-10 w-10 text-blue-500 animate-spin mb-4" />
-                <p className="text-slate-500 font-medium">Cargando pacientes...</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...Array(6)].map((_, i) => <PatientSkeleton key={i} />)}
             </div>
         ) : patientsError ? (
             <div className="bg-orange-50 p-4 rounded-xl border border-orange-200 mb-6 flex items-center text-orange-800 text-sm">
@@ -1569,19 +1644,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         ) : null}
 
         {!isLoadingPatients && filteredPatients.length === 0 ? (
-            <div className="bg-white p-12 rounded-2xl border border-dashed border-slate-300 text-center">
-                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Search size={32} className="text-slate-300" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-700">No se encontraron pacientes</h3>
-                <p className="text-slate-500 mt-1">Intente con otro nombre o número de identificación.</p>
-                <button
-                    onClick={() => setPatientSearch('')}
-                    className="mt-4 text-blue-600 font-bold text-sm hover:underline"
-                >
-                    Ver todos los pacientes
-                </button>
-            </div>
+            <EmptyState
+                title="No se encontraron pacientes"
+                description="No logramos encontrar ningún registro que coincida con su búsqueda. Intente con otro nombre o número de identificación."
+                action={{
+                    label: "Ver todos los pacientes",
+                    onClick: () => setPatientSearch('')
+                }}
+            />
         ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredPatients.map(p => {

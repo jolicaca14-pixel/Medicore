@@ -829,6 +829,12 @@ export const MOCK_RECORDS: ClinicalRecord[] = [
 ];
 
 // Mock Appointments
+export const CLINICAL_TEMPLATES = [
+    { id: 'exam_normal', label: 'EF Normal', text: 'Paciente alerta, orientado en 3 esferas. Cabeza y cuello sin hallazgos. Tórax simétrico, ruidos cardiacos rítmicos sin soplos. Pulmones bien ventilados sin ruidos agregados. Abdomen blando, depresible, sin megalias. Extremidades sin edemas.' },
+    { id: 'anam_normal', label: 'Anamnesis Gral', text: 'Paciente refiere sentirse bien el día de hoy. No reporta cambios significativos en síntomas crónicos. Adherencia adecuada al tratamiento previo.' },
+    { id: 'plan_standard', label: 'Plan Estándar', text: 'Continuar manejo farmacológico actual. Signos de alarma explicados (disnea, dolor torácico, fiebre persistente). Control por consulta externa en 3 meses con laboratorios.' },
+];
+
 export const MOCK_APPOINTMENTS: Appointment[] = [
   {
     id: 'a1',

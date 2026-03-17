@@ -1,6 +1,9 @@
 import React, { useState, useDeferredValue } from 'react';
 import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType, TariffItem, Contract, ContractType, ContractAudit, DisciplinaryAction, PaymentRequest, ClinicalRecord, RecordType, RecordStatus, Patient } from '../../types';
 import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
+import { calculateTaxRetentions } from '../../utils/finance';
+import { UserRowSkeleton } from '../Skeleton';
+import { EmptyState } from '../EmptyState';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
 import { 
     Shield, Users, FileText, Settings, Plus, Edit, Trash2, X, Save, 
@@ -57,6 +60,53 @@ const roleLabels: Record<UserRole, string> = {
     [UserRole.MANAGER]: 'Gerente'
 };
 
+// ⚡ LEDGER: Extracted Widget for performance and clean architecture
+const BillingSummaryWidget: React.FC<{ users: User[] }> = ({ users }) => {
+    const totalPayroll = users.reduce((acc, u) => {
+        const active = u.contracts?.find(c => c.isActive);
+        if (!active) return acc;
+        return acc + (active.baseSalary || 0) + (active.opsValue || 0);
+    }, 0);
+    const opsGross = users.reduce((acc, u) => acc + (u.contracts?.find(c => c.isActive && c.type === ContractType.OPS)?.opsValue || 0), 0);
+    const { total: retentions, net: opsNet } = calculateTaxRetentions(opsGross);
+    const payrollBase = users.reduce((acc, u) => acc + (u.contracts?.find(c => c.isActive && c.type === ContractType.NOMINA)?.baseSalary || 0), 0);
+
+    return (
+      <div className="bg-slate-900 text-white p-6 rounded-xl shadow-lg border border-slate-700 h-full">
+          <h3 className="text-lg font-bold mb-4 flex items-center">
+              <Calculator className="mr-2 text-blue-400" size={20}/> Costos Operativos Proyectados
+          </h3>
+          <div className="space-y-4">
+              <div className="flex justify-between items-end border-b border-slate-700 pb-2">
+                  <span className="text-slate-400 text-[10px] font-bold uppercase">Total Bruto (Nom + OPS)</span>
+                  <span className="text-2xl font-mono font-bold text-blue-400">{formatCurrency(totalPayroll)}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                  <div>
+                      <p className="text-[10px] text-slate-400 uppercase font-bold">Base Laboral</p>
+                      <p className="font-bold">{formatCurrency(payrollBase)}</p>
+                  </div>
+                  <div>
+                      <p className="text-[10px] text-slate-400 uppercase font-bold">OPS Bruto</p>
+                      <p className="font-bold">{formatCurrency(opsGross)}</p>
+                  </div>
+              </div>
+              <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700">
+                  <div className="flex justify-between text-[10px] mb-1">
+                      <span className="text-slate-500 uppercase font-bold">Retenciones OPS</span>
+                      <span className="text-red-400">-{formatCurrency(retentions)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold">
+                      <span className="text-slate-300 text-xs">Pago Neto OPS</span>
+                      <span className="text-green-400">{formatCurrency(opsNet)}</span>
+                  </div>
+              </div>
+              <p className="text-[10px] text-slate-500 italic text-center">Cálculo basado en {users.filter(u => u.contracts?.some(c => c.isActive)).length} contratos vigentes.</p>
+          </div>
+      </div>
+    );
+};
+
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
   const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
 
@@ -64,6 +114,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   
   // Users
   const [users, setUsers] = useState<User[]>(MOCK_USERS);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<Partial<User>>({});
 
@@ -507,38 +558,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
-      // LEDGER: Billing Summary Logic
-      const totalPayroll = users.reduce((acc, u) => {
-          const active = u.contracts?.find(c => c.isActive);
-          if (!active) return acc;
-          return acc + (active.baseSalary || 0) + (active.opsValue || 0);
-      }, 0);
-
-      const BillingSummaryWidget = () => (
-          <div className="bg-slate-900 text-white p-6 rounded-xl shadow-lg border border-slate-700">
-              <h3 className="text-lg font-bold mb-4 flex items-center">
-                  <Calculator className="mr-2 text-blue-400" size={20}/> Costos Operativos Proyectados
-              </h3>
-              <div className="space-y-4">
-                  <div className="flex justify-between items-end border-b border-slate-700 pb-2">
-                      <span className="text-slate-400 text-xs font-bold uppercase">Nómina y OPS</span>
-                      <span className="text-2xl font-mono font-bold text-blue-400">{formatCurrency(totalPayroll)}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                      <div>
-                          <p className="text-[10px] text-slate-400 uppercase font-bold">Base Laboral</p>
-                          <p className="font-bold">{formatCurrency(users.reduce((acc, u) => acc + (u.contracts?.find(c => c.isActive && c.type === ContractType.NOMINA)?.baseSalary || 0), 0))}</p>
-                      </div>
-                      <div>
-                          <p className="text-[10px] text-slate-400 uppercase font-bold">Contratos OPS</p>
-                          <p className="font-bold">{formatCurrency(users.reduce((acc, u) => acc + (u.contracts?.find(c => c.isActive && c.type === ContractType.OPS)?.opsValue || 0), 0))}</p>
-                      </div>
-                  </div>
-                  <p className="text-[10px] text-slate-500 italic">Cálculo basado en {users.filter(u => u.contracts?.some(c => c.isActive)).length} contratos vigentes.</p>
-              </div>
-          </div>
-      );
-
       return (
           <div className="space-y-6 animate-in fade-in duration-500">
               {/* Stats Cards */}
@@ -576,7 +595,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               {/* Advanced Dashboard Charts */}
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                   <div className="lg:col-span-1">
-                      <BillingSummaryWidget />
+                      <BillingSummaryWidget users={users} />
                   </div>
                    {/* Main Financial Chart */}
                    <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-96">
@@ -1242,34 +1261,55 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {users.filter(u =>
+                            {isLoadingUsers ? (
+                                [...Array(5)].map((_, i) => <UserRowSkeleton key={i} />)
+                            ) : users.filter(u =>
                                 u.name.toLowerCase().includes(deferredUserSearch.toLowerCase()) ||
                                 u.username.toLowerCase().includes(deferredUserSearch.toLowerCase()) ||
                                 u.documentNumber?.includes(deferredUserSearch)
-                            ).map(u => (
-                                <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50' : ''}`} onClick={() => handleEditUser(u)}>
-                                    <td className="py-3 px-4">
-                                        <div className="font-bold text-slate-700">{u.name}</div>
-                                        <div className="font-mono text-xs text-slate-400">@{u.username}</div>
-                                    </td>
-                                    <td className="py-3 px-4">
-                                        <div className="flex flex-wrap gap-1">
-                                            {u.roles?.map(r => <span key={r} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">{roleLabels[r] || r}</span>)}
-                                        </div>
-                                    </td>
-                                    <td className="py-3 px-4">
-                                        {u.roles.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST) ? (
-                                            <div className="text-xs">
-                                                <p><span className="font-bold">Lic:</span> {u.professionalLicense || 'N/A'}</p>
-                                                {u.digitalStampUrl && <span className="text-[9px] text-green-600 bg-green-50 px-1 rounded">Firma OK</span>}
-                                            </div>
-                                        ) : <span className="text-xs text-slate-400">-</span>}
-                                    </td>
-                                    <td className="py-3 px-4 text-right">
-                                        <button onClick={(e) => { e.stopPropagation(); handleEditUser(u); }} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
+                            ).length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="p-8">
+                                        <EmptyState
+                                            title="No se encontraron usuarios"
+                                            description="No hay personal registrado que coincida con los criterios de búsqueda actuales."
+                                            action={{
+                                                label: "Ver todo el directorio",
+                                                onClick: () => setUserSearchTerm('')
+                                            }}
+                                        />
                                     </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                users.filter(u =>
+                                    u.name.toLowerCase().includes(deferredUserSearch.toLowerCase()) ||
+                                    u.username.toLowerCase().includes(deferredUserSearch.toLowerCase()) ||
+                                    u.documentNumber?.includes(deferredUserSearch)
+                                ).map(u => (
+                                    <tr key={u.id} className={`hover:bg-blue-50/50 cursor-pointer ${currentUser.id === u.id ? 'bg-blue-50' : ''}`} onClick={() => handleEditUser(u)}>
+                                        <td className="py-3 px-4">
+                                            <div className="font-bold text-slate-700">{u.name}</div>
+                                            <div className="font-mono text-xs text-slate-400">@{u.username}</div>
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            <div className="flex flex-wrap gap-1">
+                                                {u.roles?.map(r => <span key={r} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">{roleLabels[r] || r}</span>)}
+                                            </div>
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            {u.roles.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST) ? (
+                                                <div className="text-xs">
+                                                    <p><span className="font-bold">Lic:</span> {u.professionalLicense || 'N/A'}</p>
+                                                    {u.digitalStampUrl && <span className="text-[9px] text-green-600 bg-green-50 px-1 rounded">Firma OK</span>}
+                                                </div>
+                                            ) : <span className="text-xs text-slate-400">-</span>}
+                                        </td>
+                                        <td className="py-3 px-4 text-right">
+                                            <button onClick={(e) => { e.stopPropagation(); handleEditUser(u); }} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>

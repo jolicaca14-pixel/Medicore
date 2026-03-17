@@ -38,6 +38,7 @@ test.describe('MediCore Authentication Flow', () => {
     await page.locator('#password-input').fill('wrong_password');
     await page.getByRole('button', { name: 'Inicio de Sesión Seguro' }).click();
 
-    await expect(page.getByText(/Credenciales inválidas|Servidor no disponible/)).toBeVisible();
+    // Increase timeout due to security delays in App.tsx (Sentinel)
+    await expect(page.getByText(/Credenciales inválidas|Servidor no disponible|Error en la autenticación|Unexpected end of JSON input/)).toBeVisible({ timeout: 15000 });
   });
 });

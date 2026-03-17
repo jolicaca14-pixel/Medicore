@@ -9,6 +9,11 @@ export const SURCHARGE_RATES = {
   NIGHT_HOLIDAY: 1.10, // Recargo Nocturno Festivo (35% + 75%)
 };
 
+export const TAX_RATES = {
+  RETEFUENTE_OPS: 0.11, // Retención en la fuente para honorarios (11%)
+  ICA_BOGOTA: 0.00966,  // ICA Bogotá (9.66 x 1000)
+};
+
 /**
  * Calculates the surcharge amount for a base salary.
  *
@@ -39,4 +44,22 @@ export const calculateLiquidatedPay = (baseRate: number, quantity: number, surch
   const base = baseRate * quantity;
   if (!surchargeType) return base;
   return base + (base * SURCHARGE_RATES[surchargeType]);
+};
+
+/**
+ * Calculates tax retentions for a given gross amount.
+ * @param grossAmount Total amount before taxes.
+ * @returns Object with individual and total retentions.
+ */
+export const calculateTaxRetentions = (grossAmount: number) => {
+    if (grossAmount < 0) return { retefuente: 0, ica: 0, total: 0, net: 0 };
+    const retefuente = Math.round(grossAmount * TAX_RATES.RETEFUENTE_OPS);
+    const ica = Math.round(grossAmount * TAX_RATES.ICA_BOGOTA);
+    const total = retefuente + ica;
+    return {
+        retefuente,
+        ica,
+        total,
+        net: grossAmount - total
+    };
 };
