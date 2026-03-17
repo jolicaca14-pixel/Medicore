@@ -379,6 +379,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   return (
     <div className="h-full">
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in duration-200">
+                <div className="flex items-center text-orange-600 mb-4"><HelpCircle size={32} className="mr-2"/><h3 className="text-lg font-bold">{confirmModal.title}</h3></div>
+                <p className="text-sm text-slate-600 mb-6">{confirmModal.message}</p>
+                <div className="flex justify-end gap-3"><button onClick={() => setConfirmModal(null)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-50 rounded-lg transition-colors">Cancelar</button><button onClick={confirmModal.onConfirm} className="px-5 py-2 bg-red-600 text-white rounded-lg font-bold shadow-lg shadow-red-100 hover:bg-red-700 transition-all">Confirmar</button></div>
+            </div>
+        </div>
+      )}
       {editingTemplate && (
           <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
@@ -444,8 +453,26 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                       <p className="text-xs text-slate-500">Iniciado: {c.startDate} | {formatCurrency(c.salary || 0)}</p>
                                   </div>
                                   <div className="flex gap-2">
-                                      <button onClick={() => window.open('/mock-contract.pdf')} className="p-2 text-slate-600 hover:bg-white rounded border border-transparent hover:border-slate-200"><Download size={16}/></button>
-                                      <button className="p-2 text-red-600 hover:bg-white rounded border border-transparent hover:border-red-100"><Trash2 size={16}/></button>
+                                      <button onClick={() => window.open('/mock-contract.pdf')} className="p-2 text-slate-600 hover:bg-white rounded border border-transparent hover:border-slate-200" title="Descargar"><Download size={16}/></button>
+                                      <button
+                                        onClick={() => setConfirmModal({
+                                            isOpen: true,
+                                            title: 'Eliminar Contrato',
+                                            message: `¿Está seguro de eliminar este contrato de ${selectedHRUser.name}?`,
+                                            onConfirm: () => {
+                                                const updatedContracts = selectedHRUser.contracts?.filter(x => x.id !== c.id) || [];
+                                                const updatedUser = { ...selectedHRUser, contracts: updatedContracts };
+                                                setUsers(prev => prev.map(u => u.id === selectedHRUser.id ? updatedUser : u));
+                                                setSelectedHRUser(updatedUser);
+                                                setConfirmModal(null);
+                                                showToast("Contrato eliminado", "info");
+                                            }
+                                        })}
+                                        className="p-2 text-red-600 hover:bg-white rounded border border-transparent hover:border-red-100"
+                                        title="Eliminar"
+                                      >
+                                          <Trash2 size={16}/>
+                                      </button>
                                   </div>
                               </div>
                           ))}
@@ -490,12 +517,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
             </div>
         </div>
       )}
-      {activeTab === 'dashboard' && renderDashboard()}
-      {activeTab === 'users' && renderUsers()}
-      {activeTab === 'files' && renderFiles()}
-      {activeTab === 'hr' && renderHR()}
-      {activeTab === 'reports' && renderReports()}
-      {activeTab === 'settings' && renderSettings()}
+      {(activeTab === 'dashboard' || activeTab === 'admin_dashboard') && renderDashboard()}
+      {(activeTab === 'users' || activeTab === 'admin_users') && renderUsers()}
+      {(activeTab === 'files' || activeTab === 'admin_files') && renderFiles()}
+      {(activeTab === 'hr' || activeTab === 'admin_hr') && renderHR()}
+      {(activeTab === 'reports' || activeTab === 'admin_reports') && renderReports()}
+      {(activeTab === 'settings' || activeTab === 'admin_settings') && renderSettings()}
     </div>
   );
 };

@@ -52,12 +52,12 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
     if (hasAdministrativeAccess(roles)) {
       items = [
         ...items,
-        { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
-        { id: 'users', label: 'Gestión Usuarios', icon: Users },
-        { id: 'hr', label: 'Talento Humano', icon: Briefcase }, // NEW HR MODULE
-        { id: 'reports', label: 'Gestión Financiera', icon: DollarSign },
-        { id: 'settings', label: 'Plantillas / Roles', icon: Settings },
-        { id: 'files', label: 'Gestión Archivos', icon: FileText },
+        { id: 'admin_dashboard', label: 'Panel Principal', icon: LayoutDashboard },
+        { id: 'admin_users', label: 'Gestión Usuarios', icon: Users },
+        { id: 'admin_hr', label: 'Talento Humano', icon: Briefcase },
+        { id: 'admin_reports', label: 'Gestión Financiera', icon: DollarSign },
+        { id: 'admin_settings', label: 'Plantillas / Roles', icon: Settings },
+        { id: 'admin_files', label: 'Gestión Archivos', icon: FileText },
       ];
     }
     

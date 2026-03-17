@@ -171,15 +171,43 @@ const App: React.FC = () => {
       return <SecretaryView user={user} onLogout={logout} />
   }
 
+  const renderView = () => {
+    if (!user) return null;
+
+    const roles = user.roles;
+    const isAdmin = hasAdministrativeAccess(roles);
+    const isPro = roles.includes(UserRole.PROFESSIONAL);
+    const isDiag = roles.includes(UserRole.BACTERIOLOGIST) || roles.includes(UserRole.RADIOLOGIST);
+
+    // Administrative priority for specific admin tabs
+    if (isAdmin && ['admin_users', 'admin_files', 'admin_settings', 'admin_hr', 'admin_reports', 'admin_dashboard'].includes(activeTab)) {
+      return <AdminView activeTab={activeTab} setActiveTab={setActiveTab} currentUserSession={user} />;
+    }
+
+    // Dashboard priority: Professional/Diagnostic view takes precedence for 'dashboard' tab
+    if (activeTab === 'dashboard') {
+      if (isPro) return <ProfessionalView user={user} onLogout={logout} activeTab={activeTab} />;
+      if (isDiag) return <DiagnosticView user={user} onLogout={logout} />;
+      if (isAdmin) return <AdminView activeTab={'admin_dashboard'} setActiveTab={setActiveTab} currentUserSession={user} />;
+    }
+
+    // Other shared or specific tabs
+    if (isPro && ['appointments', 'records', 'reports', 'hr'].includes(activeTab)) {
+      return <ProfessionalView user={user} onLogout={logout} activeTab={activeTab} />;
+    }
+
+    if (isDiag) return <DiagnosticView user={user} onLogout={logout} />;
+
+    // Fallback
+    if (isAdmin) return <AdminView activeTab={activeTab} setActiveTab={setActiveTab} currentUserSession={user} />;
+    if (isPro) return <ProfessionalView user={user} onLogout={logout} activeTab={activeTab} />;
+
+    return <div className="p-8 text-center text-slate-500">Módulo no encontrado para su rol.</div>;
+  };
+
   return (
     <Layout user={user} onLogout={logout} activeTab={activeTab} setActiveTab={setActiveTab}>
-      {user.roles.includes(UserRole.PROFESSIONAL) && <ProfessionalView user={user} onLogout={logout} activeTab={activeTab} />}
-      
-      {/* Pass activeTab and setter to AdminView for navigation control */}
-      {hasAdministrativeAccess(user.roles) &&
-        <AdminView activeTab={activeTab} setActiveTab={setActiveTab} currentUserSession={user} />}
-      
-      {(user.roles.includes(UserRole.BACTERIOLOGIST) || user.roles.includes(UserRole.RADIOLOGIST)) && <DiagnosticView user={user} onLogout={logout} />}
+      {renderView()}
     </Layout>
   );
 };
