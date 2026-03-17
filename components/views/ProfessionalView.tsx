@@ -835,17 +835,31 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                   <div className="space-y-2">
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
-                                              <FileText size={16} className="text-slate-400 mr-2"/>
-                                              <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
+                                              <FileText size={16} className={newPayment.files.some(f => f.includes('Seguridad')) ? 'text-green-500 mr-2' : 'text-slate-400 mr-2'}/>
+                                              <span className="text-xs text-slate-600">
+                                                  {newPayment.files.find(f => f.includes('Seguridad')) || 'Planilla Seguridad Social'}
+                                              </span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button
+                                            onClick={() => setNewPayment(prev => ({ ...prev, files: [...prev.files, `Seguridad_Social_${user.username}.pdf`] }))}
+                                            className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100"
+                                          >
+                                              {newPayment.files.some(f => f.includes('Seguridad')) ? 'Cambiar' : 'Seleccionar...'}
+                                          </button>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
-                                              <FileText size={16} className="text-slate-400 mr-2"/>
-                                              <span className="text-xs text-slate-600">Informe de Actividades</span>
+                                              <FileText size={16} className={newPayment.files.some(f => f.includes('Actividades')) ? 'text-green-500 mr-2' : 'text-slate-400 mr-2'}/>
+                                              <span className="text-xs text-slate-600">
+                                                  {newPayment.files.find(f => f.includes('Actividades')) || 'Informe de Actividades'}
+                                              </span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button
+                                            onClick={() => setNewPayment(prev => ({ ...prev, files: [...prev.files, `Informe_Actividades_${user.username}.pdf`] }))}
+                                            className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100"
+                                          >
+                                              {newPayment.files.some(f => f.includes('Actividades')) ? 'Cambiar' : 'Seleccionar...'}
+                                          </button>
                                       </div>
                                   </div>
                               </div>
