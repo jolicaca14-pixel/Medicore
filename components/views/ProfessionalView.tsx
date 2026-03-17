@@ -145,7 +145,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     // 🎨 Palette: Non-blocking feedback for draft saving
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
-    console.log("Borrador guardado exitosamente.");
+    showToast("Borrador guardado exitosamente.", "success");
   };
 
   // ⚡ NEO: Keyboard Shortcuts (Ctrl+S for Save)
@@ -532,14 +532,11 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
         // 🩺 DOC HOUSE: Clinical safety check for empty antecedents.
         if (!currentRecord.antecedents || currentRecord.antecedents.trim() === '') {
-            const confirmEmpty = window.confirm("Atención: Los antecedentes clínicos están vacíos. ¿Desea continuar sin registrar antecedentes?");
-            if (!confirmEmpty) {
-                // Return to first tab which usually contains history/antecedents
-                if (selectedTemplate?.sections?.length) {
-                    setActiveFormTab(selectedTemplate.sections[0].id);
-                }
-                return;
+            showToast("Atención: Los antecedentes clínicos están vacíos. Por favor complete la información.", "error");
+            if (selectedTemplate?.sections?.length) {
+                setActiveFormTab(selectedTemplate.sections[0].id);
             }
+            return;
         }
 
         if ((!currentRecord.diagnoses || currentRecord.diagnoses.length === 0) && selectedTemplate?.recordType !== RecordType.PROCEDURE) {

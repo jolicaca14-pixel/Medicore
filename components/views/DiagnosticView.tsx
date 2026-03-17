@@ -114,9 +114,22 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'FILE' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50">
-                      <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
-                      <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                  <div className="relative">
+                      <label className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50 hover:border-blue-400 transition-colors flex flex-col items-center justify-center">
+                          <Upload size={20} className="text-slate-400 mb-2"/>
+                          <p className="text-xs text-slate-500">{val ? `Archivo: ${val}` : 'Click para cargar imágenes (DICOM/JPG)'}</p>
+                          <input
+                            type="file"
+                            className="hidden"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                    setDynamicData({...dynamicData, [field.id]: file.name});
+                                    showToast(`Archivo ${file.name} cargado`, "success");
+                                }
+                            }}
+                          />
+                      </label>
                   </div>
               ) : (
                   <input 
