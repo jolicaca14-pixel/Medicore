@@ -307,6 +307,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
     }, 100);
   };
 
+  const handleDownloadFile = (fileName: string) => {
+      const content = `Contenido simulado del archivo: ${fileName}\nEste es un archivo de prueba del sistema MediCore Pro.`;
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+  };
+
   const handleDeleteFile = (fileId: string, type: 'CONTRACT' | 'PAYMENT') => {
       if (!window.confirm("¿Está seguro de eliminar este archivo?")) return;
 
@@ -476,7 +487,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr') && !isAdmin) {
+  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
@@ -716,7 +727,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                     <td className="p-3">{file.userName}</td>
                                     <td className="p-3 text-slate-500">{new Date(file.startDate || file.dateSubmitted).toLocaleDateString()}</td>
                                     <td className="p-3 text-right">
-                                        <button onClick={() => handleDeleteFile(file.id, file.type)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button>
+                                        <div className="flex justify-end gap-1">
+                                            <button onClick={() => handleDownloadFile(file.fileUrl || `archivo_${file.id}.pdf`)} className="p-1.5 hover:bg-blue-100 rounded text-blue-600" title="Descargar"><Download size={14}/></button>
+                                            <button onClick={() => handleDeleteFile(file.id, file.type)} className="p-1.5 hover:bg-red-100 rounded text-red-500" title="Eliminar"><Trash2 size={14}/></button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))
