@@ -48,7 +48,7 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
     let items: any[] = [];
     const roles = user.roles || [];
 
-    if (roles.includes(UserRole.ADMIN)) {
+    if (roles.some(r => [UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT].includes(r))) {
       items = [
         ...items,
         { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
@@ -153,7 +153,7 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
         <div className="p-4 border-t border-slate-100">
           <button
             className="w-full flex items-center space-x-3 px-2 py-3 mb-2 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100 text-left"
-            onClick={() => user.roles.includes(UserRole.ADMIN) && setActiveTab('settings')}
+            onClick={() => user.roles.some(r => [UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT].includes(r)) && setActiveTab('settings')}
             aria-label={`Usuario: ${user.name}, Rol: ${mapRoleToSpanish(user.roles)}`}
           >
             <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm">
