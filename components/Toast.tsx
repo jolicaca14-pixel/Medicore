@@ -7,10 +7,14 @@ interface Toast {
   id: string;
   message: string;
   type: ToastType;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 interface ToastContextType {
-  showToast: (message: string, type?: ToastType) => void;
+  showToast: (message: string, type?: ToastType, action?: { label: string, onClick: () => void }) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -25,13 +29,19 @@ export const useToast = () => {
 
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const baseId = React.useId();
+  const counterRef = React.useRef(0);
 
-  const showToast = useCallback((message: string, type: ToastType = 'info') => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
+  const showToast = useCallback((message: string, type: ToastType = 'info', action?: { label: string, onClick: () => void }) => {
+    const id = `${baseId}-${counterRef.current++}`;
+    setToasts((prev) => [...prev, { id, message, type, action }]);
+
+    // Auto-remove toast after 5 seconds, unless it's an error which stays longer (8s)
+    const duration = type === 'error' ? 8000 : 5000;
+
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 5000);
+    }, duration);
   }, []);
 
   const removeToast = (id: string) => {
@@ -59,6 +69,18 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               {toast.type === 'info' && <Info size={20} />}
             </div>
             <div className="flex-1 text-sm font-medium">{toast.message}</div>
+            {toast.action && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toast.action?.onClick();
+                  removeToast(toast.id);
+                }}
+                className="ml-3 px-2 py-1 bg-white/20 hover:bg-white/30 rounded text-xs font-bold transition-colors whitespace-nowrap"
+              >
+                {toast.action.label}
+              </button>
+            )}
             <button
               onClick={() => removeToast(toast.id)}
               className="ml-4 p-1 rounded-full hover:bg-black/5 transition-colors"

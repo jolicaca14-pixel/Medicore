@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote, PrescriptionItem, ProcedureItem, ContractType, RoleTemplate, RDAStatus, DiagnosisItem, TemplateField, DisciplinaryAction, PaymentRequest } from '../../types';
 import { useToast } from '../Toast';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
 import { clinicalRecordService } from '../../services/clinicalRecordService';
-import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
+import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2, Edit } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS, CLINICAL_TEMPLATES } from '../../constants';
 import { PatientSkeleton } from '../Skeleton';
 import { EmptyState } from '../EmptyState';
+import { IntersectionVisible } from '../IntersectionVisible';
 import { validateCIE11Code } from '../../utils/dataValidation';
-import { calculateTotalWithSurcharge } from '../../utils/finance';
 import { sanitizeInput } from '../../utils/security';
 import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calculateTFG, calculateFramingham } from '../../utils/clinicalLogic';
 import { logAuditEvent } from '../../utils/auditLogger';
+import { calculateTotalWithSurcharge, calculateTaxRetentions } from '../../utils/finance';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import RecentResultsWidget from '../RecentResultsWidget';
 
@@ -297,7 +299,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   // Handle Tab Change from Sidebar (e.g. My Production or HR)
   useEffect(() => {
-    if (activeTab === 'reports' || activeTab === 'hr') {
+    if (['reports', 'hr', 'records', 'appointments'].includes(activeTab)) {
         setViewMode('LIST'); // Reset any patient view
         setSelectedPatient(null);
     }
@@ -341,8 +343,19 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const handleDownloadContract = () => {
       // 🛡️ MORPHEUS: Audit log for contract download
       logAuditEvent(user.id, 'DOWNLOAD_CONTRACT', 'Contract', `User downloaded a copy of their contract`);
-      showToast('Descargando PDF del contrato...', 'info');
+
+      const content = `CONTRATO DE PRESTACIÓN DE SERVICIOS PROFESIONALES\n\nContratante: MediCore IPS\nContratista: ${user.name}\nCC: ${user.documentNumber}\n\nObjeto: Prestación de servicios médicos asistenciales según disponibilidad y programación.\nValor: ${formatCurrency(hrUser.contracts?.find(c => c.isActive)?.opsValue || 0)}\n\nFirmado digitalmente el ${new Date().toLocaleDateString()}`;
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Contrato_${user.lastName}.txt`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      showToast('Descargando copia del contrato...', 'success');
   };
+
 
   const handleOpenPaymentModal = () => {
       const activeContract = hrUser.contracts?.find(c => c.isActive && c.type === ContractType.OPS);
@@ -450,6 +463,95 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
        });
        return uniqueProcs.slice(0, 5);
   }, [records, user.id]);
+
+  const handlePrintRecord = (record: ClinicalRecord) => {
+      const patient = patients.find(p => p.id === record.patientId);
+      if (!patient) return;
+
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      if (!printWindow) {
+          showToast("Error: No se pudo abrir la ventana de impresión. Revise los bloqueadores de popups.", "error");
+          return;
+      }
+
+      const html = `
+          <html>
+          <head>
+              <title>Historia Clínica - ${patient.fullName}</title>
+              <style>
+                  body { font-family: sans-serif; padding: 40px; color: #333; line-height: 1.5; }
+                  .header { border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 20px; display: flex; justify-content: space-between; }
+                  .section { margin-bottom: 20px; }
+                  .section-title { font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #eee; margin-bottom: 10px; font-size: 14px; }
+                  .grid { display: grid; grid-template-cols: 1fr 1fr; gap: 10px; }
+                  .field-label { font-weight: bold; color: #666; font-size: 12px; }
+                  .field-value { font-size: 12px; }
+                  .footer { margin-top: 50px; border-top: 1px solid #eee; padding-top: 20px; }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <div>
+                      <h1 style="margin:0">MediCore IPS</h1>
+                      <p style="margin:0">Historia Clínica Electrónica</p>
+                  </div>
+                  <div style="text-align: right">
+                      <p style="margin:0"><strong>ID Registro:</strong> ${record.id}</p>
+                      <p style="margin:0"><strong>Fecha:</strong> ${new Date(record.dateCreated).toLocaleString()}</p>
+                  </div>
+              </div>
+
+              <div class="section">
+                  <div class="section-title">Información del Paciente</div>
+                  <div class="grid">
+                      <div><span class="field-label">Nombre:</span> <span class="field-value">${patient.fullName}</span></div>
+                      <div><span class="field-label">Identificación:</span> <span class="field-value">${patient.identification}</span></div>
+                      <div><span class="field-label">Edad:</span> <span class="field-value">${new Date().getFullYear() - new Date(patient.birthDate).getFullYear()} años</span></div>
+                      <div><span class="field-label">Género:</span> <span class="field-value">${patient.gender}</span></div>
+                  </div>
+              </div>
+
+              <div class="section">
+                  <div class="section-title">Anamnesis</div>
+                  <p><strong>Motivo de Consulta:</strong> ${record.chiefComplaint}</p>
+                  <p><strong>Enfermedad Actual:</strong> ${record.historyOfPresentIllness}</p>
+                  <p><strong>Antecedents:</strong> ${record.antecedents}</p>
+              </div>
+
+              <div class="section">
+                  <div class="section-title">Diagnósticos (CIE-11)</div>
+                  <ul>
+                      ${record.diagnoses?.map(d => `<li><strong>${d.code}</strong> - ${d.name} (${d.type})</li>`).join('')}
+                  </ul>
+              </div>
+
+              <div class="section">
+                  <div class="section-title">Conducta y Plan</div>
+                  <p>${record.plan || 'No especificado'}</p>
+              </div>
+
+              <div class="footer">
+                  <div style="display: flex; justify-content: space-between;">
+                      <div>
+                          <p>__________________________</p>
+                          <p><strong>Firma Profesional:</strong> ${record.professionalName}</p>
+                          <p>Licencia: ${user.professionalLicense || 'N/A'}</p>
+                      </div>
+                      <div style="text-align: right; font-size: 10px; color: #999;">
+                          Documento generado electrónicamente por MediCore v1.0<br/>
+                          Resumen Digital de Atención (RDA) enviado al MinSalud
+                      </div>
+                  </div>
+              </div>
+
+              <script>window.print();</script>
+          </body>
+          </html>
+      `;
+
+      printWindow.document.write(html);
+      printWindow.document.close();
+  };
 
   const handleRestoreDraft = (draftId: string) => {
       const saved = localStorage.getItem(`medicore_draft_${draftId}`);
@@ -740,6 +842,20 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       showToast("Plantilla insertada", "success");
   };
 
+  const handleApplyNormalVitals = () => {
+    // 🩺 DOC HOUSE: Baselines for a healthy adult
+    const normalVitals = {
+        v_fc: '72',
+        v_fr: '16',
+        v_temp: '36.5',
+        v_sat: '98',
+        global_sys_bp: '120',
+        global_dia_bp: '80'
+    };
+    setDynamicData(prev => ({ ...prev, ...normalVitals }));
+    showToast("Signos vitales normalizados (Basales de referencia)", "info");
+  };
+
   const renderField = (field: any, isReadOnly: boolean) => {
       if (field.type === 'HEADER') return <h4 className="text-sm font-bold text-slate-700 mt-4 border-b pb-1 col-span-2">{field.label}</h4>;
       if (field.type === 'INFO') return <div className="col-span-2 bg-blue-50 p-2 rounded text-xs text-blue-800 mb-2">{field.label}</div>;
@@ -835,9 +951,13 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   };
   
 
-  const RDAViewerModal = () => (
+  const RDAViewerModal = () => {
+      const modalRef = useRef<HTMLDivElement>(null);
+      useFocusTrap(modalRef, showRDAModal);
+
+      return (
       <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 max-h-[90vh] flex flex-col">
+          <div ref={modalRef} className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 max-h-[90vh] flex flex-col" tabIndex={-1}>
               <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xl font-bold text-slate-800 flex items-center">
                       <ShieldCheck className="mr-2 text-green-600"/> Resumen Digital de Atención (RDA)
@@ -856,7 +976,176 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
               </div>
           </div>
       </div>
-  );
+      );
+  };
+
+  // ⚡ NEO: Memoized financial stats for reports
+  const myFinalizedRecords = useMemo(() => records.filter(r => r.professionalId === user.id && r.status === RecordStatus.FINALIZED), [records, user.id]);
+
+  const financialStats = useMemo(() => {
+      const gross = myFinalizedRecords.reduce((acc, curr) => {
+          // Base value for consultation
+          let recordValue = 45000;
+
+          // Add value for each procedure (approximate factor from SOAT)
+          const procsVal = curr.performedProcedures?.reduce((sum, p) => {
+              const tariff = MOCK_SOAT_TARIFF.find(t => t.code === p.code);
+              return sum + (45000 * (tariff?.soatFactor || 1));
+          }, 0) || 0;
+
+          return acc + recordValue + procsVal;
+      }, 0);
+
+      const retentions = calculateTaxRetentions(gross);
+      return { gross, ...retentions };
+  }, [myFinalizedRecords]);
+
+
+
+  // --- AGENDA / APPOINTMENTS MODULE ---
+  if (activeTab === 'appointments') {
+      const myAppointments = MOCK_APPOINTMENTS.filter(a => a.professionalId === user.id);
+
+      return (
+          <div className="p-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-2">
+              <div className="flex justify-between items-center mb-6">
+                  <div>
+                      <h2 className="text-2xl font-bold text-slate-800 flex items-center">
+                          <Calendar className="mr-3 text-blue-600"/> Mi Agenda de Hoy
+                      </h2>
+                      <p className="text-slate-500 mt-1">Gestión de citas programadas para el día actual.</p>
+                  </div>
+              </div>
+
+              <div className="space-y-4">
+                  {myAppointments.map(appt => (
+                      <div key={appt.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center hover:shadow-md transition-shadow">
+                          <div className="flex items-center">
+                              <div className="bg-blue-50 p-4 rounded-xl mr-6 text-center min-w-[100px]">
+                                  <p className="text-2xl font-bold text-blue-700">{appt.time}</p>
+                                  <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Hora</p>
+                              </div>
+                              <div>
+                                  <h3 className="font-bold text-slate-800 text-lg">{appt.patientName}</h3>
+                                  <p className="text-sm text-slate-500">{appt.reason}</p>
+                              </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                  appt.status === 'WAITING' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                              }`}>
+                                  {appt.status === 'WAITING' ? 'EN SALA' : 'PROGRAMADA'}
+                              </span>
+                              <button
+                                onClick={() => {
+                                    const p = patients.find(pat => pat.id === appt.patientId);
+                                    if(p) handleCreateRecord(p);
+                                }}
+                                className="bg-slate-900 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-slate-800 shadow-lg shadow-slate-200"
+                              >
+                                Atender Ahora
+                              </button>
+                          </div>
+                      </div>
+                  ))}
+                  {myAppointments.length === 0 && (
+                      <div className="bg-white p-20 rounded-2xl border-2 border-dashed border-slate-200 text-center">
+                          <Calendar size={48} className="mx-auto text-slate-300 mb-4"/>
+                          <p className="text-slate-500 font-medium">No tienes citas programadas para hoy.</p>
+                      </div>
+                  )}
+              </div>
+          </div>
+      );
+  }
+
+  // --- RECORDS / HISTORY MODULE ---
+  if (activeTab === 'records') {
+      return (
+          <div className="p-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-2">
+              <div className="flex justify-between items-center mb-6">
+                  <div>
+                      <h2 className="text-2xl font-bold text-slate-800 flex items-center">
+                          <FileText className="mr-3 text-purple-600"/> Mis Historias Clínicas
+                      </h2>
+                      <p className="text-slate-500 mt-1">Historial de atenciones finalizadas y borradores.</p>
+                  </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <table className="w-full text-sm text-left">
+                      <thead className="bg-slate-50 text-slate-500 font-medium border-b">
+                          <tr>
+                              <th className="p-4">Fecha</th>
+                              <th className="p-4">Paciente</th>
+                              <th className="p-4">Tipo de Registro</th>
+                              <th className="p-4">Estado</th>
+                              <th className="p-4 text-right">Acciones</th>
+                          </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                          {records.filter(r => r.professionalId === user.id).sort((a,b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime()).map(record => {
+                              const patient = patients.find(p => p.id === record.patientId);
+                              return (
+                                  <tr key={record.id} className="hover:bg-slate-50 transition-colors">
+                                      <td className="p-4">
+                                          <p className="font-medium text-slate-800">{new Date(record.dateCreated).toLocaleDateString()}</p>
+                                          <p className="text-[10px] text-slate-400">{new Date(record.dateCreated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                      </td>
+                                      <td className="p-4">
+                                          <p className="font-bold text-slate-700">{patient?.fullName || 'Desconocido'}</p>
+                                          <p className="text-xs text-slate-500">{patient?.identification}</p>
+                                      </td>
+                                      <td className="p-4">
+                                          <span className="text-xs bg-slate-100 px-2 py-1 rounded-md text-slate-600 font-medium">{record.recordType}</span>
+                                      </td>
+                                      <td className="p-4">
+                                          <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${
+                                              record.status === 'FINALIZED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                                          }`}>
+                                              {record.status === 'FINALIZED' ? 'FINALIZADA' : 'BORRADOR'}
+                                          </span>
+                                      </td>
+                                      <td className="p-4 text-right">
+                                          <div className="flex justify-end gap-2">
+                                              {record.status === 'FINALIZED' ? (
+                                                  <button
+                                                    onClick={() => handlePrintRecord(record)}
+                                                    className="flex items-center text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded hover:bg-blue-100 transition-colors"
+                                                  >
+                                                      <Printer size={14} className="mr-1.5"/> Imprimir PDF
+                                                  </button>
+                                              ) : (
+                                                  <button
+                                                    onClick={() => {
+                                                        const p = patients.find(pat => pat.id === record.patientId);
+                                                        if(p) {
+                                                            setSelectedPatient(p);
+                                                            setCurrentRecord(record);
+                                                            setViewMode('CREATE');
+                                                            // Load dynamic data from record if exists
+                                                            if (record.dynamicData) setDynamicData(record.dynamicData);
+                                                        }
+                                                    }}
+                                                    className="flex items-center text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded hover:bg-slate-200 transition-colors"
+                                                  >
+                                                      <Edit size={14} className="mr-1.5"/> Continuar
+                                                  </button>
+                                              )}
+                                          </div>
+                                      </td>
+                                  </tr>
+                              );
+                          })}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      );
+  }
+
+
+
 
   // --- HR & TALENT MODULE ---
   if (activeTab === 'hr') {
@@ -1129,14 +1418,6 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   // --- FINANCIAL DASHBOARD COMPONENT ---
   if (activeTab === 'reports') {
-      const myRecords = records.filter(r => r.professionalId === user.id && r.status === RecordStatus.FINALIZED);
-      const totalProduction = myRecords.reduce((acc, curr) => {
-          // Estimate production based on procedures or default consult value
-          const procsVal = curr.performedProcedures?.reduce((sum, p) => sum + 45000, 0) || 0; // Approx val per proc if no price
-          const baseWithSurcharge = calculateTotalWithSurcharge(45000, 'NIGHT'); // Assume some night shifts for demo
-          return acc + baseWithSurcharge + procsVal;
-      }, 0);
-
       const chartData = [
           { name: 'Lun', val: Math.random() * 500000 },
           { name: 'Mar', val: Math.random() * 500000 },
@@ -1151,18 +1432,23 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                   <TrendingUp className="mr-3 text-green-600"/> Mi Producción & Finanzas
               </h2>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                       <p className="text-sm font-bold text-slate-500 uppercase">Pacientes Atendidos</p>
-                      <h3 className="text-3xl font-bold text-slate-800 mt-2">{myRecords.length}</h3>
-                  </div>
-                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                      <p className="text-sm font-bold text-slate-500 uppercase">Producción Estimada (Mes)</p>
-                      <h3 className="text-3xl font-bold text-green-600 mt-2">{formatCurrency(totalProduction)}</h3>
+                      <h3 className="text-3xl font-bold text-slate-800 mt-2">{myFinalizedRecords.length}</h3>
                   </div>
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                      <p className="text-sm font-bold text-slate-500 uppercase">Eficiencia</p>
-                      <h3 className="text-3xl font-bold text-blue-600 mt-2">98%</h3>
+                      <p className="text-sm font-bold text-slate-500 uppercase">Producción Bruta (Mes)</p>
+                      <h3 className="text-3xl font-bold text-slate-800 mt-2">{formatCurrency(financialStats.gross)}</h3>
+                  </div>
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                      <p className="text-sm font-bold text-red-500 uppercase">Retenciones (Est.)</p>
+                      <h3 className="text-3xl font-bold text-red-600 mt-2">-{formatCurrency(financialStats.total)}</h3>
+                      <p className="text-[10px] text-slate-400 mt-1">Ref: 11% RF + 0.966% ICA</p>
+                  </div>
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200 bg-blue-50/30">
+                      <p className="text-sm font-bold text-blue-600 uppercase">Proyección Neta</p>
+                      <h3 className="text-3xl font-bold text-blue-700 mt-2">{formatCurrency(financialStats.net)}</h3>
                   </div>
               </div>
 
@@ -1199,9 +1485,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
              </div>
          )}
 
-         {showAuthModal && (
+         {showAuthModal && (() => {
+          const authRef = useRef<HTMLDivElement>(null);
+          useFocusTrap(authRef, showAuthModal);
+          return (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full">
+            <div ref={authRef} className="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full" tabIndex={-1}>
               <h3 className="text-xl font-bold mb-2 text-slate-800">
                 {authAction === 'FINALIZE' ? 'Firmar y Finalizar' : 'Firmar Nota Aclaratoria'}
               </h3>
@@ -1247,7 +1536,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
               </div>
             </div>
           </div>
-         )}
+          );
+         })()}
          
          {/* HEADER ACTIONS */}
          <div className="flex items-center justify-between mb-4 pb-4 border-b">
@@ -1278,8 +1568,13 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                         {isSaved ? '¡Guardado!' : 'Guardar'}
                         <span className="ml-2 text-[9px] opacity-50 font-normal">Ctrl+S</span>
                     </button>
-                    <button onClick={() => initiateAuth('FINALIZE')} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm hover:bg-slate-800 flex items-center">
-                        <Lock size={14} className="mr-2"/> Finalizar & RDA
+                    <button
+                        onClick={() => initiateAuth('FINALIZE')}
+                        disabled={isSubmitting}
+                        className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm hover:bg-slate-800 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isSubmitting ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Lock size={14} className="mr-2"/>}
+                        Finalizar & RDA
                     </button>
                 </div>
             ) : (
@@ -1288,6 +1583,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                         {currentRecord.rdaStatus === RDAStatus.SENT_MINSALUD ? <ShieldCheck size={14}/> : <Clock size={14}/>}
                         <span>{currentRecord.rdaStatus === RDAStatus.SENT_MINSALUD ? 'RDA Enviado (Res. 1888)' : 'RDA Pendiente'}</span>
                     </div>
+                    <button onClick={() => handlePrintRecord(currentRecord as ClinicalRecord)} className="flex items-center text-xs text-slate-600 hover:text-slate-800 font-medium">
+                        <Printer size={14} className="mr-1"/> Imprimir PDF
+                    </button>
                     {currentRecord.rdaPayload && (
                         <button onClick={() => setShowRDAModal(true)} className="flex items-center text-xs text-blue-600 hover:text-blue-800 font-medium">
                             <Database size={14} className="mr-1"/> Ver JSON
@@ -1323,8 +1621,20 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                      if (activeFormTab !== section.id) return null;
                      return (
                          <div key={section.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                             <h3 className="text-lg font-bold text-slate-800 mb-1">{section.title}</h3>
-                             {section.description && <p className="text-xs text-slate-400 mb-4">{section.description}</p>}
+                             <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 className="text-lg font-bold text-slate-800 mb-1">{section.title}</h3>
+                                    {section.description && <p className="text-xs text-slate-400">{section.description}</p>}
+                                </div>
+                                {(section.id === 'vitals_tab' || section.id === 'sec_vitals_adult') && !isReadOnly && (
+                                    <button
+                                        onClick={handleApplyNormalVitals}
+                                        className="text-xs bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg font-bold border border-blue-100 hover:bg-blue-100 flex items-center transition-all"
+                                    >
+                                        <Activity size={14} className="mr-1.5 text-blue-500" /> Cargar Valores Normales
+                                    </button>
+                                )}
+                             </div>
                              
                              <div className="grid grid-cols-2 gap-4">
                                  {section.fields.map(field => {
@@ -1589,6 +1899,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                     records={records}
                     viewMode={viewMode}
                     handleImportResult={handleImportResult}
+                    handlePrintRecord={handlePrintRecord}
                  />
              </div>
          </div>
@@ -1660,40 +1971,42 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                 const appt = MOCK_APPOINTMENTS.find(a => a.patientId === p.id && a.date === today && a.status === 'WAITING');
 
                 return (
-                    <div key={p.id} className={`bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow cursor-pointer group relative overflow-hidden ${appt ? 'ring-2 ring-green-500' : ''}`} onClick={() => handleCreateRecord(p)}>
-                        {appt && (
-                            <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">
-                                EN SALA DE ESPERA
+                    <IntersectionVisible key={p.id}>
+                        <div className={`bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow cursor-pointer group relative overflow-hidden h-full ${appt ? 'ring-2 ring-green-500' : ''}`} onClick={() => handleCreateRecord(p)}>
+                            {appt && (
+                                <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">
+                                    EN SALA DE ESPERA
+                                </div>
+                            )}
+                            <div className="flex justify-between items-start mb-4">
+                                <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 font-bold text-lg">
+                                    {p.fullName.charAt(0)}
+                                </div>
+                                <button className="bg-slate-900 text-white px-3 py-1 rounded-full text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Atender</button>
                             </div>
-                        )}
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 font-bold text-lg">
-                                {p.fullName.charAt(0)}
+                            <h3 className="font-bold text-slate-800">{p.fullName}</h3>
+                            <div className="flex items-center text-sm text-slate-500 mb-1 group">
+                                <span>{p.identification}</span>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleCopyId(p.identification); }}
+                                    className={`ml-2 p-1 transition-all ${copiedId === p.identification ? 'text-green-500 scale-110' : 'text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100'}`}
+                                    aria-label="Copiar ID"
+                                    title={copiedId === p.identification ? "¡Copiado!" : "Copiar ID"}
+                                >
+                                    {copiedId === p.identification ? <FileCheck size={12} /> : <Copy size={12} />}
+                                </button>
+                                {copiedId === p.identification && <span className="text-[10px] text-green-600 font-bold animate-in fade-in zoom-in duration-200">¡Copiado!</span>}
                             </div>
-                            <button className="bg-slate-900 text-white px-3 py-1 rounded-full text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Atender</button>
-                        </div>
-                        <h3 className="font-bold text-slate-800">{p.fullName}</h3>
-                        <div className="flex items-center text-sm text-slate-500 mb-1 group">
-                            <span>{p.identification}</span>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); handleCopyId(p.identification); }}
-                                className={`ml-2 p-1 transition-all ${copiedId === p.identification ? 'text-green-500 scale-110' : 'text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100'}`}
-                                aria-label="Copiar ID"
-                                title={copiedId === p.identification ? "¡Copiado!" : "Copiar ID"}
-                            >
-                                {copiedId === p.identification ? <FileCheck size={12} /> : <Copy size={12} />}
-                            </button>
-                            {copiedId === p.identification && <span className="text-[10px] text-green-600 font-bold animate-in fade-in zoom-in duration-200">¡Copiado!</span>}
-                        </div>
-                        {p.allergies && (
-                            <div className="flex items-center text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full w-fit mb-2">
-                                <AlertTriangle size={10} className="mr-1"/> ALERGIAS
+                            {p.allergies && (
+                                <div className="flex items-center text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full w-fit mb-2">
+                                    <AlertTriangle size={10} className="mr-1"/> ALERGIAS
+                                </div>
+                            )}
+                            <div className="flex items-center text-xs text-slate-400">
+                                <Activity size={12} className="mr-1"/> Última atención: 10 Oct 2023
                             </div>
-                        )}
-                        <div className="flex items-center text-xs text-slate-400">
-                            <Activity size={12} className="mr-1"/> Última atención: 10 Oct 2023
                         </div>
-                    </div>
+                    </IntersectionVisible>
                 );
             })}
             </div>

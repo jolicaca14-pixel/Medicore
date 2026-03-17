@@ -39,6 +39,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [dynamicData, setDynamicData] = useState<Record<string, any>>({});
   const [completedRecords, setCompletedRecords] = useState<ClinicalRecord[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Filter orders based on user role
   const myOrders = orders.filter(o => 
@@ -58,11 +59,16 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       setDynamicData({}); // Reset form
   };
 
-  const handleSaveResult = () => {
+  const handleSaveResult = async () => {
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
       if(!template) return showToast("No hay plantilla configurada para este examen.", "error");
+
+      setIsSubmitting(true);
+
+      // Simulate processing time
+      await new Promise(resolve => setTimeout(resolve, 800));
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -91,6 +97,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
+      setIsSubmitting(false);
       showToast("Resultado guardado correctamente.", "success");
   };
 
@@ -194,9 +201,20 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                   )}
               </div>
               <div className="p-4 border-t bg-slate-50 flex justify-end space-x-3">
-                  <button onClick={() => setSelectedOrder(null)} className="px-4 py-2 text-slate-600 font-bold">Cancelar</button>
-                  <button onClick={handleSaveResult} className="px-6 py-2 bg-blue-600 text-white rounded font-bold flex items-center shadow-lg hover:bg-blue-700">
-                      <Save size={18} className="mr-2"/> Guardar y Finalizar
+                  <button disabled={isSubmitting} onClick={() => setSelectedOrder(null)} className="px-4 py-2 text-slate-600 font-bold disabled:opacity-50">Cancelar</button>
+                  <button
+                    onClick={handleSaveResult}
+                    disabled={isSubmitting}
+                    className="px-6 py-2 bg-blue-600 text-white rounded font-bold flex items-center shadow-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                      {isSubmitting ? (
+                          <div className="flex items-center">
+                              <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                              <span>Guardando...</span>
+                          </div>
+                      ) : (
+                          <><Save size={18} className="mr-2"/> Guardar y Finalizar</>
+                      )}
                   </button>
               </div>
           </div>

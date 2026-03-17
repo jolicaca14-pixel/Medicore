@@ -1,5 +1,6 @@
 import { Patient } from '../types';
 import { MOCK_PATIENTS } from '../constants';
+import { fetchWithRetry } from '../utils/fetchWrapper';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace('/auth', '');
 
@@ -37,7 +38,7 @@ export const patientService = {
         }
 
         try {
-            const response = await fetch(`${API_URL}/pacientes`, {
+            const response = await fetchWithRetry(`${API_URL}/pacientes`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -60,7 +61,7 @@ export const patientService = {
         if (!token) return null;
 
         try {
-            const response = await fetch(`${API_URL}/pacientes/${id}`, {
+            const response = await fetchWithRetry(`${API_URL}/pacientes/${id}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }

@@ -1,16 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { Patient, ClinicalRecord, RecordType } from '../types';
 import { MOCK_SECTION_LIBRARY } from '../constants';
-import { TestTube, Image, ChevronDown, ArrowLeftCircle } from 'lucide-react';
+import { TestTube, Image, ChevronDown, ArrowLeftCircle, Printer } from 'lucide-react';
 
 interface RecentResultsWidgetProps {
     selectedPatient: Patient | null;
     records: ClinicalRecord[];
     viewMode: 'LIST' | 'CREATE' | 'VIEW';
     handleImportResult: (result: ClinicalRecord) => void;
+    handlePrintRecord?: (record: ClinicalRecord) => void;
 }
 
-const RecentResultsWidget: React.FC<RecentResultsWidgetProps> = ({ selectedPatient, records, viewMode, handleImportResult }) => {
+const RecentResultsWidget: React.FC<RecentResultsWidgetProps> = ({ selectedPatient, records, viewMode, handleImportResult, handlePrintRecord }) => {
     const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
     // Bolt ⚡: Memoize recent results to prevent re-filtering on every render.
     // This calculation can become expensive if the patient has a long record history.
@@ -47,14 +48,25 @@ const RecentResultsWidget: React.FC<RecentResultsWidgetProps> = ({ selectedPatie
                         );
                     })}
                 </div>
-                {!viewMode.includes('VIEW') && (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); handleImportResult(record); }}
-                        className="mt-2 w-full bg-blue-100 text-blue-700 py-1 rounded font-bold hover:bg-blue-200 flex justify-center items-center transition-colors"
-                    >
-                        <ArrowLeftCircle size={14} className="mr-1" /> Incorporar a Historia
-                    </button>
-                )}
+                <div className="flex gap-2 mt-2">
+                    {!viewMode.includes('VIEW') && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handleImportResult(record); }}
+                            className="flex-1 bg-blue-100 text-blue-700 py-1 rounded font-bold hover:bg-blue-200 flex justify-center items-center transition-colors"
+                        >
+                            <ArrowLeftCircle size={14} className="mr-1" /> Incorporar
+                        </button>
+                    )}
+                    {handlePrintRecord && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handlePrintRecord(record); }}
+                            className="bg-slate-100 text-slate-600 px-3 py-1 rounded font-bold hover:bg-slate-200 flex justify-center items-center transition-colors"
+                            title="Imprimir Resultado"
+                        >
+                            <Printer size={14} />
+                        </button>
+                    )}
+                </div>
             </div>
         );
     };

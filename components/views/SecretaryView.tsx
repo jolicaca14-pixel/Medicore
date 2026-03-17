@@ -27,6 +27,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   // --- BILLING STATE ---
   const [billingPatient, setBillingPatient] = useState<Patient | null>(null);
   const [billingSearchTerm, setBillingSearchTerm] = useState(''); // Search state
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [selectedServices, setSelectedServices] = useState<InvoiceItem[]>([]);
   const [globalDiscount, setGlobalDiscount] = useState<number>(0);
@@ -197,13 +198,16 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       return { subtotal, totalDiscount, total, totalItemDiscounts, globalDiscountAmount };
   };
 
-  const finalizeInvoice = () => {
+  const finalizeInvoice = async () => {
       if(!billingPatient) return;
       const { total, subtotal, totalDiscount } = calculateTotal();
       
       const initialPayment = partialPayment ? parseFloat(partialPayment) : 0;
       const balance = total - initialPayment;
       const status = balance <= 0 ? 'PAID' : (initialPayment > 0 ? 'PARTIAL' : 'PENDING');
+
+      setIsSubmitting(true);
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       const newInvoice: Invoice = {
           id: `INV-${Date.now()}`,
@@ -223,6 +227,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       setSelectedServices([]);
       setBillingPatient(null);
       setPartialPayment('');
+      setIsSubmitting(false);
       alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
   };
 
@@ -591,11 +596,18 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                           </div>
 
                           <button 
-                            disabled={!billingPatient || selectedServices.length === 0}
+                            disabled={!billingPatient || selectedServices.length === 0 || isSubmitting}
                             onClick={finalizeInvoice}
                             className="mt-6 w-full bg-slate-900 text-white py-3 rounded-lg font-bold hover:bg-slate-800 disabled:opacity-50 flex justify-center items-center"
                           >
-                              <CheckCircle size={18} className="mr-2"/> Generar Factura
+                              {isSubmitting ? (
+                                  <div className="flex items-center">
+                                      <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-2"></div>
+                                      <span>Generando...</span>
+                                  </div>
+                              ) : (
+                                  <><CheckCircle size={18} className="mr-2"/> Generar Factura</>
+                              )}
                           </button>
                       </div>
                   </div>

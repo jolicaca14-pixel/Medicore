@@ -1,5 +1,6 @@
 import { User, UserRole } from '../types';
 import { MOCK_USERS } from '../constants';
+import { fetchWithRetry } from '../utils/fetchWrapper';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api/auth';
 
@@ -22,7 +23,7 @@ const mapUser = (backendData: any): User => {
 export const authService = {
   async login(username: string, password: string): Promise<User> {
     try {
-      const response = await fetch(`${API_URL}/login`, {
+      const response = await fetchWithRetry(`${API_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -49,7 +50,7 @@ export const authService = {
 
   async logout(): Promise<void> {
     try {
-      await fetch(`${API_URL}/logout`, { method: 'POST' });
+      await fetchWithRetry(`${API_URL}/logout`, { method: 'POST' });
     } catch (e) {
       console.warn('Logout API failed');
     }
@@ -60,7 +61,7 @@ export const authService = {
     const token = session ? JSON.parse(session).accessToken : null;
 
     try {
-      const response = await fetch(`${API_URL}/me`, {
+      const response = await fetchWithRetry(`${API_URL}/me`, {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
       if (!response.ok) return null;
@@ -80,7 +81,7 @@ export const authService = {
 
   async refreshToken(): Promise<boolean> {
     try {
-      const response = await fetch(`${API_URL}/refresh`, { method: 'POST' });
+      const response = await fetchWithRetry(`${API_URL}/refresh`, { method: 'POST' });
       return response.ok;
     } catch (e) {
       // 🛡️ MORPHEUS: Fallback for demo mode

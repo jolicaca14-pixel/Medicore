@@ -156,7 +156,21 @@ export const MOCK_USERS: User[] = [
     professionalLicense: 'MED-HOUSE-1',
     specialty: 'Diagnóstico / Nefrología',
     digitalStampUrl: 'https://via.placeholder.com/150x80?text=Firma+House',
-    contracts: [],
+    contracts: [
+      {
+        id: 'c-house',
+        userId: 'u7',
+        type: ContractType.OPS,
+        startDate: '2024-01-01',
+        endDate: '2026-01-01',
+        isActive: true,
+        status: 'ACTIVE',
+        opsValue: 8500000,
+        opsPaymentMethod: 'FIXED_MONTHLY',
+        fileUrl: 'contrato_house.pdf',
+        auditTrail: [ { date: '2024-01-01', action: 'CREATED', changedBy: 'Admin Sistema', details: 'Vinculación Especialista' } ]
+      }
+    ],
     status: 'ACTIVE'
   },
   {
@@ -821,6 +835,28 @@ export const MOCK_RECORDS: ClinicalRecord[] = [
     dynamicData: { rad_findings: 'Silueta cardiaca de tamaño normal. Campos pulmonares limpios.', rad_conclusion: 'Estudio normal.' },
     diagnoses: [],
     plan: '',
+    prescriptions: [],
+    performedProcedures: [],
+    attachments: [],
+    clarifyingNotes: []
+  },
+  // MOCK RECORD FOR DOC HOUSE (TESTING)
+  {
+    id: 'r-house-test',
+    patientId: 'p1',
+    professionalId: 'u7',
+    professionalName: 'Dr. Gregory House',
+    recordType: RecordType.GENERAL,
+    dateCreated: '2024-03-10T10:00:00Z',
+    status: RecordStatus.FINALIZED,
+    rdaStatus: RDAStatus.SENT_MINSALUD,
+    dateFinalized: '2024-03-10T10:30:00Z',
+    chiefComplaint: 'Dolor en pierna',
+    historyOfPresentIllness: 'Crónico.',
+    antecedents: 'Ninguno.',
+    dynamicData: {},
+    diagnoses: [{ code: '8A80.0', name: 'Migraña sin aura', type: 'PRINCIPAL' }],
+    plan: 'Vicodina.',
     prescriptions: [],
     performedProcedures: [],
     attachments: [],
