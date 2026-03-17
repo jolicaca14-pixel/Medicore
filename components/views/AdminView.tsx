@@ -1387,8 +1387,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           <LayoutTemplate size={20}/>
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                                          <button
+                                            onClick={() => { setNewItemName(t.name); setNewItemId(t.id); setIsTemplateModalOpen(true); }}
+                                            className="p-1.5 bg-white border rounded hover:text-blue-600"
+                                            aria-label={`Editar plantilla ${t.name}`}
+                                          >
+                                            <Edit size={14}/>
+                                          </button>
+                                          <button
+                                            onClick={() => { if(window.confirm(`¿Eliminar plantilla ${t.name}?`)) setTemplates(templates.filter(tpl => tpl.id !== t.id)); }}
+                                            className="p-1.5 bg-white border rounded hover:text-red-600"
+                                            aria-label={`Eliminar plantilla ${t.name}`}
+                                          >
+                                            <Trash2 size={14}/>
+                                          </button>
                                       </div>
                                   </div>
                                   <h4 className="font-bold text-slate-800">{t.name}</h4>
@@ -1450,7 +1462,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           ))}
                                           {sec.fields.length > 4 && <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] text-slate-500">+{sec.fields.length - 4}</div>}
                                       </div>
-                                      <button className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button
+                                        onClick={() => { setNewItemName(sec.title); setNewItemId(sec.id); setIsSectionModalOpen(true); }}
+                                        className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        aria-label={`Editar sección ${sec.title}`}
+                                      >
+                                        <Edit size={16}/>
+                                      </button>
+                                      <button
+                                        onClick={() => { if(window.confirm(`¿Eliminar sección ${sec.title}?`)) setGlobalSections(globalSections.filter(s => s.id !== sec.id)); }}
+                                        className="p-2 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        aria-label={`Eliminar sección ${sec.title}`}
+                                      >
+                                        <Trash2 size={16}/>
+                                      </button>
                                   </div>
                               </div>
                           ))}
@@ -1510,7 +1535,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                               ) : <span className="text-xs text-slate-400">Opcional</span>}
                                           </td>
                                           <td className="p-3 text-right">
-                                              <button className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button
+                                                onClick={() => { setNewItemName(field.label); setNewItemId(field.id); setIsFieldModalOpen(true); }}
+                                                className="p-1.5 hover:bg-slate-200 rounded text-slate-500"
+                                                aria-label={`Editar campo ${field.label}`}
+                                              >
+                                                <Edit size={14}/>
+                                              </button>
+                                              <button
+                                                onClick={() => { if(window.confirm(`¿Eliminar campo ${field.label}?`)) setGlobalFields(globalFields.filter(f => f.id !== field.id)); }}
+                                                className="p-1.5 hover:bg-slate-200 rounded text-red-500"
+                                                aria-label={`Eliminar campo ${field.label}`}
+                                              >
+                                                <Trash2 size={14}/>
+                                              </button>
                                           </td>
                                       </tr>
                                   ))}
