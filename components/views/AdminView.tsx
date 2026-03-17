@@ -1269,7 +1269,26 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                     <option value={RecordType.LAB_RESULT}>Laboratorio</option>
                                 </select>
                             </div>
-                            <button onClick={() => { alert("Configuración guardada (Simulación)"); setIsTemplateModalOpen(false); }} className="w-full bg-slate-900 text-white py-2 rounded font-bold">Crear Plantilla</button>
+                            <button
+                                onClick={() => {
+                                    const name = (document.querySelector('input[placeholder="Ej: Consulta Especializada"]') as HTMLInputElement)?.value;
+                                    if(!name) return alert("Ingrese un nombre");
+                                    const newTpl: RoleTemplate = {
+                                        id: `t_${Date.now()}`,
+                                        name,
+                                        description: "Nueva plantilla personalizada",
+                                        active: true,
+                                        allowedRoles: [UserRole.PROFESSIONAL],
+                                        sections: [],
+                                        recordType: RecordType.GENERAL
+                                    };
+                                    setTemplates([...templates, newTpl]);
+                                    setIsTemplateModalOpen(false);
+                                }}
+                                className="w-full bg-slate-900 text-white py-2 rounded font-bold"
+                            >
+                                Crear Plantilla
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1284,13 +1303,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-1">Título de la Sección</label>
-                                <input type="text" className="w-full border p-2 rounded" placeholder="Ej: Antecedentes Familiares" />
+                                <input type="text" id="new-section-title" className="w-full border p-2 rounded" placeholder="Ej: Antecedentes Familiares" />
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-1">ID Único (Slug)</label>
-                                <input type="text" className="w-full border p-2 rounded font-mono text-xs" placeholder="ej: sec_antecedentes" />
+                                <input type="text" id="new-section-id" className="w-full border p-2 rounded font-mono text-xs" placeholder="ej: sec_antecedentes" />
                             </div>
-                            <button onClick={() => { alert("Sección agregada a la biblioteca (Simulación)"); setIsSectionModalOpen(false); }} className="w-full bg-slate-900 text-white py-2 rounded font-bold">Guardar Sección</button>
+                            <button
+                                onClick={() => {
+                                    const title = (document.getElementById('new-section-title') as HTMLInputElement)?.value;
+                                    const id = (document.getElementById('new-section-id') as HTMLInputElement)?.value;
+                                    if(!title || !id) return alert("Complete todos los campos");
+                                    const newSec: TemplateSection = { id, title, fields: [] };
+                                    setGlobalSections([...globalSections, newSec]);
+                                    setIsSectionModalOpen(false);
+                                }}
+                                className="w-full bg-slate-900 text-white py-2 rounded font-bold"
+                            >
+                                Guardar Sección
+                            </button>
                         </div>
                       </div>
                   </div>
@@ -1306,23 +1337,36 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 mb-1">Etiqueta (Label)</label>
-                                    <input type="text" className="w-full border p-2 rounded" placeholder="Ej: Presión Arterial" />
+                                    <input type="text" id="new-field-label" className="w-full border p-2 rounded" placeholder="Ej: Presión Arterial" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 mb-1">ID Variable</label>
-                                    <input type="text" className="w-full border p-2 rounded font-mono text-xs" placeholder="v_bp" />
+                                    <input type="text" id="new-field-id" className="w-full border p-2 rounded font-mono text-xs" placeholder="v_bp" />
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-1">Tipo de Dato</label>
-                                <select className="w-full border p-2 rounded">
+                                <select id="new-field-type" className="w-full border p-2 rounded">
                                     <option value="TEXT">Texto</option>
                                     <option value="NUMBER">Numérico</option>
                                     <option value="SELECT">Selección</option>
                                     <option value="CALCULATED">Calculado (Fórmula)</option>
                                 </select>
                             </div>
-                            <button onClick={() => { alert("Campo registrado en el sistema (Simulación)"); setIsFieldModalOpen(false); }} className="w-full bg-slate-900 text-white py-2 rounded font-bold">Registrar Campo</button>
+                            <button
+                                onClick={() => {
+                                    const label = (document.getElementById('new-field-label') as HTMLInputElement)?.value;
+                                    const id = (document.getElementById('new-field-id') as HTMLInputElement)?.value;
+                                    const type = (document.getElementById('new-field-type') as HTMLSelectElement)?.value as FieldType;
+                                    if(!label || !id) return alert("Complete todos los campos");
+                                    const newField: TemplateField = { id, label, type, required: false };
+                                    setGlobalFields([...globalFields, newField]);
+                                    setIsFieldModalOpen(false);
+                                }}
+                                className="w-full bg-slate-900 text-white py-2 rounded font-bold"
+                            >
+                                Registrar Campo
+                            </button>
                         </div>
                       </div>
                   </div>
