@@ -111,9 +111,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
 
   // New Form States for Settings
-  const [newTemplateData, setNewTemplateData] = useState({ name: '', description: '' });
-  const [newSectionData, setNewSectionData] = useState({ title: '', description: '' });
-  const [newFieldData, setNewFieldData] = useState({ label: '', type: 'TEXT' as FieldType });
+  const [newTemplateData, setNewTemplateData] = useState({ id: '', name: '', description: '' });
+  const [newSectionData, setNewSectionData] = useState({ id: '', title: '', description: '' });
+  const [newFieldData, setNewFieldData] = useState({ id: '', label: '', type: 'TEXT' as FieldType });
 
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
@@ -478,56 +478,75 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
 
   const handleNewTemplate = () => {
-      setNewTemplateData({ name: '', description: '' });
+      setNewTemplateData({ id: '', name: '', description: '' });
       setIsTemplateModalOpen(true);
   };
   const handleSaveTemplate = () => {
       if (!newTemplateData.name) return alert("Ingrese un nombre");
-      const template: RoleTemplate = {
-          id: `t_${Date.now()}`,
-          name: newTemplateData.name,
-          description: newTemplateData.description,
-          recordType: RecordType.GENERAL,
-          allowedRoles: [UserRole.PROFESSIONAL],
-          sections: [],
-          active: true
-      };
-      setTemplates([...templates, template]);
+
+      if (newTemplateData.id) {
+          setTemplates(templates.map(t => t.id === newTemplateData.id ? { ...t, name: newTemplateData.name, description: newTemplateData.description } : t));
+          alert("Plantilla actualizada.");
+      } else {
+          const template: RoleTemplate = {
+              id: `t_${Date.now()}`,
+              name: newTemplateData.name,
+              description: newTemplateData.description,
+              recordType: RecordType.GENERAL,
+              allowedRoles: [UserRole.PROFESSIONAL],
+              sections: [],
+              active: true
+          };
+          setTemplates([...templates, template]);
+          alert("Plantilla creada.");
+      }
       setIsTemplateModalOpen(false);
-      alert("Plantilla creada.");
   };
 
   const handleNewSection = () => {
-      setNewSectionData({ title: '', description: '' });
+      setNewSectionData({ id: '', title: '', description: '' });
       setIsSectionModalOpen(true);
   };
   const handleSaveSection = () => {
       if (!newSectionData.title) return alert("Ingrese un título");
-      const section: TemplateSection = {
-          id: `s_${Date.now()}`,
-          title: newSectionData.title,
-          fields: []
-      };
-      setGlobalSections([...globalSections, section]);
+
+      if (newSectionData.id) {
+          setGlobalSections(globalSections.map(s => s.id === newSectionData.id ? { ...s, title: newSectionData.title, description: newSectionData.description } : s));
+          alert("Sección actualizada.");
+      } else {
+          const section: TemplateSection = {
+              id: `s_${Date.now()}`,
+              title: newSectionData.title,
+              description: newSectionData.description,
+              fields: []
+          };
+          setGlobalSections([...globalSections, section]);
+          alert("Sección creada.");
+      }
       setIsSectionModalOpen(false);
-      alert("Sección creada.");
   };
 
   const handleNewField = () => {
-      setNewFieldData({ label: '', type: 'TEXT' });
+      setNewFieldData({ id: '', label: '', type: 'TEXT' });
       setIsFieldModalOpen(true);
   };
   const handleSaveField = () => {
       if (!newFieldData.label) return alert("Ingrese una etiqueta");
-      const field: TemplateField = {
-          id: `f_${Date.now()}`,
-          label: newFieldData.label,
-          type: newFieldData.type,
-          required: false
-      };
-      setGlobalFields([...globalFields, field]);
+
+      if (newFieldData.id) {
+          setGlobalFields(globalFields.map(f => f.id === newFieldData.id ? { ...f, label: newFieldData.label, type: newFieldData.type } : f));
+          alert("Campo actualizado.");
+      } else {
+          const field: TemplateField = {
+              id: `f_${Date.now()}`,
+              label: newFieldData.label,
+              type: newFieldData.type,
+              required: false
+          };
+          setGlobalFields([...globalFields, field]);
+          alert("Campo creado.");
+      }
       setIsFieldModalOpen(false);
-      alert("Campo creado.");
   };
 
   // --- RENDER LOGIC ---
@@ -1411,7 +1430,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           <LayoutTemplate size={20}/>
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button onClick={() => { setNewTemplateData({ name: t.name, description: t.description }); setIsTemplateModalOpen(true); }} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
+                                          <button onClick={() => { setNewTemplateData({ id: t.id, name: t.name, description: t.description }); setIsTemplateModalOpen(true); }} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
                                           <button onClick={() => { if(window.confirm("¿Eliminar plantilla?")) setTemplates(templates.filter(x => x.id !== t.id)); }} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
                                       </div>
                                   </div>
@@ -1474,7 +1493,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           ))}
                                           {sec.fields.length > 4 && <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] text-slate-500">+{sec.fields.length - 4}</div>}
                                       </div>
-                                      <button onClick={() => { setNewSectionData({ title: sec.title, description: sec.description || '' }); setIsSectionModalOpen(true); }} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => { setNewSectionData({ id: sec.id, title: sec.title, description: sec.description || '' }); setIsSectionModalOpen(true); }} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => { if(window.confirm("¿Eliminar sección?")) setGlobalSections(globalSections.filter(x => x.id !== sec.id)); }} className="p-2 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button>
                                   </div>
                               </div>
                           ))}
@@ -1533,8 +1553,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                                   <span className="text-xs text-red-500 font-bold">* Obligatorio</span>
                                               ) : <span className="text-xs text-slate-400">Opcional</span>}
                                           </td>
-                                          <td className="p-3 text-right">
-                                              <button onClick={() => { setNewFieldData({ label: field.label, type: field.type }); setIsFieldModalOpen(true); }} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                          <td className="p-3 text-right flex justify-end space-x-1">
+                                              <button onClick={() => { setNewFieldData({ id: field.id, label: field.label, type: field.type }); setIsFieldModalOpen(true); }} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button onClick={() => { if(window.confirm("¿Eliminar campo?")) setGlobalFields(globalFields.filter(x => x.id !== field.id)); }} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button>
                                           </td>
                                       </tr>
                                   ))}

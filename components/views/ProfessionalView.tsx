@@ -683,6 +683,67 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       alert(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
   };
 
+  const handlePrintRecord = (record: ClinicalRecord) => {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head>
+                  <title>Historia Clínica - ${selectedPatient?.fullName}</title>
+                  <style>
+                      body { font-family: sans-serif; padding: 40px; color: #1e293b; }
+                      .header { border-bottom: 2px solid #e2e8f0; margin-bottom: 30px; padding-bottom: 10px; }
+                      .section { margin-bottom: 30px; }
+                      h1 { color: #0f172a; margin-bottom: 5px; }
+                      h3 { color: #2563eb; border-bottom: 1px solid #bfdbfe; padding-bottom: 5px; margin-top: 20px; }
+                      .field { margin: 8px 0; font-size: 14px; }
+                      .label { font-weight: bold; color: #64748b; }
+                      .footer { margin-top: 50px; font-size: 10px; color: #94a3b8; text-align: center; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1>MEDICORE IPS - HISTORIA CLÍNICA</h1>
+                      <p><strong>Paciente:</strong> ${selectedPatient?.fullName} (${selectedPatient?.identification})</p>
+                      <p><strong>Fecha Registro:</strong> ${new Date(record.dateCreated).toLocaleString()}</p>
+                      <p><strong>Profesional:</strong> ${record.professionalName}</p>
+                  </div>
+
+                  <div class="section">
+                      <h3>Resumen de Atención</h3>
+                      <div class="field"><span class="label">Motivo de Consulta:</span> ${record.chiefComplaint || 'N/A'}</div>
+                      <div class="field"><span class="label">Enfermedad Actual:</span> ${record.historyOfPresentIllness || 'N/A'}</div>
+                  </div>
+
+                  <div class="section">
+                      <h3>Diagnósticos (CIE-11)</h3>
+                      ${record.diagnoses?.map(d => `<div class="field"><strong>${d.code}</strong> - ${d.name} (${d.type})</div>`).join('') || 'Sin diagnósticos registrados.'}
+                  </div>
+
+                  <div class="section">
+                      <h3>Conducta y Plan</h3>
+                      <div class="field">${record.plan || 'N/A'}</div>
+                  </div>
+
+                  ${record.prescriptions?.length ? `
+                  <div class="section">
+                      <h3>Prescripción Médica</h3>
+                      <ul>
+                          ${record.prescriptions.map(p => `<li>${p.medicationName} - ${p.dose} ${p.frequency} (${p.duration})</li>`).join('')}
+                      </ul>
+                  </div>` : ''}
+
+                  <div class="footer">
+                      <p>Documento generado electrónicamente. Firma digital registrada: ${user.professionalLicense}</p>
+                  </div>
+                  <script>window.print();</script>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+      }
+  };
+
   const renderField = (field: any, isReadOnly: boolean) => {
       if (field.type === 'HEADER') return <h4 className="text-sm font-bold text-slate-700 mt-4 border-b pb-1 col-span-2">{field.label}</h4>;
       if (field.type === 'INFO') return <div className="col-span-2 bg-blue-50 p-2 rounded text-xs text-blue-800 mb-2">{field.label}</div>;
@@ -1244,6 +1305,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                         {currentRecord.rdaStatus === RDAStatus.SENT_MINSALUD ? <ShieldCheck size={14}/> : <Clock size={14}/>}
                         <span>{currentRecord.rdaStatus === RDAStatus.SENT_MINSALUD ? 'RDA Enviado (Res. 1888)' : 'RDA Pendiente'}</span>
                     </div>
+                    <button onClick={() => handlePrintRecord(currentRecord as ClinicalRecord)} className="flex items-center text-xs text-slate-600 hover:text-slate-800 font-medium bg-slate-100 px-2 py-1 rounded">
+                        <Printer size={14} className="mr-1"/> Imprimir
+                    </button>
                     {currentRecord.rdaPayload && (
                         <button onClick={() => setShowRDAModal(true)} className="flex items-center text-xs text-blue-600 hover:text-blue-800 font-medium">
                             <Database size={14} className="mr-1"/> Ver JSON
