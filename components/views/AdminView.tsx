@@ -6,7 +6,7 @@ import {
     Users, FileText, Settings, Plus, Edit, Trash2, X, Save,
     Download, CheckCircle, Search, LayoutTemplate, AlertCircle,
     Calculator, Database, DollarSign, TrendingUp, Briefcase, File, AlertTriangle, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson,
-    Loader2
+    Loader2, HelpCircle
 } from 'lucide-react';
 import { UserForm } from '../UserForm';
 import { hasAdministrativeAccess, maskIdentification } from '../../utils/security';
@@ -53,6 +53,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [users, setUsers] = useState<User[]>(MOCK_USERS);
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [currentUser, setCurrentUser] = useState<Partial<User>>({});
+
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: () => void } | null>(null);
 
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
   const [selectedHRUser, setSelectedHRUser] = useState<User | null>(null);
@@ -250,7 +252,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                             <td className="py-4 px-6"><div className="font-bold text-slate-800">{u.name}</div><div className="text-xs text-slate-400 font-mono">@{u.username}</div></td>
                             <td className="py-4 px-6 font-mono text-slate-600">{maskIdentification(u.documentNumber)}</td>
                             <td className="py-4 px-6"><div className="flex flex-wrap gap-1">{u.roles.map(r => <span key={r} className="text-[10px] bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">{roleLabels[r] || r}</span>)}</div></td>
-                            <td className="py-4 px-6 text-right"><div className="flex justify-end gap-2"><button onClick={() => handleEditUser(u)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg"><Edit size={18}/></button><button onClick={() => confirm('¿Seguro?') && setUsers(users.filter(x => x.id !== u.id))} className="p-2 text-red-600 hover:bg-red-100 rounded-lg"><Trash2 size={18}/></button></div></td>
+                            <td className="py-4 px-6 text-right"><div className="flex justify-end gap-2"><button onClick={() => handleEditUser(u)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg"><Edit size={18}/></button><button onClick={() => setConfirmModal({ isOpen: true, title: 'Eliminar Usuario', message: `¿Está seguro de eliminar a ${u.name}? Esta acción no se puede deshacer.`, onConfirm: () => { setUsers(users.filter(x => x.id !== u.id)); setConfirmModal(null); showToast("Usuario eliminado", "info"); } })} className="p-2 text-red-600 hover:bg-red-100 rounded-lg"><Trash2 size={18}/></button></div></td>
                         </tr>
                     ))}
                 </tbody></table>
@@ -277,7 +279,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                 {(fileManagementTab === 'CONTRACTS' ? users.flatMap(u => u.contracts?.map(c => ({ ...c, userName: u.name, type: 'CONTRACT' }))) : paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl, type: 'PAYMENT' })))
                 ?.filter((f: any) => f.fileUrl?.toLowerCase().includes(fileSearchTerm.toLowerCase()) || f.userName?.toLowerCase().includes(fileSearchTerm.toLowerCase()))
                 .map((f: any) => (
-                    <tr key={f.id}><td className="p-3 font-medium text-slate-700">{f.fileUrl}</td><td className="p-3">{f.userName}</td><td className="p-3 text-right"><button onClick={() => confirm('¿Eliminar?') && (f.type === 'CONTRACT' ? setUsers(prev => prev.map(u => ({ ...u, contracts: u.contracts?.filter(c => c.id !== f.id) }))) : setPaymentRequests(prev => prev.filter(p => p.id !== f.id)))} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button></td></tr>
+                    <tr key={f.id}><td className="p-3 font-medium text-slate-700">{f.fileUrl}</td><td className="p-3">{f.userName}</td><td className="p-3 text-right"><button onClick={() => setConfirmModal({ isOpen: true, title: 'Eliminar Archivo', message: `¿Seguro que desea eliminar el archivo ${f.fileUrl}?`, onConfirm: () => { if (f.type === 'CONTRACT') { setUsers(prev => prev.map(u => ({ ...u, contracts: u.contracts?.filter(c => c.id !== f.id) }))); } else { setPaymentRequests(prev => prev.filter(p => p.id !== f.id)); } setConfirmModal(null); showToast("Archivo eliminado", "info"); } })} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button></td></tr>
                 ))}
             </tbody></table>
         </div>
@@ -321,11 +323,33 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {templates.map(t => (
                     <div key={t.id} className="border border-slate-200 rounded-xl p-5 bg-white group hover:shadow-md transition-shadow relative">
-                        <div className="flex justify-between items-start mb-2"><div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><LayoutTemplate size={20}/></div><div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => setEditingTemplate(t)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button><button onClick={() => confirm('¿Eliminar?') && setTemplates(templates.filter(x => x.id !== t.id))} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button></div></div>
+                        <div className="flex justify-between items-start mb-2"><div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><LayoutTemplate size={20}/></div><div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => setEditingTemplate(t)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button><button onClick={() => setConfirmModal({ isOpen: true, title: 'Eliminar Plantilla', message: `¿Seguro que desea eliminar la plantilla ${t.name}?`, onConfirm: () => { setTemplates(templates.filter(x => x.id !== t.id)); setConfirmModal(null); showToast("Plantilla eliminada", "info"); } })} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button></div></div>
                         <h4 className="font-bold text-slate-800">{t.name}</h4><p className="text-xs text-slate-500">{t.description}</p>
                     </div>
                 ))}
                 <button onClick={() => setEditingTemplate({ id: `tpl-${Date.now()}`, name: '', description: '', active: true, allowedRoles: [UserRole.PROFESSIONAL], sections: [], recordType: RecordType.GENERAL })} className="border-2 border-dashed border-slate-300 rounded-xl p-5 text-slate-400 hover:border-slate-400 hover:text-slate-600 flex items-center justify-center font-bold transition-colors"><Plus size={20} className="mr-2"/> Nueva Plantilla</button>
+            </div>
+        )}
+        {settingsTab === 'SECTIONS' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {globalSections.map(s => (
+                    <div key={s.id} className="border border-slate-200 rounded-xl p-4 bg-white group hover:shadow-md transition-shadow relative">
+                        <div className="flex justify-between items-start mb-2"><div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Layers size={18}/></div><div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => setEditingSection(s)} className="p-1 bg-white border rounded hover:text-blue-600"><Edit size={12}/></button><button onClick={() => setConfirmModal({ isOpen: true, title: 'Eliminar Sección', message: `¿Seguro que desea eliminar la sección ${s.title}?`, onConfirm: () => { setGlobalSections(globalSections.filter(x => x.id !== s.id)); setConfirmModal(null); showToast("Sección eliminada", "info"); } })} className="p-1 bg-white border rounded hover:text-red-600"><Trash2 size={12}/></button></div></div>
+                        <h4 className="font-bold text-sm text-slate-800">{s.title}</h4><p className="text-[10px] text-slate-400">{s.fields.length} Campos</p>
+                    </div>
+                ))}
+                <button onClick={() => setEditingSection({ id: `sec-${Date.now()}`, title: '', fields: [] })} className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-slate-400 hover:border-slate-400 hover:text-slate-600 flex items-center justify-center font-bold transition-colors text-sm"><Plus size={16} className="mr-1"/> Nueva Sección</button>
+            </div>
+        )}
+        {settingsTab === 'FIELDS' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                {globalFields.map(f => (
+                    <div key={f.id} className="border border-slate-200 rounded-xl p-3 bg-white group hover:shadow-md transition-shadow relative">
+                        <div className="flex justify-between items-start mb-1"><span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-500 uppercase">{f.type}</span><div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => setEditingField(f)} className="text-blue-600 hover:bg-blue-50 p-0.5 rounded"><Edit size={12}/></button><button onClick={() => setConfirmModal({ isOpen: true, title: 'Eliminar Campo', message: `¿Seguro que desea eliminar el campo ${f.label}?`, onConfirm: () => { setGlobalFields(globalFields.filter(x => x.id !== f.id)); setConfirmModal(null); showToast("Campo eliminado", "info"); } })} className="text-red-600 hover:bg-red-50 p-0.5 rounded"><Trash2 size={12}/></button></div></div>
+                        <h4 className="font-bold text-[11px] text-slate-800 truncate">{f.label}</h4>
+                    </div>
+                ))}
+                <button onClick={() => setEditingField({ id: `fld-${Date.now()}`, label: '', type: 'TEXT' })} className="border-2 border-dashed border-slate-300 rounded-xl p-3 text-slate-400 hover:border-slate-400 hover:text-slate-600 flex items-center justify-center font-bold transition-colors text-xs"><Plus size={14} className="mr-1"/> Nuevo Campo</button>
             </div>
         )}
     </div>
@@ -454,6 +478,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                     {uploadProgress > 0 && <div className="space-y-2"><p className="text-sm font-bold text-slate-600">Cargando...</p><div className="w-full bg-slate-200 rounded-full h-2.5"><div className="bg-blue-600 h-2.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }}></div></div></div>}
                 </div>
                 <div className="flex justify-end gap-2 mt-6"><button onClick={() => setIsFileUploadModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm" disabled={uploadProgress > 0}>Cancelar</button><button onClick={handleConfirmUpload} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700" disabled={uploadProgress > 0}>{uploadProgress > 0 ? <Loader2 className="animate-spin" size={18}/> : 'Confirmar Subida'}</button></div>
+            </div>
+        </div>
+      )}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in duration-200">
+                <div className="flex items-center text-orange-600 mb-4"><HelpCircle size={32} className="mr-2"/><h3 className="text-lg font-bold">{confirmModal.title}</h3></div>
+                <p className="text-sm text-slate-600 mb-6">{confirmModal.message}</p>
+                <div className="flex justify-end gap-3"><button onClick={() => setConfirmModal(null)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-50 rounded-lg transition-colors">Cancelar</button><button onClick={confirmModal.onConfirm} className="px-5 py-2 bg-red-600 text-white rounded-lg font-bold shadow-lg shadow-red-100 hover:bg-red-700 transition-all">Confirmar</button></div>
             </div>
         </div>
       )}
