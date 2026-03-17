@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { UserForm } from '../UserForm';
 import { hasAdministrativeAccess, maskIdentification } from '../../utils/security';
+import { useToast } from '../ToastProvider';
 
 interface AdminViewProps {
   activeTab: string;
@@ -60,6 +61,7 @@ const roleLabels: Record<UserRole, string> = {
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
   const isAuthorized = hasAdministrativeAccess(currentUserSession);
+  const { showToast } = useToast();
 
   // --- STATE MANAGEMENT ---
   
@@ -103,9 +105,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [globalFields, setGlobalFields] = useState<TemplateField[]>(MOCK_FIELD_LIBRARY);
   const [globalSections, setGlobalSections] = useState<TemplateSection[]>(MOCK_SECTION_LIBRARY);
   const [templates, setTemplates] = useState<RoleTemplate[]>(MOCK_TEMPLATES);
-  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
-  const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
-  const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
+
+  const [editingTemplate, setEditingTemplate] = useState<Partial<RoleTemplate> | null>(null);
+  const [editingSection, setEditingSection] = useState<Partial<TemplateSection> | null>(null);
+  const [editingField, setEditingField] = useState<Partial<TemplateField> | null>(null);
 
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
@@ -189,12 +192,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       setSelectedHRUser(updatedUser); // Update local ref
       
       setNewContract({ type: ContractType.NOMINA, isActive: true, userId: selectedHRUser.id, status: 'ACTIVE', auditTrail: [] }); // Reset
-      alert("Contrato guardado con historial de auditoría.");
+      showToast("Contrato guardado con historial de auditoría.", "SUCCESS");
   };
 
   const handleSaveDisciplinary = () => {
       if(!selectedHRUser) return;
-      if(!newDisciplinary.title || !newDisciplinary.description) return alert("Complete título y descripción");
+      if(!newDisciplinary.title || !newDisciplinary.description) return showToast("Complete título y descripción", "ALERT");
 
       const action: DisciplinaryAction = {
           id: `disc-${Date.now()}`,
@@ -212,7 +215,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       setSelectedHRUser(updatedUser);
       
       setNewDisciplinary({ type: 'COMPLAINT', status: 'OPEN' });
-      alert("Caso registrado. El empleado podrá ver esto y responder.");
+      showToast("Caso registrado. El empleado podrá ver esto y responder.", "SUCCESS");
   };
 
   const handleOpenPaymentModal = (req: PaymentRequest) => {
@@ -223,11 +226,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   const handleConfirmPayment = () => {
       if(!selectedPaymentReq) return;
-      if(!paymentReceiptFile) return alert("Debe cargar el desprendible de pago.");
+      if(!paymentReceiptFile) return showToast("Debe cargar el desprendible de pago.", "ALERT");
 
       setPaymentRequests(prev => prev.map(req => req.id === selectedPaymentReq.id ? { ...req, status: 'PAID', paymentReceiptUrl: paymentReceiptFile } : req));
       setIsPaymentModalOpen(false);
-      alert(`Pago registrado exitosamente para ${selectedPaymentReq.userName}.`);
+      showToast(`Pago registrado exitosamente para ${selectedPaymentReq.userName}.`, "SUCCESS");
   };
 
   const handleRejectPayment = (reqId: string) => {
@@ -244,7 +247,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   const handleConfirmUpload = () => {
     if (!newFileName) {
-        alert("Por favor, ingrese un nombre de archivo.");
+        showToast("Por favor, ingrese un nombre de archivo.", "ALERT");
         return;
     }
 
@@ -275,7 +278,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         newUsers[userIndex].contracts = [...(newUsers[userIndex].contracts || []), newContract];
                         return newUsers;
                     });
-                    alert(`Contrato "${newFileName}" agregado al usuario seleccionado.`);
+                    showToast(`Contrato "${newFileName}" agregado al usuario seleccionado.`, "SUCCESS");
                 } else { // PAYMENTS
                     const user = users.find(u => u.id === selectedUserIdForUpload);
                     if (!user) return;
@@ -293,7 +296,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         paymentReceiptUrl: newFileName,
                     };
                     setPaymentRequests(prev => [...prev, newPaymentRequest]);
-                    alert(`Soporte de pago "${newFileName}" agregado.`);
+                    showToast(`Soporte de pago "${newFileName}" agregado.`, "SUCCESS");
                 }
                 // --- END OF LOGIC ---
 
@@ -320,7 +323,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       } else { // PAYMENT
           setPaymentRequests(prev => prev.filter(p => p.id !== fileId));
       }
-      alert("Archivo eliminado.");
+      showToast("Archivo eliminado.", "SUCCESS");
   };
 
   // --- RIPS GENERATION LOGIC ---
@@ -332,7 +335,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       });
 
       if (filteredRecords.length === 0) {
-          alert("No se encontraron registros finalizados en el rango de fechas seleccionado.");
+          showToast("No se encontraron registros finalizados en el rango de fechas seleccionado.", "ALERT");
           setGeneratedRips(null);
           return;
       }
@@ -470,9 +473,60 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       URL.revokeObjectURL(url);
   };
 
-  const handleNewTemplate = () => setIsTemplateModalOpen(true);
-  const handleNewSection = () => setIsSectionModalOpen(true);
-  const handleNewField = () => setIsFieldModalOpen(true);
+  const handleNewTemplate = () => setEditingTemplate({ id: `tpl-${Date.now()}`, name: '', description: '', allowedRoles: [], sections: [], active: true, recordType: RecordType.GENERAL });
+  const handleNewSection = () => setEditingSection({ id: `sec-${Date.now()}`, title: '', fields: [] });
+  const handleNewField = () => setEditingField({ id: `fld-${Date.now()}`, label: '', type: FieldType.TEXT, required: false });
+
+  const handleSaveTemplate = (tpl: Partial<RoleTemplate>) => {
+      if (!tpl.name) return showToast('El nombre es obligatorio', 'ALERT');
+      setTemplates(prev => {
+          const exists = prev.find(t => t.id === tpl.id);
+          if (exists) return prev.map(t => t.id === tpl.id ? { ...t, ...tpl } as RoleTemplate : t);
+          return [...prev, tpl as RoleTemplate];
+      });
+      setEditingTemplate(null);
+      showToast('Plantilla guardada correctamente', 'SUCCESS');
+  };
+
+  const handleSaveSection = (sec: Partial<TemplateSection>) => {
+      if (!sec.title) return showToast('El título es obligatorio', 'ALERT');
+      setGlobalSections(prev => {
+          const exists = prev.find(s => s.id === sec.id);
+          if (exists) return prev.map(s => s.id === sec.id ? { ...s, ...sec } as TemplateSection : s);
+          return [...prev, sec as TemplateSection];
+      });
+      setEditingSection(null);
+      showToast('Sección guardada correctamente', 'SUCCESS');
+  };
+
+  const handleSaveField = (fld: Partial<TemplateField>) => {
+      if (!fld.label || !fld.id) return showToast('Label e ID son obligatorios', 'ALERT');
+      setGlobalFields(prev => {
+          const exists = prev.find(f => f.id === fld.id);
+          if (exists) return prev.map(f => f.id === fld.id ? { ...f, ...fld } as TemplateField : f);
+          return [...prev, fld as TemplateField];
+      });
+      setEditingField(null);
+      showToast('Campo guardado correctamente', 'SUCCESS');
+  };
+
+  const handleDeleteTemplate = (id: string) => {
+      if (!window.confirm('¿Eliminar esta plantilla?')) return;
+      setTemplates(prev => prev.filter(t => t.id !== id));
+      showToast('Plantilla eliminada', 'SUCCESS');
+  };
+
+  const handleDeleteSection = (id: string) => {
+      if (!window.confirm('¿Eliminar esta sección?')) return;
+      setGlobalSections(prev => prev.filter(s => s.id !== id));
+      showToast('Sección eliminada', 'SUCCESS');
+  };
+
+  const handleDeleteField = (id: string) => {
+      if (!window.confirm('¿Eliminar este campo?')) return;
+      setGlobalFields(prev => prev.filter(f => f.id !== id));
+      showToast('Campo eliminado', 'SUCCESS');
+  };
 
   // --- RENDER LOGIC ---
 
@@ -717,7 +771,21 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                     <td className="p-3">{file.userName}</td>
                                     <td className="p-3 text-slate-500">{new Date(file.startDate || file.dateSubmitted).toLocaleDateString()}</td>
                                     <td className="p-3 text-right">
-                                        <button onClick={() => handleDeleteFile(file.id, file.type)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button>
+                                        <div className="flex justify-end space-x-1">
+                                            <button
+                                                onClick={() => {
+                                                    const link = document.createElement('a');
+                                                    link.href = '#';
+                                                    link.download = file.fileUrl || `archivo_${file.id}.pdf`;
+                                                    showToast(`Iniciando descarga de ${link.download}`, 'SUCCESS');
+                                                }}
+                                                className="p-1.5 hover:bg-blue-50 rounded text-blue-600"
+                                                title="Descargar"
+                                            >
+                                                <Download size={14}/>
+                                            </button>
+                                            <button onClick={() => handleDeleteFile(file.id, file.type)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title="Eliminar"><Trash2 size={14}/></button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))
@@ -1105,13 +1173,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
                   {generatedRips ? (
                       <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                          <div className="grid grid-cols-4 gap-4">
-                              {Object.entries(generatedRips).map(([key, data]) => (
-                                  <div key={key} className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
-                                      <h4 className="font-bold text-2xl text-slate-800">{data.length}</h4>
-                                      <p className="text-xs text-slate-500 font-bold uppercase">Archivo {key}</p>
-                                  </div>
-                              ))}
+                          <div className="flex justify-between items-center">
+                              <div className="grid grid-cols-4 gap-4 flex-1 mr-4">
+                                  {Object.entries(generatedRips).map(([key, data]) => (
+                                      <div key={key} className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+                                          <h4 className="font-bold text-2xl text-slate-800">{data.length}</h4>
+                                          <p className="text-xs text-slate-500 font-bold uppercase">Archivo {key}</p>
+                                      </div>
+                                  ))}
+                              </div>
+                              <button onClick={downloadRIPS} className="bg-green-600 text-white px-6 py-4 rounded-xl font-bold shadow-lg hover:bg-green-700 flex flex-col items-center justify-center">
+                                  <Download size={24} className="mb-1"/>
+                                  <span className="text-xs">Descargar Todo</span>
+                              </button>
                           </div>
                           
                           <div className="border rounded-lg overflow-hidden">
@@ -1165,9 +1239,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         <h3 className="text-xl font-bold text-slate-800">Espacio de Creación de Usuarios</h3>
                         <p className="text-sm text-slate-500">Gestione el acceso del personal asistencial y administrativo.</p>
                     </div>
-                    {currentUser.id && (
-                        <button onClick={handleAddNewUser} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center shadow-sm hover:bg-slate-800"><Plus size={14} className="mr-1"/> Crear Nuevo</button>
-                    )}
+                    <button onClick={handleAddNewUser} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center shadow-sm hover:bg-slate-800"><Plus size={14} className="mr-1"/> Nuevo Usuario</button>
                  </div>
                  <div className="max-w-4xl">
                     <UserForm
@@ -1217,7 +1289,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                         ) : <span className="text-xs text-slate-400">-</span>}
                                     </td>
                                     <td className="py-3 px-4 text-right">
-                                        <button onClick={(e) => { e.stopPropagation(); handleEditUser(u); }} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
+                                        <div className="flex justify-end space-x-2">
+                                            <button onClick={(e) => { e.stopPropagation(); handleEditUser(u); }} className="p-1 text-slate-400 hover:text-blue-600" title="Editar Usuario"><Edit size={16}/></button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if(window.confirm(`¿Eliminar al usuario ${u.name}?`)) {
+                                                        setUsers(prev => prev.filter(user => user.id !== u.id));
+                                                        showToast("Usuario eliminado", "SUCCESS");
+                                                    }
+                                                }}
+                                                className="p-1 text-slate-400 hover:text-red-600"
+                                                title="Eliminar Usuario"
+                                            >
+                                                <Trash2 size={16}/>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -1238,30 +1325,58 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   <h2 className="text-2xl font-bold text-slate-800">Configuración del Sistema</h2>
               </div>
               
-              {isTemplateModalOpen && (
+              {editingTemplate && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">{editingTemplate.name ? 'Editar' : 'Nueva'} Plantilla</h3>
+                        <div className="space-y-4">
+                            <input className="w-full border p-2 rounded" placeholder="Nombre" value={editingTemplate.name || ''} onChange={e => setEditingTemplate({...editingTemplate, name: e.target.value})} />
+                            <textarea className="w-full border p-2 rounded" placeholder="Descripción" value={editingTemplate.description || ''} onChange={e => setEditingTemplate({...editingTemplate, description: e.target.value})} />
+                            <select className="w-full border p-2 rounded" value={editingTemplate.recordType} onChange={e => setEditingTemplate({...editingTemplate, recordType: e.target.value as RecordType})}>
+                                {Object.values(RecordType).map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                            </select>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setEditingTemplate(null)} className="px-4 py-2 text-slate-500 font-bold">Cancelar</button>
+                            <button onClick={() => handleSaveTemplate(editingTemplate)} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar</button>
+                        </div>
                     </div>
                 </div>
               )}
-              {isSectionModalOpen && (
+              {editingSection && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">{editingSection.title ? 'Editar' : 'Nueva'} Sección</h3>
+                          <div className="space-y-4">
+                              <input className="w-full border p-2 rounded" placeholder="Título" value={editingSection.title || ''} onChange={e => setEditingSection({...editingSection, title: e.target.value})} />
+                              <div className="text-xs text-slate-400">ID: {editingSection.id}</div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                              <button onClick={() => setEditingSection(null)} className="px-4 py-2 text-slate-500 font-bold">Cancelar</button>
+                              <button onClick={() => handleSaveSection(editingSection)} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar</button>
+                          </div>
                       </div>
                   </div>
               )}
-              {isFieldModalOpen && (
+              {editingField && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">{editingField.label ? 'Editar' : 'Nuevo'} Campo</h3>
+                          <div className="space-y-4">
+                              <input className="w-full border p-2 rounded" placeholder="Label" value={editingField.label || ''} onChange={e => setEditingField({...editingField, label: e.target.value})} />
+                              <input className="w-full border p-2 rounded" placeholder="ID Variable" value={editingField.id || ''} onChange={e => setEditingField({...editingField, id: e.target.value})} />
+                              <select className="w-full border p-2 rounded" value={editingField.type} onChange={e => setEditingField({...editingField, type: e.target.value as FieldType})}>
+                                  {Object.values(FieldType).map(ft => <option key={ft} value={ft}>{ft}</option>)}
+                              </select>
+                              <div className="flex items-center">
+                                  <input type="checkbox" id="req-chk" checked={editingField.required} onChange={e => setEditingField({...editingField, required: e.target.checked})} />
+                                  <label htmlFor="req-chk" className="ml-2 text-sm">Requerido</label>
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                              <button onClick={() => setEditingField(null)} className="px-4 py-2 text-slate-500 font-bold">Cancelar</button>
+                              <button onClick={() => handleSaveField(editingField)} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar</button>
+                          </div>
                       </div>
                   </div>
               )}
@@ -1302,8 +1417,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           <LayoutTemplate size={20}/>
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                                          <button onClick={() => setEditingTemplate(t)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
+                                          <button onClick={() => handleDeleteTemplate(t.id)} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
                                       </div>
                                   </div>
                                   <h4 className="font-bold text-slate-800">{t.name}</h4>
@@ -1365,7 +1480,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           ))}
                                           {sec.fields.length > 4 && <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] text-slate-500">+{sec.fields.length - 4}</div>}
                                       </div>
-                                      <button className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => setEditingSection(sec)} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => handleDeleteSection(sec.id)} className="p-2 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button>
                                   </div>
                               </div>
                           ))}
@@ -1425,7 +1541,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                               ) : <span className="text-xs text-slate-400">Opcional</span>}
                                           </td>
                                           <td className="p-3 text-right">
-                                              <button className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button onClick={() => setEditingField(field)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button onClick={() => handleDeleteField(field.id)} className="p-1.5 hover:bg-slate-200 rounded text-red-500"><Trash2 size={14}/></button>
                                           </td>
                                       </tr>
                                   ))}

@@ -3,6 +3,7 @@ import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
+import { useToast } from '../ToastProvider';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
@@ -19,6 +20,7 @@ interface ProfessionalViewProps {
 }
 
 export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, activeTab = 'dashboard' }) => {
+  const { showToast } = useToast();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [patientsError, setPatientsError] = useState<string | null>(null);
@@ -52,6 +54,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // AI Quick Summary
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [quickSummary, setQuickSummary] = useState<string | null>(null);
 
   // ⚡ TRINITY: Fetch Patients from API
   useEffect(() => {
@@ -303,7 +309,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       setHrUser(updatedUser); // Update local view state
       
       // In a real app, this would call an API.
-      alert("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
+      showToast("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.", "SUCCESS");
       setShowDescargosModal(false);
   };
 
@@ -312,6 +318,23 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       navigator.clipboard.writeText(id);
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleGenerateAIProgressSummary = async () => {
+      if(!selectedPatient) return;
+      setIsGeneratingSummary(true);
+
+      // Aggregate context for AI
+      const patientNotes = records
+          .filter(r => r.patientId === selectedPatient.id)
+          .map(r => `[${r.dateCreated}] ${r.chiefComplaint}: ${r.plan}`)
+          .join('\n');
+
+      const currentContext = `Motivo: ${currentRecord.chiefComplaint || 'No especificado'}. Notas: ${dynamicData['d_analisis'] || ''}`;
+
+      const summary = await generateClinicalSummary(`Historia previa:\n${patientNotes}\n\nConsulta actual:\n${currentContext}`);
+      setQuickSummary(summary);
+      setIsGeneratingSummary(false);
   };
 
   const handleDownloadContract = () => {
@@ -340,7 +363,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   const handleOpenPaymentModal = () => {
       const activeContract = hrUser.contracts?.find(c => c.isActive && c.type === ContractType.OPS);
-      if (!activeContract) return alert("Solo disponible para contratos OPS Activos.");
+      if (!activeContract) return showToast("Solo disponible para contratos OPS Activos.", "ALERT");
       
       setNewPayment({
           period: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
@@ -400,7 +423,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           pdfWindow.document.close();
       }
 
-      alert("Cuenta de cobro generada y notificada a Administración.");
+      showToast("Cuenta de cobro generada y notificada a Administración.", "SUCCESS");
   };
 
 
@@ -528,8 +551,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const initiateAuth = (action: 'FINALIZE' | 'SIGN_NOTE') => {
     if (action === 'FINALIZE') {
         // 🩺 DOC HOUSE: Gender-based clinical validation
-        if (selectedPatient.gender === 'M' && (selectedTemplate?.recordType === RecordType.PYP_PREGNANCY || selectedTemplate?.recordType === RecordType.PYP_PUERPERIUM)) {
-            alert("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.");
+        if (selectedPatient && selectedPatient.gender === 'M' && (selectedTemplate?.recordType === RecordType.PYP_PREGNANCY || selectedTemplate?.recordType === RecordType.PYP_PUERPERIUM)) {
+            showToast("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.", "ALERT");
             return;
         }
 
@@ -546,14 +569,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         }
 
         if ((!currentRecord.diagnoses || currentRecord.diagnoses.length === 0) && selectedTemplate?.recordType !== RecordType.PROCEDURE) {
-            alert("Es obligatorio seleccionar al menos un diagnóstico CIE-11.");
+            showToast("Es obligatorio seleccionar al menos un diagnóstico CIE-11.", "ALERT");
             setActiveFormTab('orders_tab');
             return;
         }
         // VALIDATE BARTHEL IF REQUIRED
         if (isFirstTimeRCV && selectedTemplate?.recordType === RecordType.PYP_CV_RISK) {
             if(!dynamicData['global_barthel']) {
-                alert("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.");
+                showToast("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.", "ALERT");
                 return;
             }
         }
@@ -622,7 +645,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           setShowAuthModal(false);
           setViewMode('LIST');
           setSelectedPatient(null);
-          alert(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`);
+          showToast(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`, "SUCCESS");
         }, 2500);
       } else {
         setShowAuthModal(false);
@@ -634,7 +657,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   
   const handleAddDiagnosis = (code: string, name: string) => {
       if (!validateCIE11Code(code)) {
-          alert("Código CIE-11 no válido para este paciente.");
+          showToast("Código CIE-11 no válido para este paciente.", "ALERT");
           return;
       }
       if (currentRecord.diagnoses?.some(d => d.code === code)) return;
@@ -686,7 +709,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       const currentAnalysis = dynamicData['d_analisis'] || '';
       const newAnalysis = currentAnalysis + importText;
       setDynamicData({ ...dynamicData, d_analisis: newAnalysis });
-      alert(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
+      showToast(`Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`, "SUCCESS");
   };
 
   const renderField = (field: any, isReadOnly: boolean) => {
@@ -1199,6 +1222,20 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           </div>
          )}
          
+         {/* AI QUICK SUMMARY BOX */}
+         {quickSummary && (
+             <div className="mb-4 bg-blue-50 border border-blue-200 rounded-xl p-4 animate-in fade-in slide-in-from-top-2 relative">
+                 <button onClick={() => setQuickSummary(null)} className="absolute top-2 right-2 text-blue-400 hover:text-blue-600"><X size={16}/></button>
+                 <div className="flex items-start">
+                     <Bot className="text-blue-600 mr-3 mt-1 flex-shrink-0" size={20}/>
+                     <div>
+                         <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-1">Resumen Inteligente del Paciente (Doc House AI)</h4>
+                         <p className="text-sm text-blue-900 leading-relaxed">{quickSummary}</p>
+                     </div>
+                 </div>
+             </div>
+         )}
+
          {/* HEADER ACTIONS */}
          <div className="flex items-center justify-between mb-4 pb-4 border-b">
             <div className="flex items-center">
@@ -1213,6 +1250,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
             </div>
             {!isReadOnly ? (
                 <div className="flex items-center space-x-3">
+                    <button
+                        onClick={handleGenerateAIProgressSummary}
+                        disabled={isGeneratingSummary}
+                        className="p-2 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50"
+                        title="Resumen Inteligente (AI)"
+                    >
+                        {isGeneratingSummary ? <Loader2 size={18} className="animate-spin"/> : <Bot size={18}/>}
+                    </button>
                     <select 
                         className="p-2 border rounded text-sm bg-white font-bold text-slate-700"
                         value={selectedTemplate?.id}

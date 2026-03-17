@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
 import { sanitizeInput } from '../utils/security';
 import { Shield, CheckCircle, UploadCloud, Trash2 } from 'lucide-react';
+import { useToast } from './ToastProvider';
 
 const roleLabels: { [key in UserRole]: string } = {
   [UserRole.ADMIN]: 'Administrador',
@@ -23,6 +24,7 @@ interface UserFormProps {
 }
 
 export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEmbedded = false }) => {
+  const { showToast } = useToast();
   const [currentUser, setCurrentUser] = useState<Partial<User>>(user);
 
   useEffect(() => {
@@ -39,11 +41,11 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEm
 
   const handleSave = () => {
     if (!currentUser.firstName || !currentUser.lastName || !currentUser.username || !currentUser.documentNumber) {
-      alert('Complete nombres, apellidos, usuario y documento.');
+      showToast('Complete nombres, apellidos, usuario y documento.', 'ALERT');
       return;
     }
     if (!currentUser.roles || currentUser.roles.length === 0) {
-      alert('El usuario debe tener al menos un rol asignado.');
+      showToast('El usuario debe tener al menos un rol asignado.', 'ALERT');
       return;
     }
     if (
@@ -55,13 +57,15 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEm
       )
     ) {
       if (!currentUser.professionalLicense) {
-        alert(
-          'Para roles asistenciales, el Registro Médico/Profesional es obligatorio.'
+        showToast(
+          'Para roles asistenciales, el Registro Médico/Profesional es obligatorio.',
+          'ALERT'
         );
         return;
       }
     }
     onSave(currentUser);
+    showToast(`Usuario ${currentUser.id ? 'actualizado' : 'creado'} correctamente.`, 'SUCCESS');
   };
 
   const showProfessionalFields = currentUser.roles?.some(r => r === UserRole.PROFESSIONAL || r === UserRole.BACTERIOLOGIST || r === UserRole.RADIOLOGIST);

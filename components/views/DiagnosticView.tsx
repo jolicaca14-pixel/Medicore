@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
 import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
+import { useToast } from '../ToastProvider';
 
 interface DiagnosticViewProps {
   user: User;
@@ -21,6 +22,7 @@ interface Order {
 }
 
 export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }) => {
+  const { showToast } = useToast();
   const isLab = user.roles.includes(UserRole.BACTERIOLOGIST);
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
@@ -60,7 +62,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) return showToast("No hay plantilla configurada para este examen.", "ALERT");
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +91,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showToast("Resultado guardado correctamente.", "SUCCESS");
   };
 
   // --- RENDER FIELD ---
@@ -109,9 +111,26 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'FILE' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50">
-                      <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
-                      <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                  <div
+                    className={`border-2 border-dashed rounded p-4 text-center cursor-pointer transition-colors ${dynamicData[field.id] ? 'border-green-400 bg-green-50' : 'border-slate-300 hover:bg-slate-50'}`}
+                    onClick={() => {
+                        const mockFile = `estudio_${field.id}_${Date.now()}.dcm`;
+                        setDynamicData({...dynamicData, [field.id]: mockFile});
+                        showToast(`Archivo "${mockFile}" cargado exitosamente.`, "SUCCESS");
+                    }}
+                  >
+                      {dynamicData[field.id] ? (
+                          <>
+                            <CheckCircle size={20} className="mx-auto text-green-500 mb-2"/>
+                            <p className="text-xs font-bold text-green-700">{dynamicData[field.id]}</p>
+                            <p className="text-[10px] text-green-600">Click para reemplazar</p>
+                          </>
+                      ) : (
+                          <>
+                            <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
+                            <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                          </>
+                      )}
                   </div>
               ) : (
                   <input 
@@ -128,7 +147,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   // --- PRINT VIEW ---
   const handlePrintDate = (patientFullName: string, date: string) => {
       const printWindow = window.open('', '_blank');
-      if (!printWindow) return alert("Bloqueador de ventanas emergentes activo.");
+      if (!printWindow) return showToast("Bloqueador de ventanas emergentes activo.", "ALERT");
 
       const recordsInDate = completedRecords.filter(r => r.dateCreated.startsWith(date));
 

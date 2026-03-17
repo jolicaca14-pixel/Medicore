@@ -21,6 +21,11 @@ export const generateClinicalSummary = async (notes: string): Promise<string> =>
 
   const sanitizedNotes = sanitizeInput(notes);
 
+  // Mock response for testing if key is dummy
+  if (apiKey === 'dummy_key_for_testing') {
+      return "RESUMEN MOCK (MODO PRUEBA): Paciente estable. Se observa evolución favorable en el cuadro clínico reportado. Se recomienda continuar con el plan de tratamiento actual y monitoreo de signos vitales.";
+  }
+
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -37,6 +42,11 @@ export const suggestICDCodes = async (symptoms: string): Promise<string> => {
     if (!ai) return "Clave API de Gemini no configurada.";
   
     const sanitizedSymptoms = sanitizeInput(symptoms);
+
+    // Mock response for testing if key is dummy
+    if (apiKey === 'dummy_key_for_testing') {
+        return "• 8A80.0 Migraña sin aura\n• 8A82 Cefalea de tipo tensional\n• 8A84 Cefalea en racimos";
+    }
 
     try {
       const response = await ai.models.generateContent({

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { User, Patient, Appointment, Invoice, InvoiceItem, RecordType, RecordStatus, ClinicalRecord, UserRole, TariffItem } from '../../types';
 import { MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_RECORDS, MOCK_SOAT_TARIFF, SMLDV_2024, formatCurrency, MOCK_USERS } from '../../constants';
-import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw } from 'lucide-react';
+import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw, CreditCard } from 'lucide-react';
+import { useToast } from '../ToastProvider';
 
 interface SecretaryViewProps {
   user: User;
@@ -9,6 +10,7 @@ interface SecretaryViewProps {
 }
 
 export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) => {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'PATIENTS' | 'AGENDA' | 'BILLING' | 'CARTERA'>('AGENDA');
 
   // --- PATIENTS & AGENDA STATE ---
@@ -67,7 +69,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   const handleSaveAppointment = () => {
       if(!newAppt.patientId || !newAppt.time || !newAppt.reason || !newAppt.professionalId) {
-          alert("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)");
+          showToast("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)", "ALERT");
           return;
       }
       const patient = patients.find(p => p.id === newAppt.patientId);
@@ -119,9 +121,9 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               status: 'PENDING'
           };
           setInvoices([...invoices, newInvoice]);
-          alert("Cita agendada y Factura creada automáticamente en Cartera.");
+          showToast("Cita agendada y Factura creada automáticamente en Cartera.", "SUCCESS");
       } else {
-          alert(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
+          showToast(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.", "SUCCESS");
       }
 
       setIsApptModalOpen(false);
@@ -129,8 +131,8 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   const updateApptStatus = (id: string, status: 'WAITING' | 'CANCELLED') => {
       setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-      if (status === 'WAITING') alert("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
-      if (status === 'CANCELLED') alert("Cita cancelada.");
+      if (status === 'WAITING') showToast("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.", "SUCCESS");
+      if (status === 'CANCELLED') showToast("Cita cancelada.", "ALERT");
   };
 
   // --- BILLING HANDLERS ---
@@ -223,12 +225,12 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       setSelectedServices([]);
       setBillingPatient(null);
       setPartialPayment('');
-      alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
+      showToast(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`, "SUCCESS");
   };
 
   const printInvoice = (invoice: Invoice) => {
       const printWindow = window.open('', '_blank');
-      if (!printWindow) return alert("Bloqueador de ventanas emergentes activo. Por favor habilite los permisos.");
+      if (!printWindow) return showToast("Bloqueador de ventanas emergentes activo. Por favor habilite los permisos.", "ALERT");
 
       const itemsHtml = invoice.items.map(item => `
         <tr>
@@ -293,21 +295,29 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   // --- CARTERA HANDLERS ---
+  const [paymentModalData, setPaymentModalData] = useState<{ invoiceId: string, balance: number, amount: string } | null>(null);
+
   const registerPayment = (id: string) => {
       const inv = invoices.find(i => i.id === id);
       if(!inv) return;
+      setPaymentModalData({ invoiceId: id, balance: inv.balance, amount: inv.balance.toString() });
+  };
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
+  const handleConfirmPayment = () => {
+      if (!paymentModalData) return;
+      const amount = parseFloat(paymentModalData.amount);
       
-      if(amount > inv.balance) {
-          alert("El monto ingresado supera el saldo pendiente.");
+      if(isNaN(amount) || amount <= 0) {
+          showToast("Monto inválido.", "ALERT");
+          return;
+      }
+      if(amount > paymentModalData.balance) {
+          showToast("El monto ingresado supera el saldo pendiente.", "ALERT");
           return;
       }
 
       setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
+          if (invoice.id !== paymentModalData.invoiceId) return invoice;
           const newBalance = invoice.balance - amount;
           const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
           return {
@@ -317,7 +327,8 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
-      alert("Pago registrado correctamente.");
+      setPaymentModalData(null);
+      showToast("Pago registrado correctamente.", "SUCCESS");
   };
 
   return (
@@ -350,10 +361,79 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-8">
           
+          {/* PAYMENT MODAL (Cartera) */}
+          {paymentModalData && (
+              <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full">
+                      <h3 className="text-lg font-bold mb-4 flex items-center">
+                          <CreditCard className="mr-2 text-green-600"/> Registrar Abono
+                      </h3>
+                      <p className="text-sm text-slate-500 mb-4">Saldo pendiente: <span className="font-bold text-slate-800">{formatCurrency(paymentModalData.balance)}</span></p>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">Monto a Pagar</label>
+                      <input
+                          type="number"
+                          className="w-full border p-2 rounded text-lg font-bold mb-6"
+                          value={paymentModalData.amount}
+                          onChange={e => setPaymentModalData({...paymentModalData, amount: e.target.value})}
+                          autoFocus
+                      />
+                      <div className="flex gap-2">
+                          <button onClick={() => setPaymentModalData(null)} className="flex-1 py-2 text-slate-600 font-bold">Cancelar</button>
+                          <button onClick={handleConfirmPayment} className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold">Confirmar Pago</button>
+                      </div>
+                  </div>
+              </div>
+          )}
+
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+             <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+                    <div className="relative w-64">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm"
+                            placeholder="Buscar paciente..."
+                            value={billingSearchTerm}
+                            onChange={e => setBillingSearchTerm(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-medium border-b">
+                            <tr>
+                                <th className="p-4">Paciente</th>
+                                <th className="p-4">Identificación</th>
+                                <th className="p-4">Tipo Usuario</th>
+                                <th className="p-4">Última Cita</th>
+                                <th className="p-4 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {patients.filter(p => p.fullName.toLowerCase().includes(billingSearchTerm.toLowerCase())).map(p => (
+                                <tr key={p.id} className="hover:bg-slate-50">
+                                    <td className="p-4 font-bold text-slate-700">{p.fullName}</td>
+                                    <td className="p-4">{p.identification}</td>
+                                    <td className="p-4 text-xs">
+                                        <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-full font-bold">{p.insuranceType}</span>
+                                    </td>
+                                    <td className="p-4 text-slate-500">10/10/2023</td>
+                                    <td className="p-4 text-right">
+                                        <button
+                                            onClick={() => { setActiveTab('AGENDA'); handleOpenApptModal({ patientId: p.id, patientName: p.fullName } as any); }}
+                                            className="text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg text-xs font-bold border border-blue-200"
+                                        >
+                                            Agendar Cita
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
              </div>
           )}
           {/* AGENDA TAB (Now Functional) */}
