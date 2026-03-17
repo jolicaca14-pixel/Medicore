@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Patient, Appointment, Invoice, InvoiceItem, RecordType, RecordStatus, ClinicalRecord, UserRole, TariffItem } from '../../types';
 import { MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_RECORDS, MOCK_SOAT_TARIFF, SMLDV_2024, formatCurrency, MOCK_USERS } from '../../constants';
+import { billingService } from '../../services/billingService';
 import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw } from 'lucide-react';
 
 interface SecretaryViewProps {
@@ -33,6 +34,20 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   const [partialPayment, setPartialPayment] = useState<string>('');
   const [tariffMode, setTariffMode] = useState<'SOAT' | 'PARTICULAR'>('SOAT');
   const [invoices, setInvoices] = useState<Invoice[]>([]); // Cartera
+  const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
+
+  // Sync Invoices with Backend
+  useEffect(() => {
+    const fetchInvoices = async () => {
+        setIsLoadingInvoices(true);
+        const data = await billingService.getInvoices();
+        if (data && data.length > 0) {
+            setInvoices(data);
+        }
+        setIsLoadingInvoices(false);
+    };
+    fetchInvoices();
+  }, []);
 
   // Manual Item
   const [manualItemName, setManualItemName] = useState('');
@@ -118,6 +133,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payerType: 'INSURER', 
               status: 'PENDING'
           };
+          billingService.updateInvoiceStatus(newInvoice.id, newInvoice.status); // Non-blocking sync
           setInvoices([...invoices, newInvoice]);
           alert("Cita agendada y Factura creada automáticamente en Cartera.");
       } else {
@@ -219,6 +235,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           payerType: tariffMode === 'PARTICULAR' ? 'PATIENT' : 'INSURER',
           status
       };
+      billingService.updateInvoiceStatus(newInvoice.id, newInvoice.status); // Non-blocking sync
       setInvoices([...invoices, newInvoice]);
       setSelectedServices([]);
       setBillingPatient(null);
@@ -315,18 +332,24 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           return;
       }
 
-      setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
-          const newBalance = invoice.balance - amount;
-          const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
-          return {
-              ...invoice,
-              balance: newBalance,
-              status: newStatus,
-              payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
-          };
-      }));
-      alert("Pago registrado correctamente.");
+      billingService.registerPayment(id, amount).then(success => {
+          if (success) {
+              setInvoices(invoices.map(invoice => {
+                  if (invoice.id !== id) return invoice;
+                  const newBalance = invoice.balance - amount;
+                  const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
+                  return {
+                      ...invoice,
+                      balance: newBalance,
+                      status: newStatus,
+                      payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
+                  };
+              }));
+              alert("Pago registrado correctamente en el servidor.");
+          } else {
+              alert("Error al registrar el pago en el servidor.");
+          }
+      });
   };
 
   return (

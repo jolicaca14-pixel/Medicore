@@ -42,6 +42,25 @@ export const MOCK_CONTRACTS: Contract[] = [
   }
 ];
 
+export const MOCK_INVOICES: Invoice[] = [
+    {
+        id: 'INV-101',
+        patientId: 'p1',
+        patientName: 'Juan Pérez',
+        date: '2023-10-01T10:00:00Z',
+        items: [
+            { code: '890201', name: 'CONSULTA DE PRIMERA VEZ POR MEDICINA GENERAL', price: 45000, quantity: 1 }
+        ],
+        subtotal: 45000,
+        discount: 0,
+        total: 45000,
+        balance: 45000,
+        payments: [],
+        payerType: 'INSURER',
+        status: 'PENDING'
+    }
+];
+
 export const MOCK_PAYMENT_REQUESTS: PaymentRequest[] = [
     {
         id: 'pay-001',

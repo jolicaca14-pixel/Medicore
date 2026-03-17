@@ -88,3 +88,16 @@ export const authService = {
     }
   }
 };
+
+export const getAuthToken = () => {
+  const session = sessionStorage.getItem('medicore_session');
+  if (session) {
+    try {
+      const data = JSON.parse(session);
+      return data.accessToken || null;
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+};

@@ -3,7 +3,8 @@ import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
 import { clinicalRecordService } from '../../services/clinicalRecordService';
-import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
+import { hrService } from '../../services/hrService';
+import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2, UserCheck } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
@@ -12,6 +13,8 @@ import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calcula
 import { logAuditEvent } from '../../utils/auditLogger';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import RecentResultsWidget from '../RecentResultsWidget';
+import { Anexo2Form } from '../Anexo2Form';
+import { PatientTimeline } from '../PatientTimeline';
 
 interface ProfessionalViewProps {
   user: User;
@@ -57,6 +60,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [hoveredPatientId, setHoveredPatientId] = useState<string | null>(null);
   const [copiedJSON, setCopiedJSON] = useState(false);
+  const [showAnexo2, setShowAnexo2] = useState(false);
 
   // ⚡ TRINITY: Fetch Patients from API
   useEffect(() => {
@@ -208,7 +212,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [isSendingRDA, setIsSendingRDA] = useState(false);
 
   // --- HR / TALENT MODULE STATES ---
-  const [hrUser, setHrUser] = useState<User>(user); // Local state to update user with descargo
+  const [hrContract, setHrContract] = useState<any>(null);
+  const [disciplinaryHistory, setDisciplinaryHistory] = useState<any[]>([]);
   const [showDescargosModal, setShowDescargosModal] = useState(false);
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
   const [descargoText, setDescargoText] = useState('');
@@ -289,7 +294,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   // HR HELPERS
   const handleOpenDescargos = (actionId: string) => {
-      const action = hrUser.disciplinaryHistory?.find(a => a.id === actionId);
+      const action = disciplinaryHistory.find(a => a.id === actionId);
       if (action) {
           setSelectedActionId(actionId);
           setDescargoText(action.response || '');
@@ -297,22 +302,19 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       }
   };
 
-  const handleSaveDescargos = () => {
+  const handleSaveDescargos = async () => {
       if (!selectedActionId) return;
       
-      // Update the disciplinary action with the response
-      const updatedHistory = hrUser.disciplinaryHistory?.map(action => 
-          action.id === selectedActionId 
-          ? { ...action, response: descargoText } 
-          : action
-      );
-
-      const updatedUser = { ...hrUser, disciplinaryHistory: updatedHistory };
-      setHrUser(updatedUser); // Update local view state
-      
-      // In a real app, this would call an API.
-      alert("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
-      setShowDescargosModal(false);
+      const success = await hrService.respondDisciplinary(selectedActionId, descargoText);
+      if (success) {
+          setDisciplinaryHistory(prev => prev.map(a =>
+            a.id === selectedActionId ? { ...a, response: descargoText } : a
+          ));
+          alert("Sus descargos han sido registrados correctamente en el servidor.");
+          setShowDescargosModal(false);
+      } else {
+          alert("Error al guardar descargos.");
+      }
   };
 
   // PAYMENT REQUEST HELPERS
@@ -329,26 +331,24 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   };
 
   const handleOpenPaymentModal = () => {
-      const activeContract = hrUser.contracts?.find(c => c.isActive && c.type === ContractType.OPS);
-      if (!activeContract) return alert("Solo disponible para contratos OPS Activos.");
+      if (!hrContract || hrContract.type !== 'OPS') return alert("Solo disponible para contratos OPS Activos.");
       
       setNewPayment({
           period: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
-          amount: activeContract.opsValue || 0,
+          amount: hrContract.salary || 0,
           files: []
       });
       setShowPaymentModal(true);
   };
 
   const handleGeneratePaymentRequest = () => {
-      const activeContract = hrUser.contracts?.find(c => c.isActive && c.type === ContractType.OPS);
-      if (!activeContract) return;
+      if (!hrContract) return;
 
       const request: PaymentRequest = {
           id: `pay-${Date.now()}`,
           userId: user.id,
           userName: user.name,
-          contractId: activeContract.id,
+          contractId: hrContract.id,
           period: newPayment.period,
           amount: newPayment.amount,
           dateSubmitted: new Date().toISOString(),
@@ -814,9 +814,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   // --- HR & TALENT MODULE ---
   if (activeTab === 'hr') {
-      const activeContract = hrUser.contracts?.find(c => c.isActive);
+      const activeContract = hrContract;
       const auditTrail = activeContract?.auditTrail || [];
-      const disciplinary = hrUser.disciplinaryHistory || [];
+      const disciplinary = disciplinaryHistory;
       const myPaymentRequests = paymentRequests.filter(p => p.userId === user.id);
 
       return (
@@ -1145,6 +1145,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       <div className="flex flex-col h-[calc(100vh-100px)] relative">
          
          {showRDAModal && <RDAViewerModal />}
+         {showAnexo2 && <Anexo2Form patient={selectedPatient} onClose={() => setShowAnexo2(false)} />}
 
          {selectedPatient.allergies && (
              <div className="mb-4 bg-red-600 text-white p-2 rounded-lg flex items-center justify-center animate-pulse shadow-lg">
@@ -1239,6 +1240,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
             </div>
             {!isReadOnly ? (
                 <div className="flex items-center space-x-3">
+                    <button
+                        onClick={() => setShowAnexo2(true)}
+                        className="px-3 py-2 border border-blue-200 text-blue-600 rounded-lg font-bold text-xs hover:bg-blue-50 flex items-center"
+                    >
+                        <FilePlus size={14} className="mr-2"/> Anexo 2
+                    </button>
                     <select 
                         className="p-2 border rounded text-sm bg-white font-bold text-slate-700"
                         value={selectedTemplate?.id}
@@ -1557,7 +1564,15 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                  )}
              </div>
 
-             <div className="lg:col-span-1">
+             <div className="lg:col-span-1 space-y-6">
+                 <PatientTimeline
+                    records={records.filter(r => r.patientId === selectedPatient.id)}
+                    onSelectRecord={(r) => {
+                        setCurrentRecord(r);
+                        setDynamicData(r.dynamicData || {});
+                        setViewMode('VIEW');
+                    }}
+                 />
                  <RecentResultsWidget
                     selectedPatient={selectedPatient}
                     records={records}

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, UserRole } from './types';
 import { MOCK_USERS } from './constants';
 import { useAuth } from './hooks/useAuth';
+import { useSessionTimeout } from './hooks/useSessionTimeout';
 import { Layout } from './components/Layout';
 import { ProfessionalView } from './components/views/ProfessionalView';
 import { AdminView } from './components/views/AdminView';
@@ -140,6 +141,15 @@ const Login: React.FC<{ onLogin: (u: string, p: string) => Promise<any>, isLoadi
 const App: React.FC = () => {
   const { user, isLoading, login, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // 🛡️ SECURITY: Session Timeout (15 minutes of inactivity)
+  useSessionTimeout(15 * 60 * 1000, () => {
+    if (user) {
+      console.warn("Sesión cerrada por inactividad.");
+      alert("Su sesión ha expirado por inactividad. Por favor, inicie sesión nuevamente.");
+      logout();
+    }
+  });
 
   // API Key Check
   if (!import.meta.env.VITE_GEMINI_API_KEY) {
