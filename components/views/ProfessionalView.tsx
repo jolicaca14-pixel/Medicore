@@ -52,6 +52,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedJSON, setCopiedJSON] = useState(false);
 
   // ⚡ TRINITY: Fetch Patients from API
   useEffect(() => {
@@ -759,23 +760,48 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   
 
   const RDAViewerModal = () => (
-      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 max-h-[90vh] flex flex-col">
+      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 max-h-[90vh] flex flex-col animate-in zoom-in duration-300">
               <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xl font-bold text-slate-800 flex items-center">
                       <ShieldCheck className="mr-2 text-green-600"/> Resumen Digital de Atención (RDA)
                   </h3>
-                  <button aria-label="Cerrar modal" onClick={() => setShowRDAModal(false)}><X size={20}/></button>
+                  <button aria-label="Cerrar modal" onClick={() => setShowRDAModal(false)} className="hover:bg-slate-100 p-1 rounded-full"><X size={20}/></button>
               </div>
               <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4 text-xs text-blue-800">
-                  <span className="font-bold block mb-1">Cumplimiento Resolución 1888 de 2025:</span>
+                  <span className="font-bold block mb-1 text-sm">Cumplimiento Resolución 1888 de 2025:</span>
                   Este documento JSON estandarizado es la representación técnica enviada a la Plataforma de Interoperabilidad del Ministerio de Salud. Garantiza la continuidad asistencial y el intercambio seguro de datos.
               </div>
-              <div className="flex-1 overflow-y-auto bg-slate-900 text-green-400 p-4 rounded-lg font-mono text-xs">
+              <div className="flex-1 overflow-y-auto bg-slate-900 text-green-400 p-4 rounded-lg font-mono text-xs relative group">
+                  <button
+                    onClick={() => {
+                        navigator.clipboard.writeText(currentRecord.rdaPayload || '');
+                        setCopiedJSON(true);
+                        setTimeout(() => setCopiedJSON(false), 2000);
+                    }}
+                    className="absolute top-4 right-4 bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg flex items-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    {copiedJSON ? <CheckCircle size={14} className="mr-1 text-green-400"/> : <Copy size={14} className="mr-1"/>}
+                    {copiedJSON ? 'Copiado' : 'Copiar JSON'}
+                  </button>
                   <pre>{currentRecord.rdaPayload || 'No hay datos de RDA disponibles.'}</pre>
               </div>
-              <div className="mt-4 flex justify-end">
-                   <button onClick={() => setShowRDAModal(false)} className="px-4 py-2 bg-slate-200 text-slate-800 rounded font-bold text-sm">Cerrar</button>
+              <div className="mt-4 flex justify-end gap-3">
+                   <button
+                    onClick={() => {
+                        const blob = new Blob([currentRecord.rdaPayload || ''], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `RDA_${currentRecord.id}.json`;
+                        link.click();
+                        URL.revokeObjectURL(url);
+                    }}
+                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg font-bold text-sm flex items-center hover:bg-slate-50"
+                   >
+                       <Download size={16} className="mr-2"/> Descargar JSON
+                   </button>
+                   <button onClick={() => setShowRDAModal(false)} className="px-6 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm hover:bg-slate-800 transition-colors">Cerrar</button>
               </div>
           </div>
       </div>
