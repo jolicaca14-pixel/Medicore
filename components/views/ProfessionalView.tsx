@@ -7,7 +7,7 @@ import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, 
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
-import { sanitizeInput } from '../../utils/security';
+import { sanitizeInput, maskIdentification } from '../../utils/security';
 import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calculateTFG, calculateFramingham } from '../../utils/clinicalLogic';
 import { logAuditEvent } from '../../utils/auditLogger';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -47,6 +47,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // AI Suggestion State
   const [isSuggestingCIE, setIsSuggestingCIE] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string>('');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [clinicalSummary, setClinicalSummary] = useState<string | null>(null);
 
   // UX States
   const [patientSearch, setPatientSearch] = useState('');
@@ -439,6 +441,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const handleCreateRecord = (patient: Patient) => {
     setSelectedPatient(patient);
     setViewMode('CREATE');
+    setClinicalSummary(null);
     
     // Check previous records for RCV History
     const prevRCV = records.some(r => r.patientId === patient.id && r.recordType === RecordType.PYP_CV_RISK && r.status === RecordStatus.FINALIZED);
@@ -1192,10 +1195,28 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                 <button aria-label="Volver a la lista de pacientes" onClick={() => { setViewMode('LIST'); setSelectedPatient(null); }} className="mr-4 p-2 hover:bg-slate-100 rounded-full"><ChevronRight className="rotate-180" size={20}/></button>
                 <div>
                     <h2 className="text-xl font-bold text-slate-800">{selectedPatient.fullName}</h2>
-                    <p className="text-xs text-slate-500">
-                        {selectedPatient.insuranceType} | {new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear()} años
-                        {selectedPatient.bloodType && <span className="ml-2 font-bold text-red-600">| Rh: {selectedPatient.bloodType}</span>}
-                    </p>
+                    <div className="flex items-center space-x-2">
+                      <p className="text-xs text-slate-500">
+                          {selectedPatient.insuranceType} | {new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear()} años
+                          {selectedPatient.bloodType && <span className="ml-2 font-bold text-red-600">| Rh: {selectedPatient.bloodType}</span>}
+                      </p>
+                      {!isReadOnly && (
+                        <button
+                          onClick={async () => {
+                            setIsGeneratingSummary(true);
+                            const patientRecords = records.filter(r => r.patientId === selectedPatient.id);
+                            const notes = patientRecords.map(r => `${r.dateCreated}: ${r.chiefComplaint}. ${r.diagnoses?.map(d => d.name).join(', ')}`).join('\n');
+                            const summary = await generateClinicalSummary(notes);
+                            setClinicalSummary(summary);
+                            setIsGeneratingSummary(false);
+                          }}
+                          disabled={isGeneratingSummary}
+                          className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded hover:bg-blue-200 font-bold flex items-center"
+                        >
+                          <Bot size={10} className="mr-1"/> {isGeneratingSummary ? 'Analizando...' : 'Resumen Rápido (AI)'}
+                        </button>
+                      )}
+                    </div>
                 </div>
             </div>
             {!isReadOnly ? (
@@ -1235,6 +1256,15 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
          <div className="flex-1 overflow-y-auto pr-2 grid grid-cols-1 lg:grid-cols-4 gap-6 pb-20">
              
              <div className="lg:col-span-3">
+                {clinicalSummary && (
+                  <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-xl relative animate-in fade-in zoom-in duration-300">
+                    <button onClick={() => setClinicalSummary(null)} className="absolute top-2 right-2 text-blue-400 hover:text-blue-600"><X size={16}/></button>
+                    <h4 className="text-xs font-bold text-blue-800 uppercase mb-2 flex items-center">
+                      <Bot size={14} className="mr-2"/> Resumen de Historia (Asistente AI)
+                    </h4>
+                    <p className="text-sm text-slate-700 leading-relaxed italic">"{clinicalSummary}"</p>
+                  </div>
+                )}
                  <div className="flex border-b border-slate-200 mb-6 overflow-x-auto scrollbar-hide bg-white sticky top-0 z-10">
                      {selectedTemplate?.sections.map(s => (
                          <button
@@ -1610,7 +1640,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                         </div>
                         <h3 className="font-bold text-slate-800">{p.fullName}</h3>
                         <div className="flex items-center text-sm text-slate-500 mb-1 group">
-                            <span>{p.identification}</span>
+                            <span>{maskIdentification(p.identification)}</span>
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleCopyId(p.identification); }}
                                 className={`ml-2 p-1 transition-all ${copiedId === p.identification ? 'text-green-500 scale-110' : 'text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100'}`}

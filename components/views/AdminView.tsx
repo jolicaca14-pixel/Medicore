@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType, TariffItem, Contract, ContractType, ContractAudit, DisciplinaryAction, PaymentRequest, ClinicalRecord, RecordType, RecordStatus, Patient } from '../../types';
 import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
+import { maskIdentification } from '../../utils/security';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
 import { 
     Shield, Users, FileText, Settings, Plus, Edit, Trash2, X, Save, 
@@ -547,6 +548,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
+      const projectedPayroll = users.reduce((acc, u) => {
+          const activeContract = u.contracts?.find(c => c.isActive);
+          if (!activeContract) return acc;
+          return acc + (activeContract.baseSalary || 0) + (activeContract.opsPaymentMethod === 'FIXED_MONTHLY' ? (activeContract.opsValue || 0) : 0);
+      }, 0);
+
       return (
           <div className="space-y-6 animate-in fade-in duration-500">
               {/* Stats Cards */}
@@ -574,10 +581,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   </div>
                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
                       <div>
-                          <p className="text-slate-500 text-sm font-bold uppercase">Alertas Sistema</p>
-                          <h3 className="text-3xl font-bold text-red-500">3</h3>
+                          <p className="text-slate-500 text-sm font-bold uppercase">Nómina Proyectada</p>
+                          <h3 className="text-xl font-bold text-slate-800">{formatCurrency(projectedPayroll)}</h3>
                       </div>
-                      <div className="p-3 bg-red-100 text-red-600 rounded-full"><AlertTriangle size={24}/></div>
+                      <div className="p-3 bg-orange-100 text-orange-600 rounded-full"><Briefcase size={24}/></div>
                   </div>
               </div>
 
@@ -1037,7 +1044,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                       <tr key={u.id} className="hover:bg-slate-50">
                                           <td className="p-3">
                                               <p className="font-bold text-slate-700">{u.name}</p>
-                                              <p className="text-xs text-slate-400">{u.documentNumber}</p>
+                                              <p className="text-xs text-slate-400">{maskIdentification(u.documentNumber)}</p>
                                           </td>
                                           <td className="p-3 text-xs">{roleLabels[u.roles[0]]}</td>
                                           <td className="p-3">
