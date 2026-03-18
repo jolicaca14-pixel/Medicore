@@ -126,8 +126,53 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      if (!printWindow) return;
+
+      const html = `
+        <html>
+          <head>
+            <title>Resultados - ${patientName}</title>
+            <style>
+              body { font-family: sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; }
+              .header { text-align: center; border-bottom: 2px solid #334155; padding-bottom: 20px; margin-bottom: 30px; }
+              .result-item { margin-bottom: 25px; border: 1px solid #e2e8f0; padding: 20px; rounded-lg; }
+              .label { font-weight: bold; color: #64748b; font-size: 0.8em; text-transform: uppercase; }
+              .value { font-size: 1.1em; color: #0f172a; margin-bottom: 10px; }
+              .footer { margin-top: 50px; font-size: 0.8em; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>MEDICORE IPS</h1>
+              <h2>Resultados de Ayudas Diagnósticas</h2>
+              <p><strong>Paciente:</strong> ${patientName} | <strong>Fecha:</strong> ${date}</p>
+            </div>
+            ${completedRecords
+              .filter(r => r.dateCreated.startsWith(date))
+              .map(r => `
+                <div class="result-item">
+                  <h3 style="margin-top:0; color:#2563eb;">${r.chiefComplaint}</h3>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    ${Object.entries(r.dynamicData).map(([key, val]) => `
+                      <div>
+                        <div class="label">${MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key}</div>
+                        <div class="value">${val}</div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              `).join('')}
+            <div class="footer">
+              <p>Documento generado digitalmente por MediCore HCE. Firma digital del profesional responsable en archivo.</p>
+            </div>
+          </body>
+        </html>
+      `;
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- RENDER FORM ---
