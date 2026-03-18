@@ -1,3 +1,17 @@
+import { User, UserRole } from '../types';
+
+/**
+ * 🛡️ Role-Based Access Control (RBAC) Utility
+ *
+ * Determines if a user has administrative access to management modules.
+ * In MediCore, this is granted to ADMIN, MANAGER, or ACCOUNTANT roles.
+ */
+export const hasAdministrativeAccess = (user: User | null | undefined): boolean => {
+  if (!user) return false;
+  const adminRoles = [UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT];
+  return user.roles.some(role => adminRoles.includes(role));
+};
+
 /**
  * 🛡️ Sentinel: Input Sanitization Utility
  * This utility provides functions to help prevent Cross-Site Scripting (XSS) attacks
