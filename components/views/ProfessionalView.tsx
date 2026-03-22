@@ -210,6 +210,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>(MOCK_PAYMENT_REQUESTS);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [newPayment, setNewPayment] = useState<{ period: string, amount: number, files: string[] }>({ period: '', amount: 0, files: [] });
+  const [selectedPaymentFiles, setSelectedPaymentFiles] = useState<Record<string, string>>({});
 
   // --- SUB-MODULES STATES ---
   const [procSearch, setProcSearch] = useState('');
@@ -827,18 +828,22 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                   <p className="text-xs font-bold text-slate-700 mb-2">Cargar Soportes (PDF)</p>
                                   <div className="space-y-2">
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
-                                          <div className="flex items-center">
-                                              <FileText size={16} className="text-slate-400 mr-2"/>
-                                              <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
+                                          <div className="flex items-center overflow-hidden mr-2">
+                                              {selectedPaymentFiles['ss'] ? <CheckCircle size={16} className="text-green-500 mr-2 shrink-0"/> : <FileText size={16} className="text-slate-400 mr-2 shrink-0"/>}
+                                              <span className="text-xs text-slate-600 truncate">{selectedPaymentFiles['ss'] || 'Planilla Seguridad Social'}</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => setSelectedPaymentFiles(prev => ({...prev, ss: 'seguridad_social.pdf'}))} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100 shrink-0">
+                                              {selectedPaymentFiles['ss'] ? 'Cambiar' : 'Seleccionar...'}
+                                          </button>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
-                                          <div className="flex items-center">
-                                              <FileText size={16} className="text-slate-400 mr-2"/>
-                                              <span className="text-xs text-slate-600">Informe de Actividades</span>
+                                          <div className="flex items-center overflow-hidden mr-2">
+                                              {selectedPaymentFiles['ia'] ? <CheckCircle size={16} className="text-green-500 mr-2 shrink-0"/> : <FileText size={16} className="text-slate-400 mr-2 shrink-0"/>}
+                                              <span className="text-xs text-slate-600 truncate">{selectedPaymentFiles['ia'] || 'Informe de Actividades'}</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => setSelectedPaymentFiles(prev => ({...prev, ia: 'informe_actividades.pdf'}))} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100 shrink-0">
+                                               {selectedPaymentFiles['ia'] ? 'Cambiar' : 'Seleccionar...'}
+                                          </button>
                                       </div>
                                   </div>
                               </div>

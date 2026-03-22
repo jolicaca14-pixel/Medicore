@@ -126,8 +126,72 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const results = completedRecords.filter(r =>
+          (MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName || 'Desconocido') === patientName &&
+          r.dateCreated.startsWith(date)
+      );
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          const html = `
+            <html>
+                <head>
+                    <title>Resultados de Diagnóstico - ${patientName}</title>
+                    <style>
+                        body { font-family: sans-serif; color: #334155; padding: 40px; }
+                        .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
+                        .patient-info { margin-bottom: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+                        .result-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+                        .result-title { font-weight: bold; color: #1e293b; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 12px; }
+                        table { width: 100%; border-collapse: collapse; }
+                        th { text-align: left; font-size: 12px; color: #64748b; text-transform: uppercase; padding: 8px; background: #f8fafc; }
+                        td { padding: 8px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+                        .footer { margin-top: 50px; font-size: 10px; color: #94a3b8; text-align: center; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1 style="margin:0; color:#0f172a;">MEDICORE IPS</h1>
+                        <p style="margin:5px 0; color:#64748b;">Reporte Consolidado de Ayudas Diagnósticas</p>
+                    </div>
+                    <div class="patient-info">
+                        <div><strong>Paciente:</strong> ${patientName}</div>
+                        <div><strong>Fecha de Estudios:</strong> ${date}</div>
+                        <div><strong>Sede:</strong> Principal MediCore</div>
+                        <div><strong>ID Reporte:</strong> REP-${Date.now().toString().slice(-6)}</div>
+                    </div>
+                    ${results.map(r => `
+                        <div class="result-card">
+                            <div class="result-title">${r.chiefComplaint}</div>
+                            <table>
+                                <thead>
+                                    <tr><th>Parámetro</th><th>Resultado</th><th>Unidad</th></tr>
+                                </thead>
+                                <tbody>
+                                    ${Object.entries(r.dynamicData).map(([key, val]) => `
+                                        <tr>
+                                            <td>${MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key}</td>
+                                            <td><strong>${val}</strong></td>
+                                            <td>${MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.unit || ''}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `).join('')}
+                    <div class="footer">
+                        Este documento es una representación digital de los resultados almacenados en MediCore.
+                        Validado por el personal profesional del área diagnóstica.
+                    </div>
+                </body>
+            </html>
+          `;
+          printWindow.document.write(html);
+          printWindow.document.close();
+          // Optionally trigger print automatically:
+          // printWindow.print();
+      }
   };
 
   // --- RENDER FORM ---
