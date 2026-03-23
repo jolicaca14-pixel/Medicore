@@ -3,6 +3,8 @@ import { User, Patient, Appointment, Invoice, InvoiceItem, RecordType, RecordSta
 import { MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_RECORDS, MOCK_SOAT_TARIFF, SMLDV_2024, formatCurrency, MOCK_USERS } from '../../constants';
 import { appointmentService } from '../../services/appointmentService';
 import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw, Loader2 } from 'lucide-react';
+import { useToast } from '../../hooks/useToast';
+import { ConfirmModal } from '../ConfirmModal';
 
 interface SecretaryViewProps {
   user: User;
@@ -10,6 +12,7 @@ interface SecretaryViewProps {
 }
 
 export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) => {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'PATIENTS' | 'AGENDA' | 'BILLING' | 'CARTERA'>('AGENDA');
 
   // --- PATIENTS & AGENDA STATE ---
@@ -57,6 +60,23 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   const [manualItemName, setManualItemName] = useState('');
   const [manualItemPrice, setManualItemPrice] = useState('');
 
+  // Confirmation Modals
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: (val?: string) => void;
+    variant?: 'danger' | 'primary' | 'success';
+    showInput?: boolean;
+    inputPlaceholder?: string;
+    inputLabel?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
   // --- AGENDA HANDLERS ---
   const handleOpenApptModal = (existingAppt?: Appointment) => {
       if (existingAppt) {
@@ -86,7 +106,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   const handleSaveAppointment = async () => {
       if(!newAppt.patientId || !newAppt.time || !newAppt.reason || !newAppt.professionalId) {
-          alert("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)");
+          showToast("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)", "error");
           return;
       }
       const patient = patients.find(p => p.id === newAppt.patientId);
@@ -153,9 +173,9 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               status: 'PENDING'
           };
           setInvoices([...invoices, newInvoice]);
-          alert("Cita agendada y Factura creada automáticamente en Cartera.");
+          showToast("Cita agendada y Factura creada automáticamente en Cartera.", "success");
       } else {
-          alert(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
+          showToast(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.", "success");
       }
 
       setIsApptModalOpen(false);
@@ -165,8 +185,8 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       try {
           await appointmentService.updateStatus(id, status);
           setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-          if (status === 'WAITING') alert("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
-          if (status === 'CANCELLED') alert("Cita cancelada.");
+          if (status === 'WAITING') showToast("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.", "success");
+          if (status === 'CANCELLED') showToast("Cita cancelada.", "info");
       } catch (e) {
           console.error("Error updating status in backend, updating locally");
           setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
@@ -263,20 +283,48 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       setSelectedServices([]);
       setBillingPatient(null);
       setPartialPayment('');
-      alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
+      showToast(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`, "success");
   };
 
   const printInvoice = (invoice: Invoice) => {
       // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head><title>Factura ${invoice.id}</title></head>
+              <body style="font-family: sans-serif; padding: 20px;">
+                  <h2>MEDICORE IPS - FACTURA DE VENTA N° ${invoice.id}</h2>
+                  <hr/>
+                  <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                  <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleString()}</p>
+                  <table style="width:100%; border-collapse: collapse; margin-top: 20px;">
+                      <thead>
+                          <tr style="background: #eee;">
+                              <th style="border: 1px solid #ddd; padding: 8px;">Servicio</th>
+                              <th style="border: 1px solid #ddd; padding: 8px; text-align:right;">Total</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          ${invoice.items.map(item => `
+                              <tr>
+                                  <td style="border: 1px solid #ddd; padding: 8px;">${item.name} x ${item.quantity}</td>
+                                  <td style="border: 1px solid #ddd; padding: 8px; text-align:right;">${formatCurrency(item.price * item.quantity)}</td>
+                              </tr>
+                          `).join('')}
+                      </tbody>
+                  </table>
+                  <div style="margin-top: 20px; text-align: right;">
+                      <p><strong>Subtotal:</strong> ${formatCurrency(invoice.subtotal)}</p>
+                      <p><strong>Descuento:</strong> ${formatCurrency(invoice.discount)}</p>
+                      <p style="font-size: 1.2em;"><strong>Total:</strong> ${formatCurrency(invoice.total)}</p>
+                  </div>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+          printWindow.print();
+      }
   };
 
   // --- CARTERA HANDLERS ---
@@ -284,27 +332,41 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       const inv = invoices.find(i => i.id === id);
       if(!inv) return;
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
-      
-      if(amount > inv.balance) {
-          alert("El monto ingresado supera el saldo pendiente.");
-          return;
-      }
+      setConfirmConfig({
+          isOpen: true,
+          title: 'Registrar Pago',
+          message: `Saldo pendiente: ${formatCurrency(inv.balance)}. Ingrese el monto a pagar:`,
+          showInput: true,
+          inputLabel: 'Monto a Abonar',
+          inputPlaceholder: 'Ej. 50000',
+          variant: 'success',
+          onConfirm: (val) => {
+              if (!val) return;
+              const amount = parseFloat(val);
+              if (isNaN(amount) || amount <= 0) {
+                  showToast("Ingrese un monto válido.", "error");
+                  return;
+              }
+              if(amount > inv.balance) {
+                showToast("El monto ingresado supera el saldo pendiente.", "error");
+                return;
+              }
 
-      setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
-          const newBalance = invoice.balance - amount;
-          const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
-          return {
-              ...invoice,
-              balance: newBalance,
-              status: newStatus,
-              payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
-          };
-      }));
-      alert("Pago registrado correctamente.");
+              setInvoices(invoices.map(invoice => {
+                  if (invoice.id !== id) return invoice;
+                  const newBalance = invoice.balance - amount;
+                  const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
+                  return {
+                      ...invoice,
+                      balance: newBalance,
+                      status: newStatus,
+                      payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
+                  };
+              }));
+              showToast("Pago registrado correctamente.", "success");
+              setConfirmConfig({ ...confirmConfig, isOpen: false });
+          }
+      });
   };
 
   return (
@@ -336,7 +398,17 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-8">
-          
+          <ConfirmModal
+              isOpen={confirmConfig.isOpen}
+              title={confirmConfig.title}
+              message={confirmConfig.message}
+              variant={confirmConfig.variant}
+              showInput={confirmConfig.showInput}
+              inputLabel={confirmConfig.inputLabel}
+              inputPlaceholder={confirmConfig.inputPlaceholder}
+              onConfirm={confirmConfig.onConfirm}
+              onCancel={() => setConfirmConfig({ ...confirmConfig, isOpen: false })}
+          />
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
              <div className="flex justify-between items-center mb-6">
