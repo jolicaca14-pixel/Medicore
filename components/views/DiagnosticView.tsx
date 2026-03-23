@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
 import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
+import { useToast } from '../../hooks/useToast';
+import { formatCurrency } from '../../constants';
 
 interface DiagnosticViewProps {
   user: User;
@@ -21,6 +23,7 @@ interface Order {
 }
 
 export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }) => {
+  const { showToast } = useToast();
   const isLab = user.roles.includes(UserRole.BACTERIOLOGIST);
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
@@ -60,7 +63,10 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) {
+          showToast("No hay plantilla configurada para este examen.", "error");
+          return;
+      }
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +95,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showToast("Resultado guardado correctamente.", "success");
   };
 
   // --- RENDER FIELD ---
@@ -126,8 +132,54 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const recordsInGroup = completedRecords.filter(r => {
+          const pat = MOCK_PATIENTS.find(p => p.id === r.patientId);
+          return pat?.fullName === patientName && r.dateCreated.startsWith(date);
+      });
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head><title>Resultados - ${patientName}</title></head>
+              <body style="font-family: sans-serif; padding: 40px;">
+                  <h1 style="text-align: center; color: #1e293b;">REPORTE DE DIAGNÓSTICO</h1>
+                  <div style="margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">
+                      <p><strong>Paciente:</strong> ${patientName}</p>
+                      <p><strong>Fecha de Resultados:</strong> ${date}</p>
+                      <p><strong>Institución:</strong> MEDICORE IPS - Unidad de Apoyo Diagnóstico</p>
+                  </div>
+
+                  ${recordsInGroup.map(r => `
+                      <div style="margin-bottom: 30px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
+                          <h3 style="background: #f8fafc; margin: -20px -20px 15px -20px; padding: 10px 20px; border-bottom: 1px solid #e2e8f0; border-radius: 8px 8px 0 0;">
+                              ${r.chiefComplaint}
+                          </h3>
+                          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                              ${Object.entries(r.dynamicData).map(([key, val]) => `
+                                  <div style="font-size: 0.9em;">
+                                      <span style="color: #64748b; font-weight: bold;">${key.toUpperCase()}:</span>
+                                      <span style="color: #1e293b;">${val}</span>
+                                  </div>
+                              `).join('')}
+                          </div>
+                          <div style="margin-top: 15px; font-size: 0.8em; color: #94a3b8; border-top: 1px dashed #e2e8f0; pt: 10px;">
+                              Validado por: ${r.professionalName}
+                          </div>
+                      </div>
+                  `).join('')}
+
+                  <div style="margin-top: 50px; text-align: center;">
+                      <div style="width: 200px; border-top: 1px solid #000; margin: 0 auto;"></div>
+                      <p style="font-size: 0.8em;">Firma Digital y Sello Institucional</p>
+                  </div>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+          printWindow.print();
+      }
   };
 
   // --- RENDER FORM ---
