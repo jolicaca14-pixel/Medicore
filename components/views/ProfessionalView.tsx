@@ -4,6 +4,7 @@ import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiS
 import { patientService } from '../../services/patientService';
 import { clinicalRecordService } from '../../services/clinicalRecordService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
+import { ConfirmModal } from '../ConfirmModal';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
@@ -12,6 +13,7 @@ import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calcula
 import { logAuditEvent } from '../../utils/auditLogger';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import RecentResultsWidget from '../RecentResultsWidget';
+import { useToast } from '../../hooks/useToast';
 
 interface ProfessionalViewProps {
   user: User;
@@ -20,6 +22,7 @@ interface ProfessionalViewProps {
 }
 
 export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, activeTab = 'dashboard' }) => {
+  const { showToast } = useToast();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [patientsError, setPatientsError] = useState<string | null>(null);
@@ -188,11 +191,25 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           logAuditEvent(user.id, 'PATIENT_SEARCH', 'PatientList', `Searched for term: ${cleanSearch}`);
       }
 
-      return patients.filter(p =>
+      let filtered = patients;
+      if (activeTab === 'appointments') {
+          const today = new Date().toISOString().split('T')[0];
+          const appointmentPatientIds = MOCK_APPOINTMENTS
+              .filter(a => a.date === today && a.professionalId === user.id)
+              .map(a => a.patientId);
+          filtered = patients.filter(p => appointmentPatientIds.includes(p.id));
+      } else if (activeTab === 'records') {
+          const professionalPatientIds = records
+              .filter(r => r.professionalId === user.id)
+              .map(r => r.patientId);
+          filtered = patients.filter(p => professionalPatientIds.includes(p.id));
+      }
+
+      return filtered.filter(p =>
           p.fullName.toLowerCase().includes(cleanSearch) ||
           p.identification.toLowerCase().includes(cleanSearch)
       );
-  }, [patients, debouncedSearch, user.id]);
+  }, [patients, debouncedSearch, user.id, activeTab, records]);
 
   // RCV Logic State
   const [isFirstTimeRCV, setIsFirstTimeRCV] = useState(false);
@@ -212,6 +229,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [newPayment, setNewPayment] = useState<{ period: string, amount: number, files: string[] }>({ period: '', amount: 0, files: [] });
 
   // --- SUB-MODULES STATES ---
+  const [showEmptyAntecedentsModal, setShowEmptyAntecedentsModal] = useState(false);
   const [procSearch, setProcSearch] = useState('');
   const [diagSearch, setDiagSearch] = useState('');
   
@@ -304,7 +322,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       setHrUser(updatedUser); // Update local view state
       
       // In a real app, this would call an API.
-      alert("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
+      showToast("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.", "success");
       setShowDescargosModal(false);
   };
 
@@ -333,7 +351,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   const handleOpenPaymentModal = () => {
       const activeContract = hrUser.contracts?.find(c => c.isActive && c.type === ContractType.OPS);
-      if (!activeContract) return alert("Solo disponible para contratos OPS Activos.");
+      if (!activeContract) {
+          showToast("Solo disponible para contratos OPS Activos.", "error");
+          return;
+      }
       
       setNewPayment({
           period: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
@@ -393,7 +414,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           pdfWindow.document.close();
       }
 
-      alert("Cuenta de cobro generada y notificada a Administración.");
+      showToast("Cuenta de cobro generada y notificada a Administración.", "success");
   };
 
 
@@ -522,31 +543,25 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     if (action === 'FINALIZE') {
         // 🩺 DOC HOUSE: Gender-based clinical validation
         if (selectedPatient.gender === 'M' && (selectedTemplate?.recordType === RecordType.PYP_PREGNANCY || selectedTemplate?.recordType === RecordType.PYP_PUERPERIUM)) {
-            alert("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.");
+            showToast("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.", "error");
             return;
         }
 
         // 🩺 DOC HOUSE: Clinical safety check for empty antecedents.
         if (!currentRecord.antecedents || currentRecord.antecedents.trim() === '') {
-            const confirmEmpty = window.confirm("Atención: Los antecedentes clínicos están vacíos. ¿Desea continuar sin registrar antecedentes?");
-            if (!confirmEmpty) {
-                // Return to first tab which usually contains history/antecedents
-                if (selectedTemplate?.sections?.length) {
-                    setActiveFormTab(selectedTemplate.sections[0].id);
-                }
-                return;
-            }
+            setShowEmptyAntecedentsModal(true);
+            return;
         }
 
         if ((!currentRecord.diagnoses || currentRecord.diagnoses.length === 0) && selectedTemplate?.recordType !== RecordType.PROCEDURE) {
-            alert("Es obligatorio seleccionar al menos un diagnóstico CIE-11.");
+            showToast("Es obligatorio seleccionar al menos un diagnóstico CIE-11.", "error");
             setActiveFormTab('orders_tab');
             return;
         }
         // VALIDATE BARTHEL IF REQUIRED
         if (isFirstTimeRCV && selectedTemplate?.recordType === RecordType.PYP_CV_RISK) {
             if(!dynamicData['global_barthel']) {
-                alert("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.");
+                showToast("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.", "error");
                 return;
             }
         }
@@ -615,7 +630,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           setShowAuthModal(false);
           setViewMode('LIST');
           setSelectedPatient(null);
-          alert(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`);
+          showToast("Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.", "success");
         }, 2500);
       } else {
         setShowAuthModal(false);
@@ -627,7 +642,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   
   const handleAddDiagnosis = (code: string, name: string) => {
       if (!validateCIE11Code(code)) {
-          alert("Código CIE-11 no válido para este paciente.");
+          showToast("Código CIE-11 no válido para este paciente.", "error");
           return;
       }
       if (currentRecord.diagnoses?.some(d => d.code === code)) return;
@@ -679,7 +694,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       const currentAnalysis = dynamicData['d_analisis'] || '';
       const newAnalysis = currentAnalysis + importText;
       setDynamicData({ ...dynamicData, d_analisis: newAnalysis });
-      alert(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
+      showToast(`Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`, "success");
   };
 
   const renderField = (field: any, isReadOnly: boolean) => {
@@ -831,14 +846,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => showToast('Archivo "Seguridad_Social.pdf" seleccionado (Simulado)', 'info')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Informe de Actividades</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <button onClick={() => showToast('Archivo "Informe_Actividades.pdf" seleccionado (Simulado)', 'info')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
                                       </div>
                                   </div>
                               </div>
@@ -1118,7 +1133,25 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     
     return (
       <div className="flex flex-col h-[calc(100vh-100px)] relative">
-         
+         <ConfirmModal
+            isOpen={showEmptyAntecedentsModal}
+            onClose={() => {
+                setShowEmptyAntecedentsModal(false);
+                if (selectedTemplate?.sections?.length) {
+                    setActiveFormTab(selectedTemplate.sections[0].id);
+                }
+            }}
+            onConfirm={() => {
+                setShowEmptyAntecedentsModal(false);
+                // Trigger finalization again, but this time we might need a flag or skip the check
+                setAuthAction('FINALIZE'); setPasswordInput(''); setAuthError(''); setShowAuthModal(true);
+            }}
+            title="Antecedentes Vacíos"
+            message="Atención: Los antecedentes clínicos están vacíos. ¿Desea continuar sin registrar antecedentes?"
+            confirmText="Continuar"
+            cancelText="Registrar Antecedentes"
+            variant="danger"
+         />
          {showRDAModal && <RDAViewerModal />}
 
          {selectedPatient.allergies && (

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
 import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
+import { useToast } from '../../hooks/useToast';
 
 interface DiagnosticViewProps {
   user: User;
@@ -21,6 +22,7 @@ interface Order {
 }
 
 export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }) => {
+  const { showToast } = useToast();
   const isLab = user.roles.includes(UserRole.BACTERIOLOGIST);
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
@@ -60,7 +62,10 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) {
+          showToast("No hay plantilla configurada para este examen.", "error");
+          return;
+      }
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +94,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showToast("Resultado guardado correctamente.", "success");
   };
 
   // --- RENDER FIELD ---
@@ -126,8 +131,61 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const recordsInGroup = completedRecords.filter(r =>
+        MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientName &&
+        r.dateCreated.startsWith(date)
+      );
+
+      const resultsHtml = recordsInGroup.map(r => {
+          const fieldsHtml = Object.entries(r.dynamicData).map(([key, val]) => {
+              const label = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+              return `<p><strong>${label}:</strong> ${val}</p>`;
+          }).join('');
+
+          return `
+            <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #e2e8f0; rounded-xl: 12px; background: #f8fafc;">
+                <h3 style="margin: 0 0 10px 0; color: #1e293b; border-bottom: 2px solid #3b82f6; display: inline-block;">${r.chiefComplaint}</h3>
+                <div style="font-size: 14px; color: #334155;">
+                    ${fieldsHtml}
+                </div>
+            </div>
+          `;
+      }).join('');
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Resultados - ${patientName}</title>
+            <style>
+              body { font-family: sans-serif; color: #334155; padding: 40px; }
+              .header { text-align: center; margin-bottom: 40px; }
+              .patient-info { background: #f1f5f9; padding: 20px; border-radius: 12px; margin-bottom: 30px; }
+              .footer { text-align: center; margin-top: 50px; font-size: 12px; color: #94a3b8; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1 style="margin: 0; color: #0f172a;">MEDICORE IPS - LABORATORIO E IMAGENOLOGÍA</h1>
+              <p>Resultados Clínicos de Ayuda Diagnóstica</p>
+            </div>
+            <div class="patient-info">
+              <h2 style="margin: 0 0 10px 0;">${patientName}</h2>
+              <p style="margin: 0;"><strong>Fecha de Realización:</strong> ${date}</p>
+              <p style="margin: 5px 0 0 0;"><strong>Profesional Responsable:</strong> ${user.name}</p>
+            </div>
+            ${resultsHtml}
+            <div class="footer">
+              <p>Documento generado electrónicamente por MediCore HCE. La interpretación de estos resultados debe ser realizada por su médico tratante.</p>
+            </div>
+            <script>window.print();</script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---
