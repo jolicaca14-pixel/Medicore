@@ -46,6 +46,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   // --- BILLING STATE ---
   const [billingPatient, setBillingPatient] = useState<Patient | null>(null);
   const [billingSearchTerm, setBillingSearchTerm] = useState(''); // Search state
+  const [patientSearchTerm, setPatientSearchTerm] = useState(''); // Patient list search state
 
   const [selectedServices, setSelectedServices] = useState<InvoiceItem[]>([]);
   const [globalDiscount, setGlobalDiscount] = useState<number>(0);
@@ -339,8 +340,62 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+             <div className="space-y-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+                    <div className="relative w-72">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                        <input
+                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm"
+                            placeholder="Buscar por nombre o documento..."
+                            value={patientSearchTerm}
+                            onChange={e => setPatientSearchTerm(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-medium">
+                            <tr>
+                                <th className="p-4">Paciente</th>
+                                <th className="p-4">Identificación</th>
+                                <th className="p-4">Contacto</th>
+                                <th className="p-4">Seguro</th>
+                                <th className="p-4 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {patients.filter(p =>
+                                p.fullName.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+                                p.identification.includes(patientSearchTerm)
+                            ).map(p => (
+                                <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="p-4 font-bold text-slate-800">{p.fullName}</td>
+                                    <td className="p-4 font-mono text-slate-600">{p.identification}</td>
+                                    <td className="p-4 text-slate-500">
+                                        <p>{p.phone}</p>
+                                        <p className="text-xs">{p.email}</p>
+                                    </td>
+                                    <td className="p-4">
+                                        <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-[10px] font-bold border border-blue-100 uppercase">{p.insuranceType}</span>
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <button
+                                            onClick={() => { setBillingPatient(p); setActiveTab('BILLING'); }}
+                                            className="text-blue-600 hover:bg-blue-50 px-3 py-1 rounded text-xs font-bold border border-blue-200 transition-colors"
+                                        >
+                                            Nueva Factura
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {patients.length === 0 && (
+                                <tr><td colSpan={5} className="p-8 text-center text-slate-400 italic">No hay pacientes registrados.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
              </div>
           )}
           {/* AGENDA TAB (Now Functional) */}

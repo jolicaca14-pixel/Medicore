@@ -274,7 +274,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   // Handle Tab Change from Sidebar (e.g. My Production or HR)
   useEffect(() => {
-    if (activeTab === 'reports' || activeTab === 'hr') {
+    if (activeTab === 'reports' || activeTab === 'hr' || activeTab === 'records' || activeTab === 'appointments') {
         setViewMode('LIST'); // Reset any patient view
         setSelectedPatient(null);
     }
