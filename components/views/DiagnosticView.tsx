@@ -126,8 +126,58 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const resultsForPatient = completedRecords.filter(r => r.dateCreated.startsWith(date));
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+                  <head>
+                      <title>Resultados Diagnósticos - ${patientName}</title>
+                      <style>
+                          body { font-family: sans-serif; padding: 40px; color: #1e293b; }
+                          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
+                          .patient-info { margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+                          .result-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+                          .result-title { font-weight: bold; color: #2563eb; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; margin-bottom: 10px; }
+                          .field { display: grid; grid-template-columns: 1fr 1fr; font-size: 14px; margin-bottom: 4px; }
+                          .label { color: #64748b; font-weight: 600; }
+                          .footer { margin-top: 50px; font-size: 10px; color: #94a3b8; text-align: center; }
+                      </style>
+                  </head>
+                  <body>
+                      <div class="header">
+                          <h1>MEDICORE IPS</h1>
+                          <p>Reporte Consolidado de Ayudas Diagnósticas</p>
+                      </div>
+                      <div class="patient-info">
+                          <div><span class="label">Paciente:</span> ${patientName}</div>
+                          <div><span class="label">Fecha:</span> ${date}</div>
+                      </div>
+                      ${resultsForPatient.map(r => `
+                          <div class="result-card">
+                              <div class="result-title">${r.chiefComplaint}</div>
+                              ${Object.entries(r.dynamicData).map(([key, val]) => {
+                                  const field = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key);
+                                  return `
+                                      <div class="field">
+                                          <span class="label">${field?.label || key}:</span>
+                                          <span>${val} ${field?.unit ? `(${field.unit})` : ''}</span>
+                                      </div>
+                                  `;
+                              }).join('')}
+                          </div>
+                      `).join('')}
+                      <div class="footer">
+                          Documento generado electrónicamente por MediCore HCE. Responsable: ${user.name}
+                      </div>
+                  </body>
+              </html>
+          `);
+          printWindow.document.close();
+          printWindow.print();
+      }
   };
 
   // --- RENDER FORM ---
