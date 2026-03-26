@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
+import { sanitizeInput } from '../../utils/security';
 import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
 
 interface DiagnosticViewProps {
@@ -126,8 +127,62 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const recordsOnDate = completedRecords.filter(r => r.dateCreated.startsWith(date));
+
+      const resultsHtml = recordsOnDate.map(record => {
+          const fieldsHtml = Object.entries(record.dynamicData).map(([key, val]) => {
+              const label = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+              return `<p><strong>${label}:</strong> ${sanitizeInput(String(val))}</p>`;
+          }).join('');
+
+          return `
+              <div style="border: 1px solid #eee; padding: 20px; margin-bottom: 20px; border-radius: 8px;">
+                  <h3 style="margin-top: 0; color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">${sanitizeInput(record.chiefComplaint)}</h3>
+                  <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 10px; font-size: 14px;">
+                      ${fieldsHtml}
+                  </div>
+              </div>
+          `;
+      }).join('');
+
+      printWindow.document.write(`
+          <html>
+              <head>
+                  <title>Resultados - ${patientName} - ${date}</title>
+                  <style>
+                      body { font-family: sans-serif; color: #333; padding: 40px; line-height: 1.5; }
+                      .header { text-align: center; margin-bottom: 40px; }
+                      .patient-info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 30px; }
+                      .footer { margin-top: 50px; font-size: 11px; text-align: center; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+                      @media print { .no-print { display: none; } }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1 style="margin: 0; color: #1e3a8a;">MEDICORE IPS</h1>
+                      <p style="margin: 5px 0;">Servicio de Ayudas Diagnósticas</p>
+                      <h2 style="color: #64748b;">REPORTE DE RESULTADOS</h2>
+                  </div>
+                  <div class="patient-info">
+                      <p style="margin: 0;"><strong>Paciente:</strong> ${sanitizeInput(patientName)}</p>
+                      <p style="margin: 5px 0 0 0;"><strong>Fecha de Procesamiento:</strong> ${date}</p>
+                  </div>
+                  <div class="results-container">
+                      ${resultsHtml}
+                  </div>
+                  <div class="footer">
+                      <p>Este documento es un reporte de resultados diagnósticos generado electrónicamente por MediCore.</p>
+                      <p>Profesional Responsable: ${sanitizeInput(user.name)}</p>
+                  </div>
+                  <script>window.print();</script>
+              </body>
+          </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---
