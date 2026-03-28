@@ -3,12 +3,12 @@ import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
 import { clinicalRecordService } from '../../services/clinicalRecordService';
-import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
+import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2, Zap } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
 import { sanitizeInput } from '../../utils/security';
-import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calculateTFG, calculateFramingham } from '../../utils/clinicalLogic';
+import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calculateTFG, calculateFramingham, isPediatricAge, formatPreciseAge } from '../../utils/clinicalLogic';
 import { logAuditEvent } from '../../utils/auditLogger';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import RecentResultsWidget from '../RecentResultsWidget';
@@ -77,7 +77,19 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // ⚡ NEO: Memoized calculators to replace useEffect anti-pattern
   const age = useMemo(() => {
     if (!selectedPatient) return 0;
-    return new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear();
+    const birth = new Date(selectedPatient.birthDate);
+    const today = new Date();
+    let ageYears = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        ageYears--;
+    }
+    return ageYears;
+  }, [selectedPatient]);
+
+  const preciseAge = useMemo(() => {
+    if (!selectedPatient) return '';
+    return formatPreciseAge(selectedPatient.birthDate);
   }, [selectedPatient]);
 
   const bmiValue = useMemo(() => {
@@ -1111,6 +1123,38 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       );
   }
 
+  const handleQuickNormalExam = () => {
+    setDynamicData(prev => ({
+      ...prev,
+      global_sys_bp: '120',
+      global_dia_bp: '80',
+      v_fc: '75',
+      v_fr: '18',
+      global_temp: '36.5',
+      v_sat: '98'
+    }));
+    logAuditEvent(user.id, 'QUICK_ACTION', 'ClinicalRecord', 'Applied Normal Exam defaults');
+  };
+
+  const handleRepeatLastPlan = () => {
+    const lastRecord = records
+      .filter(r => r.patientId === selectedPatient?.id && r.status === RecordStatus.FINALIZED)
+      .sort((a, b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime())[0];
+
+    if (lastRecord) {
+      // Try to find plan in dynamicData or top-level
+      const previousPlan = lastRecord.plan || (lastRecord.dynamicData && lastRecord.dynamicData['d_plan']);
+      if (previousPlan) {
+        setDynamicData(prev => ({ ...prev, d_plan: previousPlan }));
+        setCurrentRecord(prev => ({ ...prev, plan: previousPlan }));
+        logAuditEvent(user.id, 'QUICK_ACTION', 'ClinicalRecord', 'Repeated last plan');
+        alert("Plan de manejo copiado de la atención anterior.");
+        return;
+      }
+    }
+    alert("No se encontró un plan previo para este paciente.");
+  };
+
   // --- MAIN PROFESSIONAL WORKSPACE ---
   if ((viewMode === 'CREATE' || viewMode === 'VIEW') && selectedPatient) {
     const isReadOnly = viewMode === 'VIEW';
@@ -1122,10 +1166,17 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
          {showRDAModal && <RDAViewerModal />}
 
          {selectedPatient.allergies && (
-             <div className="mb-4 bg-red-600 text-white p-2 rounded-lg flex items-center justify-center animate-pulse shadow-lg">
+             <div className="mb-2 bg-red-600 text-white p-2 rounded-lg flex items-center justify-center animate-pulse shadow-lg">
                  <AlertOctagon size={20} className="mr-2"/>
                  <span className="font-bold text-sm">ALERGIAS REPORTADAS: {selectedPatient.allergies}</span>
              </div>
+         )}
+
+         {isPediatricAge(age) && (
+            <div className="mb-4 bg-orange-100 border border-orange-200 text-orange-800 p-2 rounded-lg flex items-center justify-center shadow-sm">
+                <AlertCircle size={18} className="mr-2"/>
+                <span className="font-bold text-xs">PACIENTE PEDIÁTRICO ({preciseAge}): Use umbrales de signos vitales específicos para la edad.</span>
+            </div>
          )}
 
          {showAuthModal && (
@@ -1185,7 +1236,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                 <div>
                     <h2 className="text-xl font-bold text-slate-800">{selectedPatient.fullName}</h2>
                     <p className="text-xs text-slate-500">
-                        {selectedPatient.insuranceType} | {new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear()} años
+                        {selectedPatient.insuranceType} | {preciseAge}
                         {selectedPatient.bloodType && <span className="ml-2 font-bold text-red-600">| Rh: {selectedPatient.bloodType}</span>}
                     </p>
                 </div>
@@ -1510,7 +1561,38 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                  )}
              </div>
 
-             <div className="lg:col-span-1">
+             <div className="lg:col-span-1 space-y-6">
+                 {!isReadOnly && (
+                   <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 animate-in fade-in slide-in-from-right-4">
+                     <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center uppercase tracking-wider">
+                       <Zap size={16} className="mr-2 text-yellow-500 fill-yellow-500"/> Acciones Rápidas
+                     </h3>
+                     <div className="space-y-2">
+                       <button
+                         onClick={handleQuickNormalExam}
+                         className="w-full flex items-center justify-between p-3 text-left text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all group"
+                       >
+                         <div className="flex items-center">
+                           <Activity size={14} className="mr-2 text-slate-400 group-hover:text-blue-500"/>
+                           <span>Examen Normal</span>
+                         </div>
+                         <ChevronRight size={14} className="text-slate-300 group-hover:text-blue-400"/>
+                       </button>
+                       <button
+                         onClick={handleRepeatLastPlan}
+                         className="w-full flex items-center justify-between p-3 text-left text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-green-50 hover:border-green-200 hover:text-green-700 transition-all group"
+                       >
+                         <div className="flex items-center">
+                           <History size={14} className="mr-2 text-slate-400 group-hover:text-green-500"/>
+                           <span>Repetir Plan</span>
+                         </div>
+                         <ChevronRight size={14} className="text-slate-300 group-hover:text-green-400"/>
+                       </button>
+                     </div>
+                     <p className="text-[10px] text-slate-400 mt-4 italic">Pre-completa campos comunes para ahorrar tiempo.</p>
+                   </div>
+                 )}
+
                  <RecentResultsWidget
                     selectedPatient={selectedPatient}
                     records={records}

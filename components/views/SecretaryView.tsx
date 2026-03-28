@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Patient, Appointment, Invoice, InvoiceItem, RecordType, RecordStatus, ClinicalRecord, UserRole, TariffItem } from '../../types';
 import { MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_RECORDS, MOCK_SOAT_TARIFF, SMLDV_2024, formatCurrency, MOCK_USERS } from '../../constants';
 import { appointmentService } from '../../services/appointmentService';
+import { billingService } from '../../services/billingService';
 import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw, Loader2 } from 'lucide-react';
 
 interface SecretaryViewProps {
@@ -51,7 +52,8 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   const [globalDiscount, setGlobalDiscount] = useState<number>(0);
   const [partialPayment, setPartialPayment] = useState<string>('');
   const [tariffMode, setTariffMode] = useState<'SOAT' | 'PARTICULAR'>('SOAT');
-  const [invoices, setInvoices] = useState<Invoice[]>([]); // Cartera
+  const [invoices, setInvoices] = useState<any[]>([]); // Cartera
+  const [isCarteraLoading, setIsCarteraLoading] = useState(false);
 
   // Manual Item
   const [manualItemName, setManualItemName] = useState('');
@@ -237,33 +239,54 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       return { subtotal, totalDiscount, total, totalItemDiscounts, globalDiscountAmount };
   };
 
-  const finalizeInvoice = () => {
+  const finalizeInvoice = async () => {
       if(!billingPatient) return;
       const { total, subtotal, totalDiscount } = calculateTotal();
       
       const initialPayment = partialPayment ? parseFloat(partialPayment) : 0;
-      const balance = total - initialPayment;
-      const status = balance <= 0 ? 'PAID' : (initialPayment > 0 ? 'PARTIAL' : 'PENDING');
 
-      const newInvoice: Invoice = {
-          id: `INV-${Date.now()}`,
-          patientId: billingPatient.id,
-          patientName: billingPatient.fullName,
-          date: new Date().toISOString(),
-          items: selectedServices,
-          subtotal,
-          discount: totalDiscount,
-          total,
-          balance,
-          payments: initialPayment > 0 ? [{ id: `pay-${Date.now()}`, date: new Date().toISOString(), amount: initialPayment, method: 'CASH' }] : [],
-          payerType: tariffMode === 'PARTICULAR' ? 'PATIENT' : 'INSURER',
-          status
-      };
-      setInvoices([...invoices, newInvoice]);
-      setSelectedServices([]);
-      setBillingPatient(null);
-      setPartialPayment('');
-      alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
+      try {
+          const created = await billingService.createInvoice({
+              paciente_id: billingPatient.id,
+              subtotal,
+              total,
+              servicios: selectedServices,
+              profesional_id: user.id // Acting as registrar
+          });
+
+          if (initialPayment > 0) {
+              await billingService.registerPayment(created.id, initialPayment, 'CASH', user.id);
+          }
+
+          setInvoices([...invoices, { ...created, patientName: billingPatient.fullName }]);
+          setSelectedServices([]);
+          setBillingPatient(null);
+          setPartialPayment('');
+          alert(`Factura generada y guardada en base de datos. Saldo pendiente: ${formatCurrency(total - initialPayment)}`);
+      } catch (e) {
+          alert("Error al persistir factura. Usando modo local.");
+          const balance = total - initialPayment;
+          const status = balance <= 0 ? 'PAID' : (initialPayment > 0 ? 'PARTIAL' : 'PENDING');
+
+          const newInvoice: any = {
+              id: `INV-${Date.now()}`,
+              patientId: billingPatient.id,
+              patientName: billingPatient.fullName,
+              date: new Date().toISOString(),
+              items: selectedServices,
+              subtotal,
+              discount: totalDiscount,
+              total,
+              balance,
+              payments: initialPayment > 0 ? [{ id: `pay-${Date.now()}`, date: new Date().toISOString(), amount: initialPayment, method: 'CASH' }] : [],
+              payerType: tariffMode === 'PARTICULAR' ? 'PATIENT' : 'INSURER',
+              status
+          };
+          setInvoices([...invoices, newInvoice]);
+          setSelectedServices([]);
+          setBillingPatient(null);
+          setPartialPayment('');
+      }
   };
 
   const printInvoice = (invoice: Invoice) => {
@@ -280,31 +303,38 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   // --- CARTERA HANDLERS ---
-  const registerPayment = (id: string) => {
+  const registerPayment = async (id: string) => {
       const inv = invoices.find(i => i.id === id);
       if(!inv) return;
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
+      const balance = inv.saldo_pendiente ?? inv.balance;
+      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(balance)}\nIngrese el monto a pagar:`);
       if (!amountStr) return;
       const amount = parseFloat(amountStr);
       
-      if(amount > inv.balance) {
+      if(amount > balance) {
           alert("El monto ingresado supera el saldo pendiente.");
           return;
       }
 
-      setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
-          const newBalance = invoice.balance - amount;
-          const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
-          return {
-              ...invoice,
-              balance: newBalance,
-              status: newStatus,
-              payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
-          };
-      }));
-      alert("Pago registrado correctamente.");
+      try {
+          await billingService.registerPayment(id, amount, 'CASH', user.id);
+          setInvoices(invoices.map(invoice => {
+              if (invoice.id !== id) return invoice;
+              const newBalance = (invoice.saldo_pendiente ?? invoice.balance) - amount;
+              const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
+              return {
+                  ...invoice,
+                  saldo_pendiente: newBalance,
+                  balance: newBalance,
+                  status: newStatus,
+                  estado: newStatus
+              };
+          }));
+          alert("Pago registrado correctamente en base de datos.");
+      } catch (e) {
+          alert("Error al registrar pago en servidor.");
+      }
   };
 
   return (
@@ -664,16 +694,19 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                               </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                              {invoices.map(inv => (
+                              {invoices.map(inv => {
+                                  const invStatus = inv.estado ?? inv.status;
+                                  const invBalance = inv.saldo_pendiente ?? inv.balance;
+                                  return (
                                   <tr key={inv.id} className="hover:bg-slate-50">
-                                      <td className="p-4 font-mono">{inv.id}</td>
-                                      <td className="p-4">{new Date(inv.date).toLocaleDateString()}</td>
-                                      <td className="p-4 font-bold">{inv.patientName}</td>
+                                      <td className="p-4 font-mono">{inv.id.slice(0,8)}</td>
+                                      <td className="p-4">{new Date(inv.fecha_emision ?? inv.date).toLocaleDateString()}</td>
+                                      <td className="p-4 font-bold">{inv.patientName ?? patients.find(p=>p.id===inv.paciente_id)?.fullName}</td>
                                       <td className="p-4 font-bold text-slate-800">{formatCurrency(inv.total)}</td>
-                                      <td className="p-4 font-bold text-red-600">{formatCurrency(inv.balance)}</td>
+                                      <td className="p-4 font-bold text-red-600">{formatCurrency(invBalance)}</td>
                                       <td className="p-4">
-                                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${inv.status === 'PAID' ? 'bg-green-100 text-green-700' : (inv.status === 'PARTIAL' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700')}`}>
-                                              {inv.status}
+                                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${invStatus === 'PAID' ? 'bg-green-100 text-green-700' : (invStatus === 'PARTIAL' || invStatus === 'PENDING' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700')}`}>
+                                              {invStatus}
                                           </span>
                                       </td>
                                       <td className="p-4 text-right flex justify-end space-x-2">

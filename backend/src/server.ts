@@ -1,10 +1,14 @@
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { auditMiddleware } from './middlewares/auditMiddleware';
 import dotenv from 'dotenv';
 import authRoutes from './modulos/auth/routes';
 import patientRoutes from './modulos/pacientes/routes';
 import agendaRoutes from './modulos/agenda/routes';
+import billingRoutes from './modulos/facturacion/routes';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -12,19 +16,33 @@ dotenv.config();
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
 
+// 🛡️ MORPHEUS: Security Hardening
+app.use(helmet());
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 10, // Limitar cada IP a 10 intentos de login por ventana
+    message: { error: 'Demasiados intentos de acceso. Intente de nuevo en 15 minutos.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 // Middlewares globales
 app.use(cors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
     credentials: true,
 }));
+app.use(auditMiddleware);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Rutas
+app.use('/api/auth/login', authLimiter); // Aplicar rate limit solo a login
 app.use('/api/auth', authRoutes);
 app.use('/api/pacientes', patientRoutes);
 app.use('/api/agenda', agendaRoutes);
+app.use('/api/facturacion', billingRoutes);
 
 // Ruta de health check
 app.get('/health', (req: Request, res: Response) => {
@@ -45,6 +63,7 @@ app.get('/', (req: Request, res: Response) => {
             auth: '/api/auth',
             pacientes: '/api/pacientes',
             agenda: '/api/agenda',
+            facturacion: '/api/facturacion',
         }
     });
 });
