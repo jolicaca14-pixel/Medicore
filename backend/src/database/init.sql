@@ -106,3 +106,88 @@ COMMENT ON TABLE usuarios IS 'Tabla de usuarios del sistema con control de acces
 COMMENT ON TABLE sesiones IS 'Tabla de sesiones activas con refresh tokens para autenticación JWT';
 COMMENT ON COLUMN usuarios.password_hash IS 'Hash de contraseña generado con bcrypt (salt rounds >= 12)';
 COMMENT ON COLUMN sesiones.refresh_token IS 'Refresh token JWT con vida de 7 días';
+
+-- Tabla de historias clínicas (HCE)
+CREATE TABLE IF NOT EXISTS historias_clinicas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    tipo_registro VARCHAR(50) NOT NULL,
+    fecha_creacion TIMESTAMP DEFAULT NOW(),
+    fecha_finalizacion TIMESTAMP,
+    estado VARCHAR(20) DEFAULT 'DRAFT' CHECK (estado IN ('DRAFT', 'FINALIZED')),
+    motivo_consulta TEXT,
+    enfermedad_actual TEXT,
+    antecedentes TEXT,
+    diagnosticos JSONB DEFAULT '[]',
+    plan_manejo TEXT,
+    prescripciones JSONB DEFAULT '[]',
+    procedimientos JSONB DEFAULT '[]',
+    datos_dinamicos JSONB DEFAULT '{}',
+    notas_aclaratorias JSONB DEFAULT '[]',
+    firma_hash VARCHAR(255),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para historias clínicas
+CREATE INDEX IF NOT EXISTS idx_hce_paciente ON historias_clinicas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_hce_profesional ON historias_clinicas(profesional_id);
+CREATE INDEX IF NOT EXISTS idx_hce_fecha ON historias_clinicas(fecha_creacion);
+
+COMMENT ON TABLE historias_clinicas IS 'Almacén central de Historias Clínicas Electrónicas (HCE)';
+
+-- Tabla de facturas
+CREATE TABLE IF NOT EXISTS facturas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    cita_id UUID REFERENCES citas(id) ON DELETE SET NULL,
+    fecha_emision TIMESTAMP DEFAULT NOW(),
+    estado VARCHAR(20) DEFAULT 'PENDING' CHECK (estado IN ('PENDING', 'PAID', 'CANCELLED', 'OVERDUE')),
+    subtotal DECIMAL(15, 2) NOT NULL,
+    impuestos DECIMAL(15, 2) DEFAULT 0,
+    descuentos DECIMAL(15, 2) DEFAULT 0,
+    total DECIMAL(15, 2) NOT NULL,
+    saldo_pendiente DECIMAL(15, 2) NOT NULL,
+    servicios JSONB DEFAULT '[]',
+    metodo_pago_preferido VARCHAR(50),
+    notas TEXT,
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Tabla de pagos
+CREATE TABLE IF NOT EXISTS pagos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    factura_id UUID REFERENCES facturas(id) ON DELETE CASCADE,
+    monto DECIMAL(15, 2) NOT NULL,
+    fecha_pago TIMESTAMP DEFAULT NOW(),
+    metodo_pago VARCHAR(50) NOT NULL,
+    referencia VARCHAR(100),
+    usuario_recibe UUID REFERENCES usuarios(id) ON DELETE SET NULL
+);
+
+-- Índices para facturación
+CREATE INDEX IF NOT EXISTS idx_facturas_paciente ON facturas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_facturas_estado ON facturas(estado);
+CREATE INDEX IF NOT EXISTS idx_pagos_factura ON pagos(factura_id);
+
+COMMENT ON TABLE facturas IS 'Registro de facturación por servicios de salud';
+COMMENT ON TABLE pagos IS 'Historial de pagos recibidos contra facturas';
+
+-- Tabla de auditoría centralizada
+CREATE TABLE IF NOT EXISTS auditoria (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    accion VARCHAR(100) NOT NULL,
+    recurso_tipo VARCHAR(50) NOT NULL,
+    recurso_id VARCHAR(100),
+    detalles JSONB DEFAULT '{}',
+    ip_address VARCHAR(45),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para auditoría
+CREATE INDEX IF NOT EXISTS idx_auditoria_usuario ON auditoria(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria(created_at);
+
+COMMENT ON TABLE auditoria IS 'Log centralizado de acciones sensibles para cumplimiento normativo (Habeas Data)';

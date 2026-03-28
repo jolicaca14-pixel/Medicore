@@ -16,6 +16,8 @@ export const getVitalWarning = (id: string, value: string, age?: number): string
   if (isNaN(n)) return null;
 
   const isPediatric = age !== undefined && age < 15;
+  const isInfant = age !== undefined && age < 1;
+  const isNewborn = age !== undefined && age < 0.08; // Roughly 1 month (28 days)
 
   if (id === 'global_sys_bp') {
     if (isPediatric) {
@@ -30,8 +32,19 @@ export const getVitalWarning = (id: string, value: string, age?: number): string
     if (n < 60) return 'Hipotensión: Diástole baja';
   }
   if (id === 'global_heart_rate' || id === 'v_fc') {
-    if (n > 100) return 'Taquicardia: FC elevada';
-    if (n < 60) return 'Bradicardia: FC baja';
+    if (isNewborn) {
+        if (n > 180) return 'Taquicardia neonatal (>180)';
+        if (n < 100) return 'Bradicardia neonatal (<100)';
+    } else if (isInfant) {
+        if (n > 160) return 'Taquicardia lactante (>160)';
+        if (n < 80) return 'Bradicardia lactante (<80)';
+    } else if (isPediatric) {
+        if (n > 120) return 'Taquicardia pediátrica (>120)';
+        if (n < 70) return 'Bradicardia pediátrica (<70)';
+    } else {
+        if (n > 100) return 'Taquicardia: FC elevada';
+        if (n < 60) return 'Bradicardia: FC baja';
+    }
   }
   if (id === 'v_sat' || id === 'global_sat') {
     if (n < 90) return 'Alerta: Saturación de Oxígeno (SpO2) Crítica (<90%)';
@@ -42,6 +55,40 @@ export const getVitalWarning = (id: string, value: string, age?: number): string
     if (n < 35.5) return 'Hipotermia';
   }
   return null;
+};
+
+/**
+ * Checks if a patient is in a pediatric age range.
+ * @param ageInYears
+ * @returns boolean
+ */
+export const isPediatricAge = (ageInYears: number): boolean => ageInYears < 15;
+
+/**
+ * Formats age precisely (Years, Months, Days) for pediatric clinical context.
+ */
+export const formatPreciseAge = (birthDate: string): string => {
+    const birth = new Date(birthDate);
+    const now = new Date();
+
+    let years = now.getFullYear() - birth.getFullYear();
+    let months = now.getMonth() - birth.getMonth();
+    let days = now.getDate() - birth.getDate();
+
+    if (days < 0) {
+        months--;
+        const lastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+        days += lastMonth.getDate();
+    }
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+
+    if (years >= 2) return `${years} años`;
+    if (years >= 1) return `${years} año, ${months} meses`;
+    if (months >= 1) return `${months} meses, ${days} días`;
+    return `${days} días`;
 };
 
 /**
