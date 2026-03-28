@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, UserRole } from './types';
 import { MOCK_USERS } from './constants';
 import { useAuth } from './hooks/useAuth';
+import { ToastProvider } from './hooks/useToast';
 import { Layout } from './components/Layout';
 import { ProfessionalView } from './components/views/ProfessionalView';
 import { AdminView } from './components/views/AdminView';
@@ -165,21 +166,19 @@ const App: React.FC = () => {
     return <Login onLogin={login} isLoading={isLoading} />;
   }
 
-  // If user is Secretary, bypass standard layout logic in some cases or use a specialized one
-  if (user.roles.includes(UserRole.SECRETARY)) {
-      return <SecretaryView user={user} onLogout={logout} />
-  }
-
   return (
-    <Layout user={user} onLogout={logout} activeTab={activeTab} setActiveTab={setActiveTab}>
-      {user.roles.includes(UserRole.PROFESSIONAL) && <ProfessionalView user={user} onLogout={logout} activeTab={activeTab} />}
-      
-      {/* Pass activeTab and setter to AdminView for navigation control */}
-      {(user.roles.includes(UserRole.ADMIN) || user.roles.includes(UserRole.ACCOUNTANT) || user.roles.includes(UserRole.MANAGER)) &&
-        <AdminView activeTab={activeTab} setActiveTab={setActiveTab} currentUserSession={user} />}
-      
-      {(user.roles.includes(UserRole.BACTERIOLOGIST) || user.roles.includes(UserRole.RADIOLOGIST)) && <DiagnosticView user={user} onLogout={logout} />}
-    </Layout>
+    <ToastProvider>
+      <Layout user={user} onLogout={logout} activeTab={activeTab} setActiveTab={setActiveTab}>
+        {user.roles.includes(UserRole.SECRETARY) && <SecretaryView user={user} onLogout={logout} activeTab={activeTab} />}
+        {user.roles.includes(UserRole.PROFESSIONAL) && <ProfessionalView user={user} onLogout={logout} activeTab={activeTab} />}
+
+        {/* Pass activeTab and setter to AdminView for navigation control */}
+        {(user.roles.includes(UserRole.ADMIN) || user.roles.includes(UserRole.ACCOUNTANT) || user.roles.includes(UserRole.MANAGER)) &&
+          <AdminView activeTab={activeTab} setActiveTab={setActiveTab} currentUserSession={user} />}
+
+        {(user.roles.includes(UserRole.BACTERIOLOGIST) || user.roles.includes(UserRole.RADIOLOGIST)) && <DiagnosticView user={user} onLogout={logout} />}
+      </Layout>
+    </ToastProvider>
   );
 };
 
