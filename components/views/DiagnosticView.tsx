@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
 import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
+import { useToast } from '../../hooks/useToast';
 
 interface DiagnosticViewProps {
   user: User;
@@ -21,6 +22,7 @@ interface Order {
 }
 
 export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }) => {
+  const { showToast } = useToast();
   const isLab = user.roles.includes(UserRole.BACTERIOLOGIST);
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
@@ -89,7 +91,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showToast("Resultado guardado correctamente.", "success");
   };
 
   // --- RENDER FIELD ---
