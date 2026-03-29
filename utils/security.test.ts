@@ -1,33 +1,27 @@
-import { sanitizeInput } from './security';
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { sanitizeInput, hasAdministrativeAccess, isSystemAdmin } from './security';
+import { UserRole } from '../types';
 
-/**
- * 🧪 Smith: Security Unit Tests
- * Run with: node utils/security.test.js (after compilation)
- */
-const testSanitizeInput = () => {
-  console.log('Testing sanitizeInput...');
+test('Security Utilities', async (t) => {
+  await t.test('sanitizeInput should remove < and >', () => {
+    assert.strictEqual(sanitizeInput('hello'), 'hello');
+    assert.strictEqual(sanitizeInput('<script>'), 'script');
+    assert.strictEqual(sanitizeInput('<div>'), 'div');
+    assert.strictEqual(sanitizeInput(null), '');
+  });
 
-  // Test case 1: Simple string
-  console.assert(sanitizeInput('hello') === 'hello', 'Test 1 Failed');
+  await t.test('hasAdministrativeAccess should validate roles', () => {
+    assert.strictEqual(hasAdministrativeAccess([UserRole.ADMIN]), true);
+    assert.strictEqual(hasAdministrativeAccess([UserRole.MANAGER]), true);
+    assert.strictEqual(hasAdministrativeAccess([UserRole.ACCOUNTANT]), true);
+    assert.strictEqual(hasAdministrativeAccess([UserRole.PROFESSIONAL]), false);
+    assert.strictEqual(hasAdministrativeAccess([UserRole.SECRETARY]), false);
+  });
 
-  // Test case 2: Script tag
-  const input2 = '<script>alert("xss")</script>';
-  const expected2 = 'scriptalert("xss")/script';
-  console.assert(sanitizeInput(input2) === expected2, 'Test 2 Failed');
-
-  // Test case 3: Nested tags
-  const input3 = '<div><b>Bold</b></div>';
-  const expected3 = 'divbBold/b/div';
-  console.assert(sanitizeInput(input3) === expected3, 'Test 3 Failed');
-
-  // Test case 4: null/undefined
-  console.assert(sanitizeInput(null as any) === '', 'Test 4 Failed');
-  console.assert(sanitizeInput(undefined as any) === '', 'Test 5 Failed');
-
-  console.log('All security tests passed.');
-};
-
-// Auto-execute if run directly (logic for test runner would go here)
-if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-    testSanitizeInput();
-}
+  await t.test('isSystemAdmin should only allow ADMIN', () => {
+    assert.strictEqual(isSystemAdmin([UserRole.ADMIN]), true);
+    assert.strictEqual(isSystemAdmin([UserRole.MANAGER]), false);
+    assert.strictEqual(isSystemAdmin([UserRole.PROFESSIONAL]), false);
+  });
+});

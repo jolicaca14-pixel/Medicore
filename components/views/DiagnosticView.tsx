@@ -37,6 +37,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [dynamicData, setDynamicData] = useState<Record<string, any>>({});
   const [completedRecords, setCompletedRecords] = useState<ClinicalRecord[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<Record<string, string>>({}); // fieldId -> fileName
 
   // Filter orders based on user role
   const myOrders = orders.filter(o => 
@@ -97,21 +98,48 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       const val = dynamicData[field.id] || '';
       return (
           <div key={field.id} className="col-span-1">
-              <label className="block text-xs font-bold text-slate-500 mb-1">
+              <label htmlFor={`field-${field.id}`} className="block text-xs font-bold text-slate-500 mb-1">
                   {field.label} {field.unit && <span className="text-slate-400">({field.unit})</span>}
               </label>
               
               {field.type === 'TEXTAREA' ? (
-                  <textarea className="w-full p-2 border rounded text-sm" rows={3} value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})} />
+                  <textarea id={`field-${field.id}`} className="w-full p-2 border rounded text-sm" rows={3} value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})} />
               ) : field.type === 'SELECT' ? (
-                  <select className="w-full p-2 border rounded text-sm" value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}>
+                  <select id={`field-${field.id}`} className="w-full p-2 border rounded text-sm" value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}>
                       <option value="">-</option>
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'FILE' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50">
-                      <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
-                      <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                  <div className="relative">
+                      <input
+                          type="file"
+                          id={`file-input-${field.id}`}
+                          className="hidden"
+                          onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                  setUploadedFiles({ ...uploadedFiles, [field.id]: file.name });
+                                  setDynamicData({ ...dynamicData, [field.id]: `URL_SIMULADA_${file.name}` });
+                              }
+                          }}
+                      />
+                      <label
+                          htmlFor={`file-input-${field.id}`}
+                          className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50 flex flex-col items-center justify-center transition-colors"
+                      >
+                          {uploadedFiles[field.id] ? (
+                              <>
+                                  <CheckCircle size={20} className="text-green-500 mb-1"/>
+                                  <p className="text-xs text-slate-800 font-bold">{uploadedFiles[field.id]}</p>
+                                  <p className="text-[10px] text-slate-400">Click para cambiar</p>
+                              </>
+                          ) : (
+                              <>
+                                  <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
+                                  <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                              </>
+                          )}
+                      </label>
                   </div>
               ) : (
                   <input 
@@ -126,8 +154,52 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head>
+                  <title>Resultados - ${patientName}</title>
+                  <style>
+                      body { font-family: sans-serif; padding: 40px; color: #1e293b; }
+                      .header { text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px; }
+                      .patient-info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+                      .result-item { border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+                      .footer { margin-top: 50px; text-align: center; font-size: 10px; color: #64748b; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1>MEDICORE IPS</h1>
+                      <p>Reporte Consolidado de Resultados Diagnósticos</p>
+                  </div>
+                  <div class="patient-info">
+                      <p><strong>Paciente:</strong> ${patientName}</p>
+                      <p><strong>Fecha de Resultados:</strong> ${date}</p>
+                  </div>
+                  <h3>Resultados Obtenidos:</h3>
+                  <div class="results">
+                      ${completedRecords
+                          .filter(r => r.patientId === MOCK_PATIENTS.find(p => p.fullName === patientName)?.id && r.dateCreated.startsWith(date))
+                          .map(r => `
+                              <div class="result-item">
+                                  <p><strong>Estudio:</strong> ${r.chiefComplaint}</p>
+                                  <p><strong>Estado:</strong> FINALIZADO</p>
+                                  <p><strong>Profesional:</strong> ${r.professionalName}</p>
+                              </div>
+                          `).join('')}
+                  </div>
+                  <div class="footer">
+                      <p>Este documento es una impresión de resultados electrónicos. No requiere firma física para su validez informativa.</p>
+                      <p>MediCore HCE - Resolución 1888 de 2025</p>
+                  </div>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+          printWindow.print();
+      }
   };
 
   // --- RENDER FORM ---
