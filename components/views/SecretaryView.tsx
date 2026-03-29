@@ -53,6 +53,11 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   const [tariffMode, setTariffMode] = useState<'SOAT' | 'PARTICULAR'>('SOAT');
   const [invoices, setInvoices] = useState<Invoice[]>([]); // Cartera
 
+  // Payment Modal State
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<Invoice | null>(null);
+
   // Manual Item
   const [manualItemName, setManualItemName] = useState('');
   const [manualItemPrice, setManualItemPrice] = useState('');
@@ -280,31 +285,35 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   // --- CARTERA HANDLERS ---
-  const registerPayment = (id: string) => {
-      const inv = invoices.find(i => i.id === id);
-      if(!inv) return;
+  const registerPayment = (inv: Invoice) => {
+      setSelectedInvoiceForPayment(inv);
+      setPaymentAmount(inv.balance.toString());
+      setIsPaymentModalOpen(true);
+  };
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
-      
-      if(amount > inv.balance) {
-          alert("El monto ingresado supera el saldo pendiente.");
-          return;
-      }
+  const handleConfirmPaymentLocal = () => {
+    if(!selectedInvoiceForPayment) return;
+    const amount = parseFloat(paymentAmount);
+    if(isNaN(amount) || amount <= 0) return alert("Monto inválido");
 
-      setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
-          const newBalance = invoice.balance - amount;
-          const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
-          return {
-              ...invoice,
-              balance: newBalance,
-              status: newStatus,
-              payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
-          };
-      }));
-      alert("Pago registrado correctamente.");
+    if(amount > selectedInvoiceForPayment.balance) {
+        alert("El monto ingresado supera el saldo pendiente.");
+        return;
+    }
+
+    setInvoices(invoices.map(invoice => {
+        if (invoice.id !== selectedInvoiceForPayment.id) return invoice;
+        const newBalance = invoice.balance - amount;
+        const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
+        return {
+            ...invoice,
+            balance: newBalance,
+            status: newStatus,
+            payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
+        };
+    }));
+    alert("Pago registrado correctamente.");
+    setIsPaymentModalOpen(false);
   };
 
   return (
@@ -649,6 +658,37 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           {/* CARTERA TAB (Enhanced) */}
           {activeTab === 'CARTERA' && (
               <div>
+                  {isPaymentModalOpen && selectedInvoiceForPayment && (
+                      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+                              <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                                  <DollarSign className="mr-2 text-green-600"/> Registrar Pago
+                              </h3>
+                              <div className="space-y-4">
+                                  <div className="bg-slate-50 p-3 rounded-lg border">
+                                      <p className="text-xs text-slate-500 font-bold uppercase">Paciente</p>
+                                      <p className="font-bold text-slate-800">{selectedInvoiceForPayment.patientName}</p>
+                                      <p className="text-xs text-slate-400 mt-1">Factura: {selectedInvoiceForPayment.id}</p>
+                                  </div>
+                                  <div>
+                                      <label htmlFor="payment-amount-input" className="text-xs font-bold text-slate-500 mb-1 block">Monto a Pagar (Saldo: {formatCurrency(selectedInvoiceForPayment.balance)})</label>
+                                      <input
+                                        id="payment-amount-input"
+                                        type="number"
+                                        className="w-full border p-3 rounded-lg text-lg font-bold text-green-700 focus:ring-2 focus:ring-green-500 outline-none"
+                                        value={paymentAmount}
+                                        onChange={e => setPaymentAmount(e.target.value)}
+                                        max={selectedInvoiceForPayment.balance}
+                                      />
+                                  </div>
+                              </div>
+                              <div className="flex justify-end gap-2 mt-6">
+                                  <button onClick={() => setIsPaymentModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium">Cancelar</button>
+                                  <button onClick={handleConfirmPaymentLocal} className="px-4 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700">Confirmar Pago</button>
+                              </div>
+                          </div>
+                      </div>
+                  )}
                    <h2 className="text-2xl font-bold text-slate-800 mb-6">Cartera (Cuentas por Cobrar)</h2>
                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                        <table className="w-full text-sm text-left">
@@ -679,7 +719,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                       <td className="p-4 text-right flex justify-end space-x-2">
                                           <button onClick={() => printInvoice(inv)} className="bg-slate-200 text-slate-700 p-2 rounded hover:bg-slate-300" title="Imprimir"><Printer size={16}/></button>
                                           {inv.status !== 'PAID' && (
-                                              <button onClick={() => registerPayment(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
+                                              <button onClick={() => registerPayment(inv)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
                                                   Abonar
                                               </button>
                                           )}

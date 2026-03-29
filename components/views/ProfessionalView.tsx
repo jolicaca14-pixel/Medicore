@@ -682,6 +682,31 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       alert(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
   };
 
+  const applyNormalExam = () => {
+    const normalVitals = {
+        'global_hr': '75',
+        'global_sys_bp': '120',
+        'global_dia_bp': '80',
+        'global_temp': '36.5',
+        'global_spo2': '98',
+        'global_rr': '16'
+    };
+    setDynamicData({ ...dynamicData, ...normalVitals });
+  };
+
+  const repeatPlan = () => {
+    const lastRecord = records
+        .filter(r => r.patientId === selectedPatient?.id && r.status === RecordStatus.FINALIZED)
+        .sort((a,b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime())[0];
+
+    if (lastRecord?.plan) {
+        setCurrentRecord({ ...currentRecord, plan: lastRecord.plan });
+        alert("Plan de manejo copiado de la atención anterior.");
+    } else {
+        alert("No se encontró un plan previo para este paciente.");
+    }
+  };
+
   const renderField = (field: any, isReadOnly: boolean) => {
       if (field.type === 'HEADER') return <h4 className="text-sm font-bold text-slate-700 mt-4 border-b pb-1 col-span-2">{field.label}</h4>;
       if (field.type === 'INFO') return <div className="col-span-2 bg-blue-50 p-2 rounded text-xs text-blue-800 mb-2">{field.label}</div>;
@@ -1199,6 +1224,20 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                     >
                         {allowedTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
+                    <button
+                        onClick={applyNormalExam}
+                        className="px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg font-bold text-xs hover:bg-blue-100 transition-colors"
+                        title="Cargar Signos Vitales Normales"
+                    >
+                        Examen Normal
+                    </button>
+                    <button
+                        onClick={repeatPlan}
+                        className="px-3 py-2 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg font-bold text-xs hover:bg-slate-100 transition-colors"
+                        title="Copiar plan de manejo anterior"
+                    >
+                        Repetir Plan
+                    </button>
                     <button
                         onClick={handleSaveDraft}
                         className={`px-4 py-2 border rounded-lg font-bold text-sm transition-all duration-300 ${isSaved ? 'bg-green-50 border-green-500 text-green-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
