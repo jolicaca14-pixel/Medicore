@@ -102,7 +102,99 @@ VALUES
 ON CONFLICT (identificacion) DO NOTHING;
 
 -- Comentarios para documentación
+-- Tabla de historias clínicas
+CREATE TABLE IF NOT EXISTS historias_clinicas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    motivo_consulta TEXT,
+    enfermedad_actual TEXT,
+    antecedentes JSONB DEFAULT '{}',
+    signos_vitales JSONB DEFAULT '{}',
+    examen_fisico TEXT,
+    diagnoses JSONB DEFAULT '[]',
+    prescriptions JSONB DEFAULT '[]',
+    performed_procedures JSONB DEFAULT '[]',
+    plan_manejo TEXT,
+    status VARCHAR(20) DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'FINALIZED')),
+    date_created TIMESTAMP DEFAULT NOW(),
+    date_finalized TIMESTAMP,
+    signature_hash VARCHAR(255),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para historias clínicas
+CREATE INDEX IF NOT EXISTS idx_hce_paciente ON historias_clinicas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_hce_profesional ON historias_clinicas(profesional_id);
+CREATE INDEX IF NOT EXISTS idx_hce_status ON historias_clinicas(status);
+
+-- Comentarios para documentación
 COMMENT ON TABLE usuarios IS 'Tabla de usuarios del sistema con control de acceso basado en roles (RBAC)';
 COMMENT ON TABLE sesiones IS 'Tabla de sesiones activas con refresh tokens para autenticación JWT';
+-- Tabla de auditoría
+CREATE TABLE IF NOT EXISTS auditoria (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    accion VARCHAR(50) NOT NULL,
+    tabla VARCHAR(50),
+    registro_id UUID,
+    datos_anteriores JSONB,
+    datos_nuevos JSONB,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para auditoría
+CREATE INDEX IF NOT EXISTS idx_auditoria_usuario ON auditoria(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_auditoria_accion ON auditoria(accion);
+CREATE INDEX IF NOT EXISTS idx_auditoria_created_at ON auditoria(created_at);
+
+-- Comentarios para documentación
+COMMENT ON TABLE usuarios IS 'Tabla de usuarios del sistema con control de acceso basado en roles (RBAC)';
+COMMENT ON TABLE sesiones IS 'Tabla de sesiones activas con refresh tokens para autenticación JWT';
+COMMENT ON TABLE historias_clinicas IS 'Tabla de historias clínicas electrónicas con soporte para inmutabilidad';
+-- Tabla de facturas
+CREATE TABLE IF NOT EXISTS facturas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    hce_id UUID REFERENCES historias_clinicas(id) ON DELETE SET NULL,
+    numero_factura VARCHAR(20) UNIQUE NOT NULL,
+    fecha_emision TIMESTAMP DEFAULT NOW(),
+    subtotal DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    impuestos DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    total DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    estado VARCHAR(20) DEFAULT 'DRAFT' CHECK (estado IN ('DRAFT', 'ISSUED', 'PAID', 'CANCELLED')),
+    metodo_pago VARCHAR(50),
+    notas TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Tabla de detalles de factura
+CREATE TABLE IF NOT EXISTS detalles_factura (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    factura_id UUID REFERENCES facturas(id) ON DELETE CASCADE,
+    descripcion TEXT NOT NULL,
+    codigo_servicio VARCHAR(20),
+    cantidad INTEGER NOT NULL DEFAULT 1,
+    valor_unitario DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    valor_total DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para facturación
+CREATE INDEX IF NOT EXISTS idx_facturas_paciente ON facturas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_facturas_numero ON facturas(numero_factura);
+CREATE INDEX IF NOT EXISTS idx_facturas_estado ON facturas(estado);
+
+-- Comentarios para documentación
+COMMENT ON TABLE usuarios IS 'Tabla de usuarios del sistema con control de acceso basado en roles (RBAC)';
+COMMENT ON TABLE sesiones IS 'Tabla de sesiones activas con refresh tokens para autenticación JWT';
+COMMENT ON TABLE historias_clinicas IS 'Tabla de historias clínicas electrónicas con soporte para inmutabilidad';
+COMMENT ON TABLE auditoria IS 'Registro centralizado de acciones sensibles para cumplimiento normativo';
+COMMENT ON TABLE facturas IS 'Encabezado de documentos de cobro y facturación electrónica';
+COMMENT ON TABLE detalles_factura IS 'Líneas de detalle de servicios y procedimientos facturados';
 COMMENT ON COLUMN usuarios.password_hash IS 'Hash de contraseña generado con bcrypt (salt rounds >= 12)';
 COMMENT ON COLUMN sesiones.refresh_token IS 'Refresh token JWT con vida de 7 días';

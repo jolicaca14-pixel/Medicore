@@ -11,14 +11,24 @@
  * @param age Optional age for context-aware thresholds
  * @returns A string with the warning or null if normal
  */
-export const getVitalWarning = (id: string, value: string, age?: number): string | null => {
+export const getVitalWarning = (id: string, value: string, ageMonths?: number): string | null => {
   const n = parseFloat(value);
   if (isNaN(n)) return null;
 
-  const isPediatric = age !== undefined && age < 15;
+  const isPediatric = ageMonths !== undefined && ageMonths < 180; // < 15 years
 
   if (id === 'global_sys_bp') {
     if (isPediatric) {
+        // Thresholds for newborns (< 1 month)
+        if (ageMonths <= 1) {
+            if (n > 90) return '⚠️ Alerta Neonatal: Sístole elevada';
+            if (n < 60) return '⚠️ Alerta Neonatal: Sístole baja';
+        }
+        // Infants (< 1 year)
+        else if (ageMonths <= 12) {
+            if (n > 100) return '⚠️ Alerta Lactante: Sístole elevada';
+            if (n < 70) return '⚠️ Alerta Lactante: Sístole baja';
+        }
         if (n > 120) return 'Sístole elevada para edad pediátrica';
         if (n < 80) return 'Hipotensión pediátrica';
     }
@@ -30,6 +40,14 @@ export const getVitalWarning = (id: string, value: string, age?: number): string
     if (n < 60) return 'Hipotensión: Diástole baja';
   }
   if (id === 'global_heart_rate' || id === 'v_fc') {
+    if (isPediatric) {
+        // Neonatal FC (higher normal range)
+        if (ageMonths <= 1) {
+            if (n > 180) return '⚠️ Alerta Neonatal: Taquicardia severa';
+            if (n < 100) return '⚠️ Alerta Neonatal: Bradicardia severa';
+            return null;
+        }
+    }
     if (n > 100) return 'Taquicardia: FC elevada';
     if (n < 60) return 'Bradicardia: FC baja';
   }

@@ -1,16 +1,35 @@
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import authRoutes from './modulos/auth/routes';
 import patientRoutes from './modulos/pacientes/routes';
 import agendaRoutes from './modulos/agenda/routes';
+import billingRoutes from './modulos/facturacion/routes';
+import ripsRoutes from './modulos/rips/routes';
+import metricsRoutes from './modulos/metricas/routes';
+import { auditMiddleware } from './middlewares/auditMiddleware';
+import { errorHandler } from './middlewares/errorHandler';
 
 // Cargar variables de entorno
 dotenv.config();
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
+
+// 🛡️ MORPHEUS: Security Hardening
+app.use(helmet());
+
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: 'Too many requests from this IP, please try again after 15 minutes',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.use('/api/', limiter);
 
 // Middlewares globales
 app.use(cors({
@@ -20,11 +39,15 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(auditMiddleware);
 
 // Rutas
 app.use('/api/auth', authRoutes);
 app.use('/api/pacientes', patientRoutes);
 app.use('/api/agenda', agendaRoutes);
+app.use('/api/facturacion', billingRoutes);
+app.use('/api/rips', ripsRoutes);
+app.use('/api/metrics', metricsRoutes);
 
 // Ruta de health check
 app.get('/health', (req: Request, res: Response) => {
@@ -45,6 +68,9 @@ app.get('/', (req: Request, res: Response) => {
             auth: '/api/auth',
             pacientes: '/api/pacientes',
             agenda: '/api/agenda',
+            facturacion: '/api/facturacion',
+            rips: '/api/rips',
+            metrics: '/api/metrics',
         }
     });
 });
@@ -53,6 +79,9 @@ app.get('/', (req: Request, res: Response) => {
 app.use((req: Request, res: Response) => {
     res.status(404).json({ error: 'Ruta no encontrada' });
 });
+
+// Global error handler
+app.use(errorHandler);
 
 // Iniciar servidor
 app.listen(PORT, () => {

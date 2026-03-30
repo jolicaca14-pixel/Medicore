@@ -1,5 +1,5 @@
 {
-  "name": "Historia Clínica Eficiente",
-  "description": "Un sistema de Historia Clínica Electrónica de alta seguridad basado en roles (RBAC), con flujos de trabajo específicos para Profesionales, Administradores, Secretarias y Apoyo Diagnóstico, incluyendo re-autenticación estricta para el cierre de historias.",
+  "name": "MediCore Pro",
+  "description": "Plataforma HealthTech PWA de alta seguridad (PERN Stack) con gestión integral de Historias Clínicas, Facturación, RIPS, Agenda y cumplimiento normativo colombiano (Res. 1995 de 1999, Res. 1888 de 2025). Incluye auditoría centralizada, blindaje PII y lógica pediátrica avanzada.",
   "requestFramePermissions": []
 }
