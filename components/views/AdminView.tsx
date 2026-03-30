@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType, TariffItem, Contract, ContractType, ContractAudit, DisciplinaryAction, PaymentRequest, ClinicalRecord, RecordType, RecordStatus, Patient } from '../../types';
 import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
+import { isSystemAdmin } from '../../utils/security';
+import { useToast } from '../../hooks/useToast';
+import { ConfirmModal } from '../ConfirmModal';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
 import { 
     Shield, Users, FileText, Settings, Plus, Edit, Trash2, X, Save, 
@@ -59,6 +62,7 @@ const roleLabels: Record<UserRole, string> = {
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
   const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
+  const { showToast } = useToast();
 
   // --- STATE MANAGEMENT ---
   
@@ -105,6 +109,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
   const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
+
+  // New Tpl / Section / Field form state
+  const [newTplName, setNewTplName] = useState('');
+  const [newSecTitle, setNewSecTitle] = useState('');
+  const [newFieldName, setNewFieldName] = useState('');
 
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
@@ -188,12 +197,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       setSelectedHRUser(updatedUser); // Update local ref
       
       setNewContract({ type: ContractType.NOMINA, isActive: true, userId: selectedHRUser.id, status: 'ACTIVE', auditTrail: [] }); // Reset
-      alert("Contrato guardado con historial de auditoría.");
+      showToast("Contrato guardado con historial de auditoría.", "SUCCESS");
   };
 
   const handleSaveDisciplinary = () => {
       if(!selectedHRUser) return;
-      if(!newDisciplinary.title || !newDisciplinary.description) return alert("Complete título y descripción");
+      if(!newDisciplinary.title || !newDisciplinary.description) return showToast("Complete título y descripción", "ERROR");
 
       const action: DisciplinaryAction = {
           id: `disc-${Date.now()}`,
@@ -211,7 +220,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       setSelectedHRUser(updatedUser);
       
       setNewDisciplinary({ type: 'COMPLAINT', status: 'OPEN' });
-      alert("Caso registrado. El empleado podrá ver esto y responder.");
+      showToast("Caso registrado. El empleado podrá ver esto y responder.", "SUCCESS");
   };
 
   const handleOpenPaymentModal = (req: PaymentRequest) => {
@@ -222,17 +231,24 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   const handleConfirmPayment = () => {
       if(!selectedPaymentReq) return;
-      if(!paymentReceiptFile) return alert("Debe cargar el desprendible de pago.");
+      if(!paymentReceiptFile) return showToast("Debe cargar el desprendible de pago.", "ERROR");
 
       setPaymentRequests(prev => prev.map(req => req.id === selectedPaymentReq.id ? { ...req, status: 'PAID', paymentReceiptUrl: paymentReceiptFile } : req));
       setIsPaymentModalOpen(false);
-      alert(`Pago registrado exitosamente para ${selectedPaymentReq.userName}.`);
+      showToast(`Pago registrado exitosamente para ${selectedPaymentReq.userName}.`, "SUCCESS");
   };
 
+  const [rejectReqId, setRejectReqId] = useState<string | null>(null);
+
   const handleRejectPayment = (reqId: string) => {
-      if(window.confirm("¿Está seguro de RECHAZAR esta cuenta de cobro?")) {
-          setPaymentRequests(prev => prev.map(req => req.id === reqId ? { ...req, status: 'REJECTED' } : req));
-      }
+      setRejectReqId(reqId);
+  };
+
+  const confirmRejectPayment = () => {
+      if(!rejectReqId) return;
+      setPaymentRequests(prev => prev.map(req => req.id === rejectReqId ? { ...req, status: 'REJECTED' } : req));
+      setRejectReqId(null);
+      showToast("Cuenta de cobro rechazada.", "INFO");
   };
 
     // --- FILE MANAGEMENT HANDLERS ---
@@ -243,7 +259,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   const handleConfirmUpload = () => {
     if (!newFileName) {
-        alert("Por favor, ingrese un nombre de archivo.");
+        showToast("Por favor, ingrese un nombre de archivo.", "ERROR");
         return;
     }
 
@@ -274,7 +290,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         newUsers[userIndex].contracts = [...(newUsers[userIndex].contracts || []), newContract];
                         return newUsers;
                     });
-                    alert(`Contrato "${newFileName}" agregado al usuario seleccionado.`);
+                    showToast(`Contrato "${newFileName}" agregado al usuario seleccionado.`, "SUCCESS");
                 } else { // PAYMENTS
                     const user = users.find(u => u.id === selectedUserIdForUpload);
                     if (!user) return;
@@ -292,7 +308,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         paymentReceiptUrl: newFileName,
                     };
                     setPaymentRequests(prev => [...prev, newPaymentRequest]);
-                    alert(`Soporte de pago "${newFileName}" agregado.`);
+                    showToast(`Soporte de pago "${newFileName}" agregado.`, "SUCCESS");
                 }
                 // --- END OF LOGIC ---
 
@@ -306,20 +322,27 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
     }, 100);
   };
 
-  const handleDeleteFile = (fileId: string, type: 'CONTRACT' | 'PAYMENT') => {
-      if (!window.confirm("¿Está seguro de eliminar este archivo?")) return;
+  const [deleteFileState, setDeleteFileState] = useState<{id: string, type: 'CONTRACT' | 'PAYMENT'} | null>(null);
 
+  const handleDeleteFile = (fileId: string, type: 'CONTRACT' | 'PAYMENT') => {
+      setDeleteFileState({id: fileId, type});
+  };
+
+  const confirmDeleteFile = () => {
+      if(!deleteFileState) return;
+      const {id, type} = deleteFileState;
       if (type === 'CONTRACT') {
           setUsers(prevUsers =>
               prevUsers.map(user => ({
                   ...user,
-                  contracts: user.contracts?.filter(c => c.id !== fileId)
+                  contracts: user.contracts?.filter(c => c.id !== id)
               }))
           );
       } else { // PAYMENT
-          setPaymentRequests(prev => prev.filter(p => p.id !== fileId));
+          setPaymentRequests(prev => prev.filter(p => p.id !== id));
       }
-      alert("Archivo eliminado.");
+      setDeleteFileState(null);
+      showToast("Archivo eliminado.", "INFO");
   };
 
   // --- RIPS GENERATION LOGIC ---
@@ -331,7 +354,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       });
 
       if (filteredRecords.length === 0) {
-          alert("No se encontraron registros finalizados en el rango de fechas seleccionado.");
+          showToast("No se encontraron registros finalizados en el rango de fechas seleccionado.", "ERROR");
           setGeneratedRips(null);
           return;
       }
@@ -468,17 +491,66 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      alert("Paquete de RIPS generado y descargado exitosamente.");
+      showToast("Paquete de RIPS generado y descargado exitosamente.", "SUCCESS");
   };
 
-  const handleNewTemplate = () => setIsTemplateModalOpen(true);
-  const handleNewSection = () => setIsSectionModalOpen(true);
-  const handleNewField = () => setIsFieldModalOpen(true);
+  const handleNewTemplate = () => {
+    setNewTplName('');
+    setIsTemplateModalOpen(true);
+  };
+  const handleNewSection = () => {
+    setNewSecTitle('');
+    setIsSectionModalOpen(true);
+  };
+  const handleNewField = () => {
+    setNewFieldName('');
+    setIsFieldModalOpen(true);
+  };
+
+  const handleSaveNewTemplate = () => {
+      if(!newTplName) return showToast("Ingrese nombre", "ERROR");
+      const newTpl: RoleTemplate = {
+          id: `t_${Date.now()}`,
+          name: newTplName,
+          description: 'Nueva plantilla configurada',
+          active: true,
+          allowedRoles: [UserRole.PROFESSIONAL],
+          sections: [],
+          recordType: RecordType.GENERAL
+      };
+      setTemplates([...templates, newTpl]);
+      setIsTemplateModalOpen(false);
+  };
+
+  const handleSaveNewSection = () => {
+      if(!newSecTitle) return showToast("Ingrese título", "ERROR");
+      const newSec: TemplateSection = {
+          id: `s_${Date.now()}`,
+          title: newSecTitle,
+          fields: []
+      };
+      setGlobalSections([...globalSections, newSec]);
+      setIsSectionModalOpen(false);
+  };
+
+  const handleSaveNewField = () => {
+      if(!newFieldName) return showToast("Ingrese nombre", "ERROR");
+      const newField: TemplateField = {
+          id: `f_${Date.now()}`,
+          label: newFieldName,
+          type: 'TEXT',
+          required: false
+      };
+      setGlobalFields([...globalFields, newField]);
+      setIsFieldModalOpen(false);
+  };
 
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
+  const canManageUsers = isSystemAdmin(currentUserSession);
+
+  if ((activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
@@ -495,6 +567,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
       return (
           <div className="space-y-6 animate-in fade-in duration-500">
+              <ConfirmModal
+                isOpen={!!rejectReqId}
+                onClose={() => setRejectReqId(null)}
+                onConfirm={confirmRejectPayment}
+                title="Rechazar Cuenta de Cobro"
+                message="¿Está seguro de RECHAZAR esta cuenta de cobro? El profesional será notificado."
+                variant="DANGER"
+              />
+              <ConfirmModal
+                isOpen={!!deleteFileState}
+                onClose={() => setDeleteFileState(null)}
+                onConfirm={confirmDeleteFile}
+                title="Eliminar Archivo"
+                message="¿Está seguro de eliminar este archivo? Esta acción no se puede deshacer."
+                variant="DANGER"
+              />
               {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
@@ -607,6 +695,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'files' && isAdmin) {
     return (
         <div className="space-y-6">
+            <ConfirmModal
+                isOpen={!!deleteFileState}
+                onClose={() => setDeleteFileState(null)}
+                onConfirm={confirmDeleteFile}
+                title="Eliminar Archivo"
+                message="¿Está seguro de eliminar este archivo? Esta acción no se puede deshacer."
+                variant="DANGER"
+            />
             {/* File Upload Modal */}
             {isFileUploadModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -733,6 +829,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'hr' && isAdmin) {
       return (
           <div className="space-y-6">
+              <ConfirmModal
+                isOpen={!!rejectReqId}
+                onClose={() => setRejectReqId(null)}
+                onConfirm={confirmRejectPayment}
+                title="Rechazar Cuenta de Cobro"
+                message="¿Está seguro de RECHAZAR esta cuenta de cobro? El profesional será notificado."
+                variant="DANGER"
+              />
               {/* MODALS */}
               {isPaymentModalOpen && selectedPaymentReq && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -1162,23 +1266,33 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // 2. USERS LIST - Only Admin
-  if (activeTab === 'users' && isAdmin) {
+  if (activeTab === 'users') {
+      if (!canManageUsers) {
+          return (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                  <Ban size={64} className="mb-4 text-red-400"/>
+                  <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
+                  <p className="text-sm">Se requieren permisos de ADMINISTRADOR DEL SISTEMA para gestionar usuarios.</p>
+              </div>
+          );
+      }
+
       return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* User Form Space (Top) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <div className="bg-slate-50 p-6 rounded-xl shadow-inner border-2 border-dashed border-slate-200">
+                 <div className="flex justify-between items-center mb-6">
                     <div>
-                        <h3 className="text-lg font-bold text-slate-800">
-                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
+                        <h3 className="text-lg font-bold text-slate-800 uppercase tracking-tighter">
+                            Espacio de Creación de Usuarios
                         </h3>
-                        <p className="text-sm text-slate-500">Espacio dedicado para la gestión y creación de cuentas del sistema.</p>
+                        <p className="text-sm text-slate-500 font-medium">Configure los accesos de los nuevos funcionarios aquí.</p>
                     </div>
-                    <button onClick={handleAddNewUser} className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg flex items-center hover:bg-slate-800 transition-colors shadow-lg">
-                        <Plus size={18} className="mr-2"/> Crear Nuevo Usuario
-                    </button>
+                    {currentUser.id && users.some(u => u.id === currentUser.id) && (
+                        <button onClick={() => setCurrentUser({})} className="text-xs font-bold text-red-600 hover:underline">Cancelar Edición</button>
+                    )}
                  </div>
-                 <div className="mt-6">
+                 <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
                     <UserForm
                         user={currentUser}
                         onSave={handleSaveUser}
@@ -1248,8 +1362,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
                         <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <input
+                            className="w-full border p-2 rounded mb-4"
+                            placeholder="Nombre de la plantilla"
+                            value={newTplName}
+                            onChange={e => setNewTplName(e.target.value)}
+                        />
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2">Cancelar</button>
+                            <button onClick={handleSaveNewTemplate} className="bg-slate-900 text-white px-4 py-2 rounded font-bold">Crear</button>
+                        </div>
                     </div>
                 </div>
               )}
@@ -1257,8 +1379,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
                           <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                           <input
+                            className="w-full border p-2 rounded mb-4"
+                            placeholder="Título de la sección"
+                            value={newSecTitle}
+                            onChange={e => setNewSecTitle(e.target.value)}
+                        />
+                         <div className="flex justify-end gap-2">
+                            <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2">Cancelar</button>
+                            <button onClick={handleSaveNewSection} className="bg-slate-900 text-white px-4 py-2 rounded font-bold">Crear</button>
+                        </div>
                       </div>
                   </div>
               )}
@@ -1266,8 +1396,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
                           <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                           <input
+                            className="w-full border p-2 rounded mb-4"
+                            placeholder="Etiqueta del campo"
+                            value={newFieldName}
+                            onChange={e => setNewFieldName(e.target.value)}
+                        />
+                         <div className="flex justify-end gap-2">
+                            <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2">Cancelar</button>
+                            <button onClick={handleSaveNewField} className="bg-slate-900 text-white px-4 py-2 rounded font-bold">Crear</button>
+                        </div>
                       </div>
                   </div>
               )}
@@ -1309,7 +1447,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                           <button onClick={() => setIsTemplateModalOpen(true)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button onClick={() => window.confirm('¿Eliminar esta plantilla?') && alert('Plantilla eliminada')} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                                          <button onClick={() => showToast('Funcionalidad de eliminación de plantilla en desarrollo', 'INFO')} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
                                       </div>
                                   </div>
                                   <h4 className="font-bold text-slate-800">{t.name}</h4>

@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { User, Patient, Appointment, Invoice, InvoiceItem, RecordType, RecordStatus, ClinicalRecord, UserRole, TariffItem } from '../../types';
 import { MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_RECORDS, MOCK_SOAT_TARIFF, SMLDV_2024, formatCurrency, MOCK_USERS } from '../../constants';
 import { appointmentService } from '../../services/appointmentService';
+import { useToast } from '../../hooks/useToast';
+import { ConfirmModal } from '../ConfirmModal';
+import { sanitizeInput } from '../../utils/security';
 import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw, Loader2 } from 'lucide-react';
 
 interface SecretaryViewProps {
@@ -11,6 +14,7 @@ interface SecretaryViewProps {
 
 export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState<'PATIENTS' | 'AGENDA' | 'BILLING' | 'CARTERA'>('AGENDA');
+  const { showToast } = useToast();
 
   // --- PATIENTS & AGENDA STATE ---
   const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
@@ -86,7 +90,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   const handleSaveAppointment = async () => {
       if(!newAppt.patientId || !newAppt.time || !newAppt.reason || !newAppt.professionalId) {
-          alert("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)");
+          showToast("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)", "ERROR");
           return;
       }
       const patient = patients.find(p => p.id === newAppt.patientId);
@@ -111,7 +115,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               } as Appointment;
               setAppointments([...appointments, finalAppt]);
           } catch (e) {
-              alert("Error al guardar en servidor. Se usará modo local.");
+              showToast("Error al guardar en servidor. Se usará modo local.", "ERROR");
               finalAppt = {
                   id: `appt-${Date.now()}`,
                   patientId: newAppt.patientId,
@@ -153,9 +157,9 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               status: 'PENDING'
           };
           setInvoices([...invoices, newInvoice]);
-          alert("Cita agendada y Factura creada automáticamente en Cartera.");
+          showToast("Cita agendada y Factura creada automáticamente en Cartera.", "SUCCESS");
       } else {
-          alert(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
+          showToast(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.", "SUCCESS");
       }
 
       setIsApptModalOpen(false);
@@ -165,8 +169,8 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       try {
           await appointmentService.updateStatus(id, status);
           setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-          if (status === 'WAITING') alert("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
-          if (status === 'CANCELLED') alert("Cita cancelada.");
+          if (status === 'WAITING') showToast("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.", "SUCCESS");
+          if (status === 'CANCELLED') showToast("Cita cancelada.", "INFO");
       } catch (e) {
           console.error("Error updating status in backend, updating locally");
           setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
@@ -263,52 +267,121 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       setSelectedServices([]);
       setBillingPatient(null);
       setPartialPayment('');
-      alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
+      showToast(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`, "SUCCESS");
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const sanitizedPatient = sanitizeInput(invoice.patientName);
+      const rows = invoice.items.map(item => `
+          <tr>
+            <td style="padding: 8px; border-bottom: 1px solid #eee;">${sanitizeInput(item.name)}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+          </tr>
+      `).join('');
+
+      printWindow.document.write(`
+          <html>
+            <head>
+                <title>Factura ${invoice.id}</title>
+                <style>
+                    body { font-family: sans-serif; color: #333; padding: 40px; }
+                    .header { text-align: center; margin-bottom: 30px; }
+                    .info { margin-bottom: 20px; }
+                    table { width: 100%; border-collapse: collapse; }
+                    .footer { margin-top: 30px; text-align: right; border-top: 2px solid #333; padding-top: 10px; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>MEDICORE IPS</h1>
+                    <p>Factura de Venta N° ${invoice.id}</p>
+                </div>
+                <div class="info">
+                    <p><strong>Paciente:</strong> ${sanitizedPatient}</p>
+                    <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr style="background: #f9f9f9;">
+                            <th style="text-align: left; padding: 8px;">Descripción</th>
+                            <th style="text-align: center; padding: 8px;">Cant.</th>
+                            <th style="text-align: right; padding: 8px;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                <div class="footer">
+                    <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+                    <p>Descuento: ${formatCurrency(invoice.discount)}</p>
+                    <p style="font-size: 1.2em; font-weight: bold;">TOTAL: ${formatCurrency(invoice.total)}</p>
+                    <p>Saldo Pendiente: ${formatCurrency(invoice.balance)}</p>
+                </div>
+            </body>
+          </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- CARTERA HANDLERS ---
+  const [paymentModalState, setPaymentModalState] = useState<{isOpen: boolean, invoiceId: string, balance: number}>({
+      isOpen: false, invoiceId: '', balance: 0
+  });
+  const [paymentAmount, setPaymentAmount] = useState('');
+
   const registerPayment = (id: string) => {
       const inv = invoices.find(i => i.id === id);
       if(!inv) return;
+      setPaymentAmount('');
+      setPaymentModalState({ isOpen: true, invoiceId: id, balance: inv.balance });
+  };
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
-      
-      if(amount > inv.balance) {
-          alert("El monto ingresado supera el saldo pendiente.");
-          return;
-      }
+  const confirmRegisterPayment = () => {
+      const amount = parseFloat(paymentAmount);
+      if (isNaN(amount) || amount <= 0) return showToast("Ingrese un monto válido", "ERROR");
+      if (amount > paymentModalState.balance) return showToast("El monto supera el saldo", "ERROR");
 
       setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
+          if (invoice.id !== paymentModalState.invoiceId) return invoice;
           const newBalance = invoice.balance - amount;
-          const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
           return {
               ...invoice,
               balance: newBalance,
-              status: newStatus,
+              status: newBalance <= 0 ? 'PAID' : 'PARTIAL',
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
-      alert("Pago registrado correctamente.");
+      setPaymentModalState({ isOpen: false, invoiceId: '', balance: 0 });
+      showToast("Pago registrado correctamente.", "SUCCESS");
   };
 
   return (
     <div className="flex h-screen bg-slate-50">
+        {/* Payment Modal */}
+        {paymentModalState.isOpen && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
+                    <h3 className="text-lg font-bold mb-4 flex items-center"><DollarSign className="mr-2 text-green-600"/> Registrar Pago</h3>
+                    <p className="text-sm text-slate-600 mb-4">Saldo pendiente: <strong>{formatCurrency(paymentModalState.balance)}</strong></p>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">Monto a Pagar</label>
+                    <input
+                        type="number"
+                        className="w-full border p-2 rounded mb-6 text-lg font-bold"
+                        value={paymentAmount}
+                        onChange={e => setPaymentAmount(e.target.value)}
+                        autoFocus
+                    />
+                    <div className="flex justify-end gap-2">
+                        <button onClick={() => setPaymentModalState({isOpen: false, invoiceId: '', balance: 0})} className="px-4 py-2 text-slate-600">Cancelar</button>
+                        <button onClick={confirmRegisterPayment} className="bg-green-600 text-white px-4 py-2 rounded font-bold hover:bg-green-700">Confirmar Pago</button>
+                    </div>
+                </div>
+            </div>
+        )}
       {/* Sidebar simplified for Secretary */}
       <div className="w-64 bg-white border-r border-slate-200 flex flex-col">
           <div className="p-6 border-b border-slate-100">
