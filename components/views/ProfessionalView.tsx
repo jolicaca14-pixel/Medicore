@@ -80,6 +80,13 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     return new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear();
   }, [selectedPatient]);
 
+  const ageMonths = useMemo(() => {
+    if (!selectedPatient) return 0;
+    const birth = new Date(selectedPatient.birthDate);
+    const now = new Date();
+    return (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
+  }, [selectedPatient]);
+
   const bmiValue = useMemo(() => {
     const w = parseFloat(dynamicData['global_weight']);
     const h = parseFloat(dynamicData['global_height']);
@@ -692,8 +699,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       const isMandatory = field.required || (isBarthel && isFirstTimeRCV);
       const showBarthelAlert = isBarthel && isFirstTimeRCV && !val;
 
-      const age = selectedPatient ? new Date().getFullYear() - new Date(selectedPatient.birthDate).getFullYear() : undefined;
-      const vitalWarning = getVitalWarning(field.id, val, age);
+      const vitalWarning = getVitalWarning(field.id, val, ageMonths);
 
       return (
           <div key={field.id} className={`${field.type === 'TEXTAREA' ? 'col-span-2' : 'col-span-1'}`}>

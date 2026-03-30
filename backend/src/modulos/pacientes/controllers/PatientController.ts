@@ -1,11 +1,17 @@
 import { Request, Response } from 'express';
 import PatientService from '../services/PatientService';
+import { maskIdentification } from '../../../../../utils/security';
 
 export class PatientController {
     async getAll(req: Request, res: Response) {
         try {
             const patients = await PatientService.getAllPatients();
-            res.json(patients);
+            // 🛡️ MORPHEUS: Mask PII for list view
+            const maskedPatients = patients.map((p: any) => ({
+                ...p,
+                identificacion: maskIdentification(p.identificacion)
+            }));
+            res.json(maskedPatients);
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
