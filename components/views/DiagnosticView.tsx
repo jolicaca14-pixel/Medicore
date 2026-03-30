@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
+import { useToast } from '../../hooks/useToast';
+import { sanitizeInput } from '../../utils/security';
 import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
 
 interface DiagnosticViewProps {
@@ -23,6 +25,7 @@ interface Order {
 export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }) => {
   const isLab = user.roles.includes(UserRole.BACTERIOLOGIST);
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
+  const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<'PENDING' | 'HISTORY'>('PENDING');
   
@@ -60,7 +63,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) return showToast("No hay plantilla configurada para este examen.", "ERROR");
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +92,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showToast("Resultado guardado correctamente.", "SUCCESS");
   };
 
   // --- RENDER FIELD ---
@@ -126,8 +129,51 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const results = completedRecords.filter(r =>
+          (MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientName) &&
+          r.dateCreated.startsWith(date)
+      );
+
+      const content = results.map(r => `
+          <div style="margin-bottom: 30px; border: 1px solid #eee; padding: 20px; border-radius: 8px;">
+              <h3 style="border-bottom: 2px solid #3b82f6; padding-bottom: 5px; color: #1e3a8a;">${sanitizeInput(r.chiefComplaint)}</h3>
+              <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 10px;">
+                  ${Object.entries(r.dynamicData).map(([key, val]) => `
+                      <p><strong>${sanitizeInput(key)}:</strong> ${sanitizeInput(String(val))}</p>
+                  `).join('')}
+              </div>
+          </div>
+      `).join('');
+
+      printWindow.document.write(`
+          <html>
+            <head>
+                <title>Resultados - ${patientName}</title>
+                <style>
+                    body { font-family: sans-serif; padding: 40px; color: #333; }
+                    .header { text-align: center; margin-bottom: 40px; }
+                    .footer { margin-top: 50px; text-align: center; font-size: 0.8em; color: #666; border-top: 1px solid #ccc; padding-top: 10px; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>MEDICORE IPS - RESULTADOS DIAGNÓSTICOS</h1>
+                    <p><strong>Paciente:</strong> ${sanitizeInput(patientName)}</p>
+                    <p><strong>Fecha:</strong> ${date}</p>
+                </div>
+                ${content}
+                <div class="footer">
+                    <p>Documento firmado electrónicamente por ${sanitizeInput(user.name)}</p>
+                </div>
+            </body>
+          </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- RENDER FORM ---
