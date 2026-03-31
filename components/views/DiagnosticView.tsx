@@ -126,8 +126,68 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const recordsInGroup = completedRecords.filter(r => r.dateCreated.startsWith(date));
+
+      const html = `
+        <html>
+          <head>
+            <title>Resultados ${patientName} - ${date}</title>
+            <style>
+              body { font-family: sans-serif; padding: 40px; color: #333; }
+              .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 30px; }
+              .patient-info { background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #eee; }
+              .result-block { margin-bottom: 40px; }
+              .result-title { background: #eee; padding: 10px; font-weight: bold; font-size: 1.1em; margin-bottom: 15px; border-left: 5px solid #0056b3; }
+              .field-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed #eee; }
+              .field-label { font-weight: bold; color: #666; }
+              .footer { margin-top: 50px; text-align: center; font-size: 0.8em; color: #999; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>MEDICORE LABORATORIO CLÍNICO</h1>
+              <p>Consolidado de Resultados Diagnósticos</p>
+            </div>
+
+            <div class="patient-info">
+              <p><strong>Paciente:</strong> ${patientName}</p>
+              <p><strong>Fecha de Atención:</strong> ${date}</p>
+            </div>
+
+            ${recordsInGroup.map(r => `
+              <div class="result-block">
+                <div class="result-title">${r.chiefComplaint}</div>
+                <div class="result-content">
+                  ${Object.entries(r.dynamicData).map(([key, val]) => {
+                    const label = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+                    const unit = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.unit || '';
+                    return `
+                      <div class="field-row">
+                        <span class="field-label">${label}:</span>
+                        <span class="field-value">${val} ${unit}</span>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+                <p style="font-size: 0.8em; margin-top: 10px; color: #666;">Valores de referencia: Según estándar clínico internacional.</p>
+              </div>
+            `).join('')}
+
+            <div class="footer">
+              <p>Generado digitalmente por ${user.name} - ${user.professionalLicense || 'Licencia No Registrada'}</p>
+              <p>Este documento es un reporte informativo para uso clínico.</p>
+            </div>
+          </body>
+        </html>
+      `;
+
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- RENDER FORM ---

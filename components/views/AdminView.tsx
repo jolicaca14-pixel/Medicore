@@ -9,6 +9,7 @@ import {
     Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson
 } from 'lucide-react';
 import { UserForm } from '../UserForm';
+import { isSystemAdmin } from '../../utils/security';
 
 interface AdminViewProps {
   activeTab: string;
@@ -105,6 +106,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
   const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
+
+  // Management State
+  const [newTplName, setNewTplName] = useState('');
+  const [newSecName, setNewSecName] = useState('');
+  const [newFieldName, setNewFieldLabel] = useState('');
 
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
@@ -471,19 +477,77 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       alert("Paquete de RIPS generado y descargado exitosamente.");
   };
 
-  const handleNewTemplate = () => setIsTemplateModalOpen(true);
-  const handleNewSection = () => setIsSectionModalOpen(true);
-  const handleNewField = () => setIsFieldModalOpen(true);
+  const handleNewTemplate = () => {
+    setNewTplName('');
+    setIsTemplateModalOpen(true);
+  };
+  const handleNewSection = () => {
+    setNewSecName('');
+    setIsSectionModalOpen(true);
+  };
+  const handleNewField = () => {
+    setNewFieldLabel('');
+    setIsFieldModalOpen(true);
+  };
+
+  const saveNewTemplate = () => {
+    if (!newTplName) return;
+    const newTpl: RoleTemplate = {
+      id: `t_${Date.now()}`,
+      name: newTplName,
+      description: 'Nueva plantilla personalizada',
+      active: true,
+      allowedRoles: [UserRole.PROFESSIONAL],
+      sections: [],
+      recordType: RecordType.GENERAL
+    };
+    setTemplates([...templates, newTpl]);
+    setIsTemplateModalOpen(false);
+  };
+
+  const saveNewSection = () => {
+    if (!newSecName) return;
+    const newSec: TemplateSection = {
+      id: `s_${Date.now()}`,
+      title: newSecName,
+      fields: []
+    };
+    setGlobalSections([...globalSections, newSec]);
+    setIsSectionModalOpen(false);
+  };
+
+  const saveNewField = () => {
+    if (!newFieldName) return;
+    const newField: TemplateField = {
+      id: `f_${Date.now()}`,
+      label: newFieldName,
+      type: 'TEXT',
+      required: false
+    };
+    setGlobalFields([...globalFields, newField]);
+    setIsFieldModalOpen(false);
+  };
 
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
+  if ((activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
               <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
               <p className="text-sm">Se requieren permisos de ADMINISTRADOR para acceder a este módulo.</p>
+          </div>
+      );
+  }
+
+  // Strict check for users management - Only for real ADMIN
+  if (activeTab === 'users' && !isSystemAdmin(currentUserSession || null)) {
+      return (
+          <div className="flex flex-col items-center justify-center h-full text-slate-400">
+              <Lock size={64} className="mb-4 text-red-400"/>
+              <h2 className="text-xl font-bold text-slate-700">Gestión de Usuarios Bloqueada</h2>
+              <p className="text-sm">Solo el Administrador del Sistema puede gestionar cuentas de usuario.</p>
           </div>
       );
   }
@@ -1247,27 +1311,57 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                          <LayoutTemplate className="mr-2 text-blue-600"/> Crear Nueva Plantilla
+                        </h3>
+                        <div className="space-y-4">
+                          <div>
+                            <label htmlFor="tpl-name-input" className="block text-sm font-bold text-slate-700 mb-1">Nombre de la Plantilla</label>
+                            <input id="tpl-name-input" type="text" value={newTplName} onChange={(e) => setNewTplName(e.target.value)} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Ej: Control Diabetes" />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                            <button onClick={saveNewTemplate} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700">Guardar</button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                            <Layers className="mr-2 text-blue-600"/> Crear Nueva Sección
+                          </h3>
+                          <div className="space-y-4">
+                            <div>
+                              <label htmlFor="sec-name-input" className="block text-sm font-bold text-slate-700 mb-1">Nombre de la Sección</label>
+                              <input id="sec-name-input" type="text" value={newSecName} onChange={(e) => setNewSecName(e.target.value)} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Ej: Examen Físico Especial" />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                              <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                              <button onClick={saveNewSection} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700">Guardar</button>
+                          </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                            <Type className="mr-2 text-blue-600"/> Crear Nuevo Campo
+                          </h3>
+                          <div className="space-y-4">
+                            <div>
+                              <label htmlFor="field-name-input" className="block text-sm font-bold text-slate-700 mb-1">Nombre (Etiqueta) del Campo</label>
+                              <input id="field-name-input" type="text" value={newFieldName} onChange={(e) => setNewFieldLabel(e.target.value)} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Ej: Perímetro Cefálico" />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                              <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                              <button onClick={saveNewField} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700">Guardar</button>
+                          </div>
                       </div>
                   </div>
               )}

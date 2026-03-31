@@ -27,7 +27,30 @@ const testSanitizeInput = () => {
   console.log('All security tests passed.');
 };
 
+import { UserRole, User } from '../types';
+import { isSystemAdmin, hasAdministrativeAccess } from './security';
+
+const testRBAC = () => {
+    console.log('Testing RBAC utilities...');
+
+    const adminUser: User = { id: '1', roles: [UserRole.ADMIN], name: 'Admin', username: 'admin', documentNumber: '123' };
+    const professionalUser: User = { id: '2', roles: [UserRole.PROFESSIONAL], name: 'Doc', username: 'doc', documentNumber: '456' };
+    const managerUser: User = { id: '3', roles: [UserRole.MANAGER], name: 'Manager', username: 'manager', documentNumber: '789' };
+
+    console.assert(isSystemAdmin(adminUser) === true, 'isSystemAdmin: Admin should be true');
+    console.assert(isSystemAdmin(professionalUser) === false, 'isSystemAdmin: Professional should be false');
+    console.assert(isSystemAdmin(null) === false, 'isSystemAdmin: null should be false');
+
+    console.assert(hasAdministrativeAccess(adminUser) === true, 'hasAdministrativeAccess: Admin should be true');
+    console.assert(hasAdministrativeAccess(managerUser) === true, 'hasAdministrativeAccess: Manager should be true');
+    console.assert(hasAdministrativeAccess(professionalUser) === false, 'hasAdministrativeAccess: Professional should be false');
+    console.assert(hasAdministrativeAccess(null) === false, 'hasAdministrativeAccess: null should be false');
+
+    console.log('RBAC utilities tests passed.');
+};
+
 // Auto-execute if run directly (logic for test runner would go here)
 if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
     testSanitizeInput();
+    testRBAC();
 }

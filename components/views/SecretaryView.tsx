@@ -267,16 +267,67 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const html = `
+        <html>
+          <head>
+            <title>Factura ${invoice.id}</title>
+            <style>
+              body { font-family: sans-serif; padding: 40px; color: #333; }
+              .header { text-align: center; margin-bottom: 30px; }
+              .details { margin-bottom: 20px; }
+              table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+              th, td { border-bottom: 1px solid #eee; padding: 10px; text-align: left; }
+              .totals { text-align: right; }
+              .paid { color: green; font-weight: bold; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>MEDICORE IPS</h1>
+              <p>Factura de Venta N° ${invoice.id}</p>
+              <p>Fecha: ${new Date(invoice.date).toLocaleDateString()}</p>
+            </div>
+            <div class="details">
+              <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+              <p><strong>ID:</strong> ${invoice.patientId}</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Concepto</th>
+                  <th>Cant.</th>
+                  <th>Precio</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${invoice.items.map(item => `
+                  <tr>
+                    <td>${item.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>${formatCurrency(item.price)}</td>
+                    <td>${formatCurrency(item.price * item.quantity)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div class="totals">
+              <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+              <p>Descuento: ${formatCurrency(invoice.discount)}</p>
+              <h2>Total: ${formatCurrency(invoice.total)}</h2>
+              <p class="paid">Abonado: ${formatCurrency(invoice.total - invoice.balance)}</p>
+              <p>Saldo: ${formatCurrency(invoice.balance)}</p>
+            </div>
+          </body>
+        </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- CARTERA HANDLERS ---
@@ -339,8 +390,94 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+             <div className="space-y-6">
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+                        <p className="text-slate-500 text-sm">Gestión centralizada de la base de datos de pacientes.</p>
+                    </div>
+                    <button onClick={() => {
+                        const name = prompt("Nombre completo del paciente:");
+                        const id = prompt("Número de identificación:");
+                        if (name && id) {
+                            const newP: Patient = {
+                                id: `p${Date.now()}`,
+                                fullName: name,
+                                identification: id,
+                                birthDate: '1990-01-01',
+                                gender: 'M',
+                                phone: '300-000-0000',
+                                email: 'nuevo@ejemplo.com',
+                                insuranceType: 'Particular'
+                            };
+                            setPatients([...patients, newP]);
+                        }
+                    }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-blue-700 shadow-md transition-all">
+                        <Plus size={18} className="mr-2"/> Nuevo Paciente
+                    </button>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="relative mb-6">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="Buscar por nombre completo o número de documento..."
+                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                            value={billingSearchTerm}
+                            onChange={(e) => setBillingSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-slate-500 font-medium">
+                                <tr>
+                                    <th className="p-4">Paciente</th>
+                                    <th className="p-4">Documento</th>
+                                    <th className="p-4">Edad / Sexo</th>
+                                    <th className="p-4">Aseguradora</th>
+                                    <th className="p-4">Contacto</th>
+                                    <th className="p-4 text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {patients.filter(p =>
+                                    p.fullName.toLowerCase().includes(billingSearchTerm.toLowerCase()) ||
+                                    p.identification.includes(billingSearchTerm)
+                                ).map(p => (
+                                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-4 font-bold text-slate-800">{p.fullName}</td>
+                                        <td className="p-4 font-mono text-slate-500">{p.identification}</td>
+                                        <td className="p-4">
+                                            {new Date().getFullYear() - new Date(p.birthDate).getFullYear()} años / {p.gender}
+                                        </td>
+                                        <td className="p-4">
+                                            <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-bold border border-blue-100">
+                                                {p.insuranceType}
+                                            </span>
+                                        </td>
+                                        <td className="p-4">
+                                            <p className="text-slate-600 font-medium">{p.phone}</p>
+                                            <p className="text-[10px] text-slate-400">{p.email}</p>
+                                        </td>
+                                        <td className="p-4 text-right flex justify-end space-x-2">
+                                            <button onClick={() => {
+                                                const newName = prompt("Editar nombre del paciente:", p.fullName);
+                                                if (newName) setPatients(patients.map(item => item.id === p.id ? { ...item, fullName: newName } : item));
+                                            }} className="p-2 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors"><Edit size={16}/></button>
+                                            <button onClick={() => {
+                                                if (window.confirm(`¿Seguro que desea eliminar a ${p.fullName}?`)) {
+                                                    setPatients(patients.filter(item => item.id !== p.id));
+                                                }
+                                            }} className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded transition-colors"><Trash2 size={16}/></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
              </div>
           )}
           {/* AGENDA TAB (Now Functional) */}
