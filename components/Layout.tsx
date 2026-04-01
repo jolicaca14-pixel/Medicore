@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserRole, AppNotification } from '../types';
 import { MOCK_NOTIFICATIONS } from '../constants';
+import { isSystemAdmin, hasAdministrativeAccess } from '../utils/security';
 import { 
   LogOut, 
   LayoutDashboard, 
@@ -46,47 +47,58 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
 
   const getMenuItems = () => {
     let items: any[] = [];
-    const roles = user.roles || [];
 
-    if (roles.includes(UserRole.ADMIN)) {
-      items = [
-        ...items,
-        { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
-        { id: 'users', label: 'Gestión Usuarios', icon: Users },
-        { id: 'files', label: 'Gestión Archivos', icon: FileText },
-        { id: 'hr', label: 'Talento Humano', icon: Briefcase }, // NEW HR MODULE
-        { id: 'reports', label: 'Gestión Financiera', icon: DollarSign },
-        { id: 'settings', label: 'Plantillas / Roles', icon: Settings },
-      ];
+    // Administrative Roles Access
+    if (hasAdministrativeAccess(user)) {
+      items.push({ id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard });
+
+      // ONLY System Admin can manage users and templates
+      if (isSystemAdmin(user)) {
+        items.push({ id: 'users', label: 'Gestión Usuarios', icon: Users });
+      }
+
+      items.push({ id: 'files', label: 'Gestión Archivos', icon: FileText });
+      items.push({ id: 'hr', label: 'Talento Humano', icon: Briefcase });
+      items.push({ id: 'reports', label: 'Gestión Financiera', icon: DollarSign });
+
+      if (isSystemAdmin(user)) {
+        items.push({ id: 'settings', label: 'Plantillas / Roles', icon: Settings });
+      }
     }
     
-    if (roles.includes(UserRole.PROFESSIONAL) || roles.includes(UserRole.PSYCHOLOGIST)) {
-       // Avoid duplicates if admin already added dashboard
-       if(!items.some(i => i.id === 'dashboard')) items.push({ id: 'dashboard', label: 'Mis Pacientes', icon: Users });
-       items.push({ id: 'appointments', label: 'Agenda de Hoy', icon: Calendar });
-       items.push({ id: 'records', label: 'Mis Historias', icon: FileText });
-       // NEW: Allow Professional to see their own reports and HR
-       if(!items.some(i => i.id === 'reports')) items.push({ id: 'reports', label: 'Mi Producción', icon: DollarSign });
-       if(!items.some(i => i.id === 'hr')) items.push({ id: 'hr', label: 'Mi Contrato / RRHH', icon: Briefcase });
+    // Health Professional Roles
+    if (user.roles.includes(UserRole.PROFESSIONAL) || user.roles.includes(UserRole.PSYCHOLOGIST) ||
+        user.roles.includes(UserRole.NUTRITIONIST) || user.roles.includes(UserRole.BACTERIOLOGIST) ||
+        user.roles.includes(UserRole.RADIOLOGIST)) {
+
+       if (!items.some(i => i.id === 'dashboard')) {
+           // View label depends on role
+           let label = 'Mis Pacientes';
+           let icon = Users;
+           if (user.roles.includes(UserRole.BACTERIOLOGIST)) { label = 'Laboratorio'; icon = TestTube; }
+           if (user.roles.includes(UserRole.RADIOLOGIST)) { label = 'Imagenología'; icon = Image; }
+
+           items.push({ id: 'dashboard', label: label, icon: icon });
+       }
+
+       if (!user.roles.includes(UserRole.BACTERIOLOGIST) && !user.roles.includes(UserRole.RADIOLOGIST)) {
+         items.push({ id: 'appointments', label: 'Agenda de Hoy', icon: Calendar });
+         items.push({ id: 'records', label: 'Mis Historias', icon: FileText });
+       }
+
+       // Professionals see their own HR/Reports
+       if (!items.some(i => i.id === 'reports')) items.push({ id: 'reports', label: 'Mi Producción', icon: DollarSign });
+       if (!items.some(i => i.id === 'hr')) items.push({ id: 'hr', label: 'Mi Contrato / RRHH', icon: Briefcase });
     }
 
-    if (roles.includes(UserRole.SECRETARY)) {
-       if(!items.some(i => i.id === 'dashboard')) items.push({ id: 'dashboard', label: 'Recepción', icon: Calendar });
+    // Secretary Role
+    if (user.roles.includes(UserRole.SECRETARY)) {
+       if (!items.some(i => i.id === 'dashboard')) items.push({ id: 'dashboard', label: 'Recepción', icon: Calendar });
        items.push({ id: 'patients', label: 'Registro Pacientes', icon: Users });
        items.push({ id: 'billing', label: 'Facturación/Cartera', icon: FileText });
     }
-
-    if (roles.includes(UserRole.BACTERIOLOGIST)) {
-       if(!items.some(i => i.id === 'dashboard')) items.push({ id: 'dashboard', label: 'Laboratorio', icon: TestTube });
-       if(!items.some(i => i.id === 'hr')) items.push({ id: 'hr', label: 'Mi Contrato / RRHH', icon: Briefcase });
-    }
-
-    if (roles.includes(UserRole.RADIOLOGIST)) {
-       if(!items.some(i => i.id === 'dashboard')) items.push({ id: 'dashboard', label: 'Imagenología', icon: Image });
-       if(!items.some(i => i.id === 'hr')) items.push({ id: 'hr', label: 'Mi Contrato / RRHH', icon: Briefcase });
-    }
     
-    // Deduplicate by ID
+    // Deduplicate by ID just in case
     return items.filter((item, index, self) => 
        index === self.findIndex((t) => (t.id === item.id))
     );
@@ -101,6 +113,8 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
             case UserRole.BACTERIOLOGIST: return 'Bact.';
             case UserRole.RADIOLOGIST: return 'Rad.';
             case UserRole.PSYCHOLOGIST: return 'Psi.';
+            case UserRole.MANAGER: return 'Gerente';
+            case UserRole.ACCOUNTANT: return 'Contador';
             default: return r;
         }
       }).join(' / ');
@@ -153,7 +167,7 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
         <div className="p-4 border-t border-slate-100">
           <button
             className="w-full flex items-center space-x-3 px-2 py-3 mb-2 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100 text-left"
-            onClick={() => user.roles.includes(UserRole.ADMIN) && setActiveTab('settings')}
+            onClick={() => isSystemAdmin(user) && setActiveTab('settings')}
             aria-label={`Usuario: ${user.name}, Rol: ${mapRoleToSpanish(user.roles)}`}
           >
             <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm">
