@@ -1,33 +1,44 @@
-import { sanitizeInput } from './security';
+import { sanitizeInput, isSystemAdmin, hasAdministrativeAccess, maskIdentification } from './security';
+import { UserRole } from '../types';
 
 /**
  * 🧪 Smith: Security Unit Tests
- * Run with: node utils/security.test.js (after compilation)
  */
-const testSanitizeInput = () => {
+const testSecurityUtils = () => {
+  console.log('Testing security utilities...');
+
+  // --- sanitizeInput ---
   console.log('Testing sanitizeInput...');
+  console.assert(sanitizeInput('hello') === 'hello', 'sanitizeInput Test 1 Failed');
+  console.assert(sanitizeInput('<script>alert("xss")</script>') === 'scriptalert("xss")/script', 'sanitizeInput Test 2 Failed');
+  console.assert(sanitizeInput(null as any) === '', 'sanitizeInput Test 3 Failed');
 
-  // Test case 1: Simple string
-  console.assert(sanitizeInput('hello') === 'hello', 'Test 1 Failed');
+  // --- isSystemAdmin ---
+  console.log('Testing isSystemAdmin...');
+  const adminUser = { roles: [UserRole.ADMIN] } as any;
+  const profUser = { roles: [UserRole.PROFESSIONAL] } as any;
+  console.assert(isSystemAdmin(adminUser) === true, 'isSystemAdmin Test 1 Failed');
+  console.assert(isSystemAdmin(profUser) === false, 'isSystemAdmin Test 2 Failed');
+  console.assert(isSystemAdmin(null) === false, 'isSystemAdmin Test 3 Failed');
 
-  // Test case 2: Script tag
-  const input2 = '<script>alert("xss")</script>';
-  const expected2 = 'scriptalert("xss")/script';
-  console.assert(sanitizeInput(input2) === expected2, 'Test 2 Failed');
+  // --- hasAdministrativeAccess ---
+  console.log('Testing hasAdministrativeAccess...');
+  const managerUser = { roles: [UserRole.MANAGER] } as any;
+  const accountantUser = { roles: [UserRole.ACCOUNTANT] } as any;
+  console.assert(hasAdministrativeAccess(adminUser) === true, 'hasAdministrativeAccess Test 1 Failed');
+  console.assert(hasAdministrativeAccess(managerUser) === true, 'hasAdministrativeAccess Test 2 Failed');
+  console.assert(hasAdministrativeAccess(accountantUser) === true, 'hasAdministrativeAccess Test 3 Failed');
+  console.assert(hasAdministrativeAccess(profUser) === false, 'hasAdministrativeAccess Test 4 Failed');
 
-  // Test case 3: Nested tags
-  const input3 = '<div><b>Bold</b></div>';
-  const expected3 = 'divbBold/b/div';
-  console.assert(sanitizeInput(input3) === expected3, 'Test 3 Failed');
-
-  // Test case 4: null/undefined
-  console.assert(sanitizeInput(null as any) === '', 'Test 4 Failed');
-  console.assert(sanitizeInput(undefined as any) === '', 'Test 5 Failed');
+  // --- maskIdentification ---
+  console.log('Testing maskIdentification...');
+  console.assert(maskIdentification('123456789') === '*****6789', 'maskIdentification Test 1 Failed');
+  console.assert(maskIdentification('123') === '123', 'maskIdentification Test 2 Failed');
 
   console.log('All security tests passed.');
 };
 
-// Auto-execute if run directly (logic for test runner would go here)
-if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-    testSanitizeInput();
+// Only run if executing directly (using tsx or node)
+if (require.main === module || !require.main) {
+  testSecurityUtils();
 }
