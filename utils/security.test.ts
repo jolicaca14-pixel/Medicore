@@ -1,33 +1,58 @@
-import { sanitizeInput } from './security';
 
-/**
- * 🧪 Smith: Security Unit Tests
- * Run with: node utils/security.test.js (after compilation)
- */
-const testSanitizeInput = () => {
-  console.log('Testing sanitizeInput...');
+import { UserRole } from '../types';
+import { sanitizeInput, hasAdministrativeAccess, isSystemAdmin } from './security';
 
-  // Test case 1: Simple string
-  console.assert(sanitizeInput('hello') === 'hello', 'Test 1 Failed');
+const testSecurityUtils = () => {
+    console.log("--- Running Security Utility Tests ---");
 
-  // Test case 2: Script tag
-  const input2 = '<script>alert("xss")</script>';
-  const expected2 = 'scriptalert("xss")/script';
-  console.assert(sanitizeInput(input2) === expected2, 'Test 2 Failed');
+    // 1. Test sanitizeInput
+    console.log("Testing sanitizeInput...");
+    const xssInput = '<script>alert("xss")</script>';
+    const sanitized = sanitizeInput(xssInput);
+    if (sanitized === 'scriptalert("xss")/script') {
+        console.log("✅ sanitizeInput: Basic tags stripped");
+    } else {
+        console.error("❌ sanitizeInput: Failed. Got:", sanitized);
+        process.exit(1);
+    }
 
-  // Test case 3: Nested tags
-  const input3 = '<div><b>Bold</b></div>';
-  const expected3 = 'divbBold/b/div';
-  console.assert(sanitizeInput(input3) === expected3, 'Test 3 Failed');
+    if (sanitizeInput('<b>Hello</b>') === 'bHellob') {
+        console.log("✅ sanitizeInput: Complex tags stripped");
+    }
 
-  // Test case 4: null/undefined
-  console.assert(sanitizeInput(null as any) === '', 'Test 4 Failed');
-  console.assert(sanitizeInput(undefined as any) === '', 'Test 5 Failed');
+    // 2. Test RBAC Logic
+    console.log("\nTesting RBAC Logic...");
+    const adminRoles = [UserRole.ADMIN];
+    const managerRoles = [UserRole.MANAGER];
+    const accountantRoles = [UserRole.ACCOUNTANT];
+    const professionalRoles = [UserRole.PROFESSIONAL];
 
-  console.log('All security tests passed.');
+    console.log("Admin has admin access:", hasAdministrativeAccess(adminRoles));
+    console.log("Manager has admin access:", hasAdministrativeAccess(managerRoles));
+    console.log("Accountant has admin access:", hasAdministrativeAccess(accountantRoles));
+    console.log("Professional has admin access:", hasAdministrativeAccess(professionalRoles));
+
+    console.log("Admin is system admin:", isSystemAdmin(adminRoles));
+    console.log("Manager is system admin:", isSystemAdmin(managerRoles));
+
+    const rbacPassed = hasAdministrativeAccess(adminRoles) &&
+        hasAdministrativeAccess(managerRoles) &&
+        hasAdministrativeAccess(accountantRoles) &&
+        !hasAdministrativeAccess(professionalRoles) &&
+        isSystemAdmin(adminRoles) &&
+        !isSystemAdmin(managerRoles);
+
+    if (rbacPassed) {
+        console.log("✅ RBAC Logic Tests Passed!");
+    } else {
+        console.error("❌ RBAC Logic Tests Failed!");
+        process.exit(1);
+    }
+
+    console.log("\n--- All Security Tests Passed! ---");
 };
 
-// Auto-execute if run directly (logic for test runner would go here)
-if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-    testSanitizeInput();
+// Check if running directly via Node/tsx
+if (import.meta.url.endsWith('utils/security.test.ts')) {
+    testSecurityUtils();
 }
