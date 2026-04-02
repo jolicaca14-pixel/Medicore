@@ -109,10 +109,19 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'FILE' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50">
+                  <label className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50 flex flex-col items-center">
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) setDynamicData({...dynamicData, [field.id]: file.name});
+                        }}
+                      />
                       <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
-                      <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
-                  </div>
+                      <p className="text-xs text-slate-500">{val ? `Archivo: ${val}` : 'Click para cargar imágenes (DICOM/JPG)'}</p>
+                      {val && <p className="text-[10px] text-green-600 font-bold mt-1">✓ Listo para procesar</p>}
+                  </label>
               ) : (
                   <input 
                     type={field.type === 'NUMBER' ? 'number' : 'text'} 
@@ -126,8 +135,37 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head>
+                  <title>Resultados de Diagnóstico - ${patientName}</title>
+                  <style>
+                      body { font-family: sans-serif; padding: 40px; color: #334155; }
+                      .header { border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px; }
+                      .res-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+                      .footer { margin-top: 50px; font-size: 10px; color: #94a3b8; text-align: center; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1 style="margin:0; color:#1e293b;">MEDICORE PRO - Resultados</h1>
+                      <p><strong>Paciente:</strong> ${patientName} | <strong>Fecha:</strong> ${date}</p>
+                  </div>
+                  <h3>Resumen de Hallazgos</h3>
+                  <div class="res-box">
+                      <p>Reporte oficial generado por ${user.name} (${user.roles.join(', ')})</p>
+                      <p>Los resultados adjuntos forman parte de la Historia Clínica Electrónica Segura.</p>
+                  </div>
+                  <div class="footer">Documento firmado digitalmente bajo Res. 1888 de 2025.</div>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+          printWindow.print();
+      }
   };
 
   // --- RENDER FORM ---

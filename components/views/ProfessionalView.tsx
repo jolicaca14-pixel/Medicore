@@ -319,8 +319,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       // 🛡️ MORPHEUS: Audit log for contract download
       logAuditEvent(user.id, 'DOWNLOAD_CONTRACT', 'Contract', `User downloaded a copy of their contract`);
 
-      const content = `CONTRATO DE PRESTACIÓN DE SERVICIOS - MEDICORE IPS\n\nPROFESIONAL: ${user.name}\nDOCUMENTO: ${user.documentNumber}\nFECHA: ${new Date().toLocaleDateString()}\n\nEste es un documento generado automáticamente que simula su contrato laboral.\n`;
-      const blob = new Blob([content], { type: 'text/plain' });
+      const content = `CONTRATO DE PRESTACIÓN DE SERVICIOS - MEDICORE IPS\n\nPROFESIONAL: ${user.name}\nDOCUMENTO: ${user.documentNumber}\nFECHA: ${new Date().toLocaleDateString()}\n\nEste es un documento generado automáticamente que simula su contrato laboral bajo los estándares de la Ley 100 y normatividad vigente.\n`;
+      const blob = new Blob([content], { type: 'text/plain' }); // Reverted to plain text
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -329,6 +329,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
+      alert("Su contrato se ha descargado exitosamente.");
   };
 
   const handleOpenPaymentModal = () => {
