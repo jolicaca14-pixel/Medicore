@@ -14,6 +14,10 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   // --- PATIENTS & AGENDA STATE ---
   const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
+  const [patientSearchTerm, setPatientSearchTerm] = useState('');
+  const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
+  const [editingPatient, setEditingPatient] = useState<Partial<Patient> | null>(null);
+
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoadingAppts, setIsLoadingAppts] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -52,6 +56,11 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   const [partialPayment, setPartialPayment] = useState<string>('');
   const [tariffMode, setTariffMode] = useState<'SOAT' | 'PARTICULAR'>('SOAT');
   const [invoices, setInvoices] = useState<Invoice[]>([]); // Cartera
+
+  // Payment Registration Modal
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<Invoice | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
 
   // Manual Item
   const [manualItemName, setManualItemName] = useState('');
@@ -267,34 +276,105 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const html = `
+        <html>
+          <head>
+            <title>Factura de Venta - ${invoice.id}</title>
+            <style>
+              body { font-family: sans-serif; padding: 40px; color: #334155; }
+              .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+              .info-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
+              .table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+              .table th { background: #f8fafc; text-align: left; padding: 10px; border-bottom: 2px solid #e2e8f0; }
+              .table td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
+              .totals { text-align: right; }
+              .footer { margin-top: 50px; font-size: 12px; color: #94a3b8; text-align: center; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>MEDICORE IPS SAS</h1>
+              <p>NIT: 900.123.456-7</p>
+              <h3>FACTURA DE VENTA ELECTRÓNICA N° ${invoice.id}</h3>
+            </div>
+            <div class="info-section">
+              <div>
+                <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleString()}</p>
+              </div>
+              <div style="text-align: right;">
+                <p><strong>Estado:</strong> ${invoice.status}</p>
+                <p><strong>Payer:</strong> ${invoice.payerType}</p>
+              </div>
+            </div>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Servicio/Producto</th>
+                  <th>Cant.</th>
+                  <th>Precio</th>
+                  <th>Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${invoice.items.map(item => `
+                  <tr>
+                    <td>${item.code}</td>
+                    <td>${item.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>${formatCurrency(item.price)}</td>
+                    <td>${formatCurrency(item.price * item.quantity)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div class="totals">
+               <p><strong>Subtotal:</strong> ${formatCurrency(invoice.subtotal)}</p>
+               <p><strong>Descuento:</strong> - ${formatCurrency(invoice.discount)}</p>
+               <h2 style="color: #1e293b;">Total: ${formatCurrency(invoice.total)}</h2>
+               <p><strong>Pagado:</strong> ${formatCurrency(invoice.total - invoice.balance)}</p>
+               <p style="color: #ef4444;"><strong>Saldo Pendiente:</strong> ${formatCurrency(invoice.balance)}</p>
+            </div>
+            <div class="footer">
+              <p>Factura generada electrónicamente por MediCore Pro.</p>
+              <p>© ${new Date().getFullYear()} MediCore IPS SAS - Todos los derechos reservados.</p>
+            </div>
+            <script>window.print();</script>
+          </body>
+        </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
-  const registerPayment = (id: string) => {
-      const inv = invoices.find(i => i.id === id);
-      if(!inv) return;
+  const handleOpenPaymentModal = (invoice: Invoice) => {
+      setSelectedInvoiceForPayment(invoice);
+      setPaymentAmount(invoice.balance.toString());
+      setIsPaymentModalOpen(true);
+  };
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
+  const confirmPayment = () => {
+      if (!selectedInvoiceForPayment) return;
+      const amount = parseFloat(paymentAmount);
       
-      if(amount > inv.balance) {
+      if (isNaN(amount) || amount <= 0) {
+          alert("Ingrese un monto válido.");
+          return;
+      }
+
+      if(amount > selectedInvoiceForPayment.balance) {
           alert("El monto ingresado supera el saldo pendiente.");
           return;
       }
 
       setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
+          if (invoice.id !== selectedInvoiceForPayment.id) return invoice;
           const newBalance = invoice.balance - amount;
           const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
           return {
@@ -304,6 +384,10 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
+
+      setIsPaymentModalOpen(false);
+      setSelectedInvoiceForPayment(null);
+      setPaymentAmount('');
       alert("Pago registrado correctamente.");
   };
 
@@ -339,8 +423,134 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+             <div className="space-y-6">
+                {isPatientModalOpen && (
+                    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                            <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center">
+                                <Users className="mr-2 text-blue-600"/> {editingPatient?.id ? 'Editar Paciente' : 'Registrar Nuevo Paciente'}
+                            </h3>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                    <label className="text-xs font-bold text-slate-500">Nombre Completo</label>
+                                    <input className="w-full border p-2 rounded" value={editingPatient?.fullName || ''} onChange={e => setEditingPatient({...editingPatient, fullName: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500">Identificación</label>
+                                    <input className="w-full border p-2 rounded" value={editingPatient?.identification || ''} onChange={e => setEditingPatient({...editingPatient, identification: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500">Género</label>
+                                    <select className="w-full border p-2 rounded" value={editingPatient?.gender || 'M'} onChange={e => setEditingPatient({...editingPatient, gender: e.target.value as 'M' | 'F'})}>
+                                        <option value="M">Masculino</option>
+                                        <option value="F">Femenino</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500">Fecha Nacimiento</label>
+                                    <input type="date" className="w-full border p-2 rounded" value={editingPatient?.birthDate || ''} onChange={e => setEditingPatient({...editingPatient, birthDate: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500">Teléfono</label>
+                                    <input className="w-full border p-2 rounded" value={editingPatient?.phone || ''} onChange={e => setEditingPatient({...editingPatient, phone: e.target.value})} />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="text-xs font-bold text-slate-500">Correo Electrónico</label>
+                                    <input className="w-full border p-2 rounded" value={editingPatient?.email || ''} onChange={e => setEditingPatient({...editingPatient, email: e.target.value})} />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="text-xs font-bold text-slate-500">Aseguradora / Convenio</label>
+                                    <input className="w-full border p-2 rounded" value={editingPatient?.insuranceType || ''} onChange={e => setEditingPatient({...editingPatient, insuranceType: e.target.value})} />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-2 mt-8">
+                                <button onClick={() => setIsPatientModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium">Cancelar</button>
+                                <button
+                                    onClick={() => {
+                                        if (editingPatient?.id) {
+                                            setPatients(patients.map(p => p.id === editingPatient.id ? editingPatient as Patient : p));
+                                        } else {
+                                            setPatients([...patients, { ...editingPatient, id: `p${Date.now()}` } as Patient]);
+                                        }
+                                        setIsPatientModalOpen(false);
+                                        alert("Datos del paciente guardados correctamente.");
+                                    }}
+                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700"
+                                >
+                                    Guardar Paciente
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+                    <button
+                        onClick={() => { setEditingPatient({ gender: 'M' }); setIsPatientModalOpen(true); }}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-blue-700 shadow-lg"
+                    >
+                        <Plus size={18} className="mr-2"/> Nuevo Paciente
+                    </button>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div className="relative mb-6">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                        <input
+                            type="text"
+                            placeholder="Buscar por nombre, apellido o identificación..."
+                            className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                            value={patientSearchTerm}
+                            onChange={e => setPatientSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-slate-500 font-medium">
+                                <tr>
+                                    <th className="p-4">Paciente</th>
+                                    <th className="p-4">Identificación</th>
+                                    <th className="p-4">Contacto</th>
+                                    <th className="p-4">Aseguradora</th>
+                                    <th className="p-4 text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {patients
+                                    .filter(p =>
+                                        p.fullName.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+                                        p.identification.includes(patientSearchTerm)
+                                    )
+                                    .map(p => (
+                                        <tr key={p.id} className="hover:bg-slate-50 group">
+                                            <td className="p-4">
+                                                <div className="font-bold text-slate-800">{p.fullName}</div>
+                                                <div className="text-xs text-slate-500">{p.gender === 'M' ? 'Masculino' : 'Femenino'} • {new Date().getFullYear() - new Date(p.birthDate).getFullYear()} años</div>
+                                            </td>
+                                            <td className="p-4 font-mono text-slate-600">{p.identification}</td>
+                                            <td className="p-4">
+                                                <div className="text-xs">{p.phone}</div>
+                                                <div className="text-[10px] text-slate-400">{p.email}</div>
+                                            </td>
+                                            <td className="p-4">
+                                                <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-bold uppercase">{p.insuranceType}</span>
+                                            </td>
+                                            <td className="p-4 text-right">
+                                                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => { setEditingPatient(p); setIsPatientModalOpen(true); }} className="p-2 hover:bg-blue-50 text-blue-600 rounded" title="Editar"><Edit size={16}/></button>
+                                                    <button onClick={() => setActiveTab('AGENDA')} className="p-2 hover:bg-green-50 text-green-600 rounded" title="Agendar Cita"><Calendar size={16}/></button>
+                                                    <button onClick={() => handleSelectBillingPatient(p)} className="p-2 hover:bg-yellow-50 text-yellow-600 rounded" title="Facturar"><DollarSign size={16}/></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
              </div>
           )}
           {/* AGENDA TAB (Now Functional) */}
@@ -679,7 +889,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                       <td className="p-4 text-right flex justify-end space-x-2">
                                           <button onClick={() => printInvoice(inv)} className="bg-slate-200 text-slate-700 p-2 rounded hover:bg-slate-300" title="Imprimir"><Printer size={16}/></button>
                                           {inv.status !== 'PAID' && (
-                                              <button onClick={() => registerPayment(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
+                                              <button onClick={() => handleOpenPaymentModal(inv)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
                                                   Abonar
                                               </button>
                                           )}
