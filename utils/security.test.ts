@@ -1,9 +1,26 @@
-import { sanitizeInput } from './security';
+import { sanitizeInput, isSystemAdmin, hasAdministrativeAccess } from './security';
+import { User, UserRole } from '../types';
 
 /**
  * 🧪 Smith: Security Unit Tests
  * Run with: node utils/security.test.js (after compilation)
  */
+const testRBAC = () => {
+  console.log('Testing RBAC functions...');
+  const adminUser: User = { id: '1', roles: [UserRole.ADMIN], name: 'Admin', username: 'admin', documentNumber: '1' };
+  const managerUser: User = { id: '2', roles: [UserRole.MANAGER], name: 'Manager', username: 'manager', documentNumber: '2' };
+  const professionalUser: User = { id: '3', roles: [UserRole.PROFESSIONAL], name: 'Doc', username: 'doc', documentNumber: '3' };
+
+  console.assert(isSystemAdmin(adminUser) === true, 'Admin should be System Admin');
+  console.assert(isSystemAdmin(managerUser) === false, 'Manager should NOT be System Admin');
+
+  console.assert(hasAdministrativeAccess(adminUser) === true, 'Admin should have administrative access');
+  console.assert(hasAdministrativeAccess(managerUser) === true, 'Manager should have administrative access');
+  console.assert(hasAdministrativeAccess(professionalUser) === false, 'Professional should NOT have administrative access');
+
+  console.log('RBAC tests passed.');
+};
+
 const testSanitizeInput = () => {
   console.log('Testing sanitizeInput...');
 
@@ -29,5 +46,6 @@ const testSanitizeInput = () => {
 
 // Auto-execute if run directly (logic for test runner would go here)
 if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    testRBAC();
     testSanitizeInput();
 }
