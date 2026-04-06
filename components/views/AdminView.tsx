@@ -9,6 +9,7 @@ import {
     Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson
 } from 'lucide-react';
 import { UserForm } from '../UserForm';
+import { isSystemAdmin, hasAdministrativeAccess } from '../../utils/security';
 
 interface AdminViewProps {
   activeTab: string;
@@ -58,7 +59,7 @@ const roleLabels: Record<UserRole, string> = {
 };
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
-  const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
+  const isAdmin = isSystemAdmin(currentUserSession?.roles || []);
 
   // --- STATE MANAGEMENT ---
   
@@ -90,7 +91,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [newDisciplinary, setNewDisciplinary] = useState<Partial<DisciplinaryAction>>({ type: 'COMPLAINT', status: 'OPEN' });
 
   // File Management
-  const [fileManagementTab, setFileManagementTab] = useState<'CONTRACTS' | 'PAYMENTS'>('CONTRACTS');
+  const [fileManagementTab, setFileManagementTab] = useState<'CONTRACTS' | 'PAYMENTS' | 'CLINICAL'>('CONTRACTS');
   const [isFileUploadModalOpen, setIsFileUploadModalOpen] = useState(false);
   const [newFileName, setNewFileName] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -306,7 +307,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
     }, 100);
   };
 
-  const handleDeleteFile = (fileId: string, type: 'CONTRACT' | 'PAYMENT') => {
+  const handleDeleteFile = (fileId: string, type: 'CONTRACT' | 'PAYMENT' | 'CLINICAL') => {
       if (!window.confirm("¿Está seguro de eliminar este archivo?")) return;
 
       if (type === 'CONTRACT') {
@@ -316,8 +317,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   contracts: user.contracts?.filter(c => c.id !== fileId)
               }))
           );
-      } else { // PAYMENT
+      } else if (type === 'PAYMENT') {
           setPaymentRequests(prev => prev.filter(p => p.id !== fileId));
+      } else {
+          // CLINICAL - Since records are mock constants, we simulate removal in state if it were fully dynamic
+          alert("Archivo clínico marcado para eliminación en el servidor.");
       }
       alert("Archivo eliminado.");
   };
@@ -478,18 +482,34 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
+  const userRoles = currentUserSession?.roles || [];
+
+  // Specific restrictions for ADMIN only tabs
+  const isAdminOnlyTab = ['users', 'settings', 'files'].includes(activeTab);
+  const isHRorReportsTab = ['hr', 'reports', 'dashboard'].includes(activeTab);
+
+  if (isAdminOnlyTab && !isSystemAdmin(userRoles)) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
               <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
-              <p className="text-sm">Se requieren permisos de ADMINISTRADOR para acceder a este módulo.</p>
+              <p className="text-sm">Se requieren permisos de ADMINISTRADOR del sistema para acceder a este módulo.</p>
           </div>
       );
   }
 
-  // 1. DASHBOARD (Dynamic & Actionable) - Only for Admins
-  if (activeTab === 'dashboard' && isAdmin) {
+  if (isHRorReportsTab && !hasAdministrativeAccess(userRoles)) {
+      return (
+          <div className="flex flex-col items-center justify-center h-full text-slate-400">
+              <Ban size={64} className="mb-4 text-red-400"/>
+              <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
+              <p className="text-sm">Se requieren permisos administrativos para acceder a este módulo.</p>
+          </div>
+      );
+  }
+
+  // 1. DASHBOARD (Dynamic & Actionable) - For all Admin Roles
+  if (activeTab === 'dashboard' && hasAdministrativeAccess(userRoles)) {
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
@@ -584,18 +604,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                        <p className="text-slate-400 text-sm">Accesos rápidos a módulos frecuentes.</p>
                    </div>
                    <div className="flex gap-4 relative z-10 flex-wrap">
-                       <button onClick={() => setActiveTab('users')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
+                       {isAdmin && (
+                         <button onClick={() => setActiveTab('users')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
                            <Plus size={18} className="mr-2 text-blue-400"/> Crear Usuario
-                       </button>
+                         </button>
+                       )}
                        <button onClick={() => setActiveTab('reports')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
                            <TrendingUp size={18} className="mr-2 text-green-400"/> Ver Finanzas
                        </button>
                        <button onClick={() => setActiveTab('hr')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
                            <Briefcase size={18} className="mr-2 text-orange-400"/> Contratos
                        </button>
-                       <button onClick={() => setActiveTab('files')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
+                       {isAdmin && (
+                         <button onClick={() => setActiveTab('files')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
                            <File size={18} className="mr-2 text-yellow-400"/> Archivos
-                       </button>
+                         </button>
+                       )}
                    </div>
                    <div className="absolute right-0 top-0 opacity-10"><Zap size={150}/></div>
                </div>
@@ -672,13 +696,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                 <button onClick={() => setFileManagementTab('PAYMENTS')} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'PAYMENTS' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
                     Soportes de Pago
                 </button>
+                <button onClick={() => setFileManagementTab('CLINICAL')} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'CLINICAL' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
+                    Anexos Clínicos
+                </button>
             </div>
 
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                 <div className="flex justify-between items-center mb-4">
                     <div>
                         <h3 className="font-bold text-lg text-slate-800">
-                            {fileManagementTab === 'CONTRACTS' ? 'Archivos de Contratos' : 'Archivos de Soportes de Pago'}
+                            {fileManagementTab === 'CONTRACTS' ? 'Archivos de Contratos' :
+                             fileManagementTab === 'PAYMENTS' ? 'Archivos de Soportes de Pago' :
+                             'Anexos y Resultados Clínicos'}
                         </h3>
                         <div className="relative mt-2">
                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
@@ -707,22 +736,28 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                     <tbody className="divide-y divide-slate-100">
                         {(fileManagementTab === 'CONTRACTS'
                             ? users.flatMap(u => u.contracts?.map(c => ({ ...c, userName: u.name, type: 'CONTRACT' })))
-                            : paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl, type: 'PAYMENT' })))
+                            : fileManagementTab === 'PAYMENTS'
+                            ? paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl, type: 'PAYMENT' }))
+                            : MOCK_RECORDS.filter(r => r.attachments && r.attachments.length > 0).flatMap(r => r.attachments.map(a => ({ ...a, userName: MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName, fileUrl: a.name, type: 'CLINICAL' })))
+                        )
                             .filter(file =>
                                 (file.fileUrl?.toLowerCase().includes(fileSearchTerm.toLowerCase()) ||
-                                file.userName?.toLowerCase().includes(fileSearchTerm.toLowerCase()))
+                                (file.userName && file.userName.toLowerCase().includes(fileSearchTerm.toLowerCase())))
                             )
                             .map((file: any) => (
                                 <tr key={file.id}>
-                                    <td className="p-3 font-medium text-slate-700">{file.fileUrl || `contrato_${file.id}.pdf`}</td>
+                                    <td className="p-3 font-medium text-slate-700">{file.fileUrl || `archivo_${file.id}.pdf`}</td>
                                     <td className="p-3">{file.userName}</td>
-                                    <td className="p-3 text-slate-500">{new Date(file.startDate || file.dateSubmitted).toLocaleDateString()}</td>
+                                    <td className="p-3 text-slate-500">{new Date(file.startDate || file.dateSubmitted || file.date).toLocaleDateString()}</td>
                                     <td className="p-3 text-right">
                                         <button onClick={() => handleDeleteFile(file.id, file.type)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button>
                                     </td>
                                 </tr>
                             ))
                         }
+                        {fileManagementTab === 'CLINICAL' && MOCK_RECORDS.every(r => !r.attachments || r.attachments.length === 0) && (
+                            <tr><td colSpan={4} className="p-8 text-center text-slate-400 italic">No hay anexos clínicos registrados.</td></tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -730,7 +765,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
     );
   }
   // HR MODULE - ADMIN VIEW
-  if (activeTab === 'hr' && isAdmin) {
+  if (activeTab === 'hr' && hasAdministrativeAccess(userRoles)) {
       return (
           <div className="space-y-6">
               {/* MODALS */}
@@ -1075,7 +1110,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // 4. REPORTS TAB - NEW RIPS GENERATION
-  if (activeTab === 'reports' && isAdmin) {
+  if (activeTab === 'reports' && hasAdministrativeAccess(userRoles)) {
       return (
           <div className="space-y-8 animate-in fade-in duration-500">
               <h2 className="text-2xl font-bold text-slate-800 mb-2">Reportes y Analítica</h2>
@@ -1165,14 +1200,21 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'users' && isAdmin) {
       return (
         <div className="space-y-6 animate-in fade-in duration-500">
+            <h2 className="text-2xl font-bold text-slate-800">Gestión de Usuarios</h2>
+
             {/* User Form Space (Top) */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                  <div className="flex justify-between items-center mb-6 border-b pb-4">
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-800">
-                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
-                        </h3>
-                        <p className="text-sm text-slate-500">Espacio dedicado para la gestión y creación de cuentas del sistema.</p>
+                    <div className="flex items-center">
+                        <div className="p-2 bg-blue-600 text-white rounded-lg mr-4">
+                            <Shield size={24}/>
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800">
+                                {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Perfil de Usuario' : 'Centro de Registro de Usuarios'}
+                            </h3>
+                            <p className="text-sm text-slate-500">Gestione identidades y privilegios de acceso al sistema.</p>
+                        </div>
                     </div>
                     <button onClick={handleAddNewUser} className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg flex items-center hover:bg-slate-800 transition-colors shadow-lg">
                         <Plus size={18} className="mr-2"/> Crear Nuevo Usuario
@@ -1247,27 +1289,80 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><LayoutTemplate className="mr-2 text-blue-600"/> Configuración de Plantilla</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Nombre de la Plantilla</label>
+                                <input className="w-full p-2 border rounded text-sm" placeholder="Ej: Consulta General" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Descripción</label>
+                                <textarea className="w-full p-2 border rounded text-sm" rows={3} placeholder="Breve descripción del propósito..." />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Tipo de Registro</label>
+                                <select className="w-full p-2 border rounded text-sm">
+                                    {Object.values(RecordType).map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold text-sm">Cancelar</button>
+                            <button onClick={() => { setIsTemplateModalOpen(false); alert("Plantilla guardada (Simulación)"); }} className="px-4 py-2 bg-blue-600 text-white rounded font-bold text-sm">Guardar Cambios</button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><Layers className="mr-2 text-indigo-600"/> Nueva Sección Clínica</h3>
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Título de la Sección</label>
+                                  <input className="w-full p-2 border rounded text-sm" placeholder="Ej: Examen Físico" />
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">ID Único (Opcional)</label>
+                                  <input className="w-full p-2 border rounded text-sm font-mono" placeholder="sec_examen_fisico" />
+                              </div>
+                          </div>
+                          <div className="mt-6 flex justify-end gap-2">
+                              <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold text-sm">Cancelar</button>
+                              <button onClick={() => { setIsSectionModalOpen(false); alert("Sección agregada a la biblioteca"); }} className="px-4 py-2 bg-indigo-600 text-white rounded font-bold text-sm">Crear Sección</button>
+                          </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><Type className="mr-2 text-purple-600"/> Definición de Campo / Variable</h3>
+                          <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div className="col-span-2">
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">Etiqueta (Label)</label>
+                                      <input className="w-full p-2 border rounded text-sm" placeholder="Ej: Tensión Arterial Sistólica" />
+                                  </div>
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">Tipo de Dato</label>
+                                      <select className="w-full p-2 border rounded text-sm">
+                                          <option value="TEXT">Texto</option>
+                                          <option value="NUMBER">Número</option>
+                                          <option value="SELECT">Selección</option>
+                                          <option value="CALCULATED">Calculado (Fórmula)</option>
+                                      </select>
+                                  </div>
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">Unidad (Opcional)</label>
+                                      <input className="w-full p-2 border rounded text-sm" placeholder="Ej: mmHg" />
+                                  </div>
+                              </div>
+                          </div>
+                          <div className="mt-6 flex justify-end gap-2">
+                              <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold text-sm">Cancelar</button>
+                              <button onClick={() => { setIsFieldModalOpen(false); alert("Campo registrado exitosamente"); }} className="px-4 py-2 bg-purple-600 text-white rounded font-bold text-sm">Registrar Campo</button>
+                          </div>
                       </div>
                   </div>
               )}
