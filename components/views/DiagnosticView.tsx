@@ -126,8 +126,80 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Por favor permita las ventanas emergentes para imprimir.");
+
+      const groupedResults = completedRecords.filter(r =>
+          (MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientName) &&
+          r.dateCreated.startsWith(date)
+      );
+
+      const content = `
+        <html>
+          <head>
+            <title>Resultados - ${patientName}</title>
+            <style>
+              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #334155; }
+              .header { text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px; }
+              .patient-info { background: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
+              .result-card { margin-bottom: 40px; page-break-inside: avoid; }
+              .result-title { background: #1e293b; color: white; padding: 10px 15px; border-radius: 6px; font-weight: bold; margin-bottom: 15px; }
+              .data-grid { display: grid; grid-template-cols: 1fr 1fr; gap: 15px; }
+              .data-item { border-bottom: 1px solid #f1f5f9; padding: 5px 0; }
+              .label { font-size: 0.8rem; font-weight: bold; color: #64748b; }
+              .value { font-size: 1rem; color: #1e293b; }
+              .footer { margin-top: 50px; text-align: center; font-size: 0.8rem; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>MEDICORE PRO - RESULTADOS DE APOYO DIAGNÓSTICO</h1>
+              <p>Generado el ${new Date().toLocaleString()}</p>
+            </div>
+
+            <div class="patient-info">
+              <div style="display: flex; justify-content: space-between;">
+                <div>
+                  <p><strong>Paciente:</strong> ${patientName}</p>
+                  <p><strong>Fecha Toma:</strong> ${date}</p>
+                </div>
+                <div style="text-align: right;">
+                  <p><strong>Institución:</strong> MediCore IPS S.A.S</p>
+                  <p><strong>Sede:</strong> Principal</p>
+                </div>
+              </div>
+            </div>
+
+            ${groupedResults.map(res => `
+              <div class="result-card">
+                <div class="result-title">${res.chiefComplaint}</div>
+                <div class="data-grid">
+                  ${Object.entries(res.dynamicData).map(([key, val]) => {
+                      const label = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+                      return `
+                        <div class="data-item">
+                          <div class="label">${label}</div>
+                          <div class="value">${val}</div>
+                        </div>
+                      `;
+                  }).join('')}
+                </div>
+              </div>
+            `).join('')}
+
+            <div class="footer">
+              <p>Este documento es un reporte informativo de resultados diagnósticos.</p>
+              <p>__________________________________________</p>
+              <p>Firma Profesional Responsable</p>
+            </div>
+            <script>window.print();</script>
+          </body>
+        </html>
+      `;
+
+      printWindow.document.write(content);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---

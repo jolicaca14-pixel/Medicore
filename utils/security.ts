@@ -1,8 +1,30 @@
+import { User, UserRole } from '../types';
+
 /**
  * 🛡️ Sentinel: Input Sanitization Utility
  * This utility provides functions to help prevent Cross-Site Scripting (XSS) attacks
  * by sanitizing user-provided input before it's stored or rendered.
  */
+
+/**
+ * Checks if a user has administrative access (ADMIN, MANAGER, or ACCOUNTANT).
+ */
+export const hasAdministrativeAccess = (user: User | null | undefined): boolean => {
+    if (!user) return false;
+    return user.roles.some(role =>
+        role === UserRole.ADMIN ||
+        role === UserRole.MANAGER ||
+        role === UserRole.ACCOUNTANT
+    );
+};
+
+/**
+ * Checks if a user is a system administrator (ADMIN only).
+ */
+export const isSystemAdmin = (user: User | null | undefined): boolean => {
+    if (!user) return false;
+    return user.roles.includes(UserRole.ADMIN);
+};
 
 /**
  * A simple regex-based sanitizer to strip HTML tags from a string.

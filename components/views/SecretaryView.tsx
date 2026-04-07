@@ -267,16 +267,80 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert("Por favor permita las ventanas emergentes para imprimir.");
+
+      const content = `
+        <html>
+          <head>
+            <title>Factura ${invoice.id}</title>
+            <style>
+              body { font-family: 'Inter', sans-serif; color: #1e293b; padding: 40px; }
+              .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+              .info { display: grid; grid-template-cols: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+              .items { w-full border-collapse: collapse; margin-bottom: 30px; }
+              .items th { background: #f8fafc; text-align: left; padding: 10px; border-bottom: 1px solid #e2e8f0; }
+              .items td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
+              .totals { text-align: right; }
+              .totals p { margin: 5px 0; }
+              .total-bold { font-size: 1.2rem; font-bold; color: #0f172a; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>MEDICORE PRO IPS</h1>
+              <p>NIT: 900.123.456-7 | Calle 100 #15-20, Bogotá</p>
+              <h2>FACTURA DE VENTA N° ${invoice.id}</h2>
+            </div>
+            <div class="info">
+              <div>
+                <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                <p><strong>ID:</strong> ${invoice.patientId}</p>
+              </div>
+              <div style="text-align: right;">
+                <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+                <p><strong>Estado:</strong> ${invoice.status}</p>
+              </div>
+            </div>
+            <table class="items" style="width: 100%;">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Descripción</th>
+                  <th>Cant.</th>
+                  <th>Precio</th>
+                  <th>Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${invoice.items.map(item => `
+                  <tr>
+                    <td>${item.code}</td>
+                    <td>${item.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>${formatCurrency(item.price)}</td>
+                    <td>${formatCurrency(item.price * item.quantity)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div class="totals">
+              <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+              <p>Descuentos: -${formatCurrency(invoice.discount)}</p>
+              <p class="total-bold">TOTAL: ${formatCurrency(invoice.total)}</p>
+              <p>Pagado: ${formatCurrency(invoice.total - invoice.balance)}</p>
+              <p><strong>Saldo Pendiente: ${formatCurrency(invoice.balance)}</strong></p>
+            </div>
+            <div style="margin-top: 50px; font-size: 0.8rem; color: #64748b; text-align: center;">
+              Esta factura fue generada electrónicamente por MediCore Pro.
+            </div>
+            <script>window.print();</script>
+          </body>
+        </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+
+      printWindow.document.write(content);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
