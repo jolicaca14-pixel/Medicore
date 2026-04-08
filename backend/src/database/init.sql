@@ -106,3 +106,88 @@ COMMENT ON TABLE usuarios IS 'Tabla de usuarios del sistema con control de acces
 COMMENT ON TABLE sesiones IS 'Tabla de sesiones activas con refresh tokens para autenticación JWT';
 COMMENT ON COLUMN usuarios.password_hash IS 'Hash de contraseña generado con bcrypt (salt rounds >= 12)';
 COMMENT ON COLUMN sesiones.refresh_token IS 'Refresh token JWT con vida de 7 días';
+
+-- Tabla de historias clínicas
+CREATE TABLE IF NOT EXISTS historias_clinicas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    tipo_registro VARCHAR(50) NOT NULL,
+    estado VARCHAR(20) DEFAULT 'DRAFT' CHECK (estado IN ('DRAFT', 'FINALIZED')),
+    motivo_consulta TEXT,
+    enfermedad_actual TEXT,
+    antecedentes TEXT,
+    datos_dinamicos JSONB DEFAULT '{}',
+    diagnosticos JSONB DEFAULT '[]',
+    plan_manejo TEXT,
+    prescripciones JSONB DEFAULT '[]',
+    procedimientos_realizados JSONB DEFAULT '[]',
+    adjuntos JSONB DEFAULT '[]',
+    notas_aclaratorias JSONB DEFAULT '[]',
+    firma_digital TEXT,
+    rda_status VARCHAR(50),
+    rda_payload TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    date_finalized TIMESTAMP
+);
+
+-- Índices para historias clínicas
+CREATE INDEX IF NOT EXISTS idx_hc_paciente ON historias_clinicas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_hc_profesional ON historias_clinicas(profesional_id);
+
+COMMENT ON TABLE historias_clinicas IS 'Tabla de historias clínicas electrónicas con soporte para datos dinámicos JSONB';
+
+-- Tabla de auditoría centralizada
+CREATE TABLE IF NOT EXISTS auditoria (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    accion VARCHAR(50) NOT NULL,
+    entidad VARCHAR(50) NOT NULL,
+    entidad_id VARCHAR(50),
+    detalles JSONB DEFAULT '{}',
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índice para auditoría
+CREATE INDEX IF NOT EXISTS idx_auditoria_usuario ON auditoria(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_auditoria_entidad ON auditoria(entidad, entidad_id);
+CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria(created_at);
+
+COMMENT ON TABLE auditoria IS 'Bitácora centralizada de acciones críticas y accesos a datos sensibles';
+
+-- Tabla de facturas
+CREATE TABLE IF NOT EXISTS facturas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    historia_clinica_id UUID REFERENCES historias_clinicas(id) ON DELETE SET NULL,
+    total DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    estado VARCHAR(20) DEFAULT 'DRAFT' CHECK (estado IN ('DRAFT', 'ISSUED', 'PAID', 'CANCELLED')),
+    metodo_pago VARCHAR(50),
+    observaciones TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    date_paid TIMESTAMP
+);
+
+-- Tabla de detalles de factura
+CREATE TABLE IF NOT EXISTS detalles_factura (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    factura_id UUID REFERENCES facturas(id) ON DELETE CASCADE,
+    descripcion VARCHAR(255) NOT NULL,
+    cantidad INTEGER DEFAULT 1,
+    valor_unitario DECIMAL(12, 2) NOT NULL,
+    valor_total DECIMAL(12, 2) NOT NULL,
+    codigo_cups VARCHAR(20)
+);
+
+-- Índices para facturación
+CREATE INDEX IF NOT EXISTS idx_facturas_paciente ON facturas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_facturas_estado ON facturas(estado);
+CREATE INDEX IF NOT EXISTS idx_facturas_hc ON facturas(historia_clinica_id);
+
+COMMENT ON TABLE facturas IS 'Tabla de facturación y cobros de servicios de salud';
+COMMENT ON TABLE detalles_factura IS 'Líneas de detalle de las facturas con descripción y valores';

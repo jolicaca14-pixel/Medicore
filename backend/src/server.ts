@@ -5,6 +5,9 @@ import dotenv from 'dotenv';
 import authRoutes from './modulos/auth/routes';
 import patientRoutes from './modulos/pacientes/routes';
 import agendaRoutes from './modulos/agenda/routes';
+import billingRoutes from './modulos/facturacion/routes';
+import ripsRoutes from './modulos/rips/routes';
+import { auditMiddleware } from './middlewares/auditMiddleware';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -20,11 +23,14 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(auditMiddleware);
 
 // Rutas
 app.use('/api/auth', authRoutes);
 app.use('/api/pacientes', patientRoutes);
 app.use('/api/agenda', agendaRoutes);
+app.use('/api/facturacion', billingRoutes);
+app.use('/api/rips', ripsRoutes);
 
 // Ruta de health check
 app.get('/health', (req: Request, res: Response) => {
@@ -45,6 +51,8 @@ app.get('/', (req: Request, res: Response) => {
             auth: '/api/auth',
             pacientes: '/api/pacientes',
             agenda: '/api/agenda',
+            facturacion: '/api/facturacion',
+            rips: '/api/rips',
         }
     });
 });
