@@ -267,16 +267,70 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const itemsHtml = invoice.items.map(item => `
+          <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${item.quantity}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+          </tr>
+      `).join('');
+
+      printWindow.document.write(`
+          <html>
+              <head>
+                  <title>Factura ${invoice.id}</title>
+                  <style>
+                      body { font-family: sans-serif; color: #333; line-height: 1.5; padding: 40px; }
+                      .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+                      .info { margin-bottom: 20px; display: flex; justify-content: space-between; }
+                      table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                      th { background: #f8f9fa; text-align: left; padding: 8px; border-bottom: 2px solid #dee2e6; }
+                      .totals { text-align: right; }
+                      .footer { margin-top: 50px; font-size: 10px; text-align: center; color: #666; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1>MEDICORE IPS</h1>
+                      <p>NIT: 900.123.456-7 | Calle 100 #15-32, Bogotá</p>
+                      <h2>FACTURA DE VENTA N° ${invoice.id}</h2>
+                  </div>
+                  <div class="info">
+                      <div>
+                          <p><strong>CLIENTE:</strong> ${invoice.patientName}</p>
+                          <p><strong>FECHA:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+                      </div>
+                      <div>
+                          <p><strong>ESTADO:</strong> ${invoice.status}</p>
+                      </div>
+                  </div>
+                  <table>
+                      <thead>
+                          <tr>
+                              <th>Descripción</th>
+                              <th style="text-align: right;">Cant</th>
+                              <th style="text-align: right;">Total</th>
+                          </tr>
+                      </thead>
+                      <tbody>${itemsHtml}</tbody>
+                  </table>
+                  <div class="totals">
+                      <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+                      <p>Descuento: ${formatCurrency(invoice.discount)}</p>
+                      <p style="font-size: 1.2em;"><strong>TOTAL A PAGAR: ${formatCurrency(invoice.total)}</strong></p>
+                      <p>Saldo Pendiente: ${formatCurrency(invoice.balance)}</p>
+                  </div>
+                  <div class="footer">
+                      <p>Esta factura se asimila en sus efectos a una letra de cambio (Art. 774 del Código de Comercio).</p>
+                  </div>
+              </body>
+          </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- CARTERA HANDLERS ---
@@ -339,8 +393,71 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+             <div className="space-y-6">
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+                        <p className="text-slate-500 text-sm">Búsqueda y gestión rápida de datos demográficos.</p>
+                    </div>
+                    <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-blue-700">
+                        <Plus size={18} className="mr-2"/> Nuevo Paciente
+                    </button>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="relative mb-6 max-w-md">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                        <input
+                            type="text"
+                            placeholder="Buscar por nombre o identificación..."
+                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                            value={billingSearchTerm}
+                            onChange={(e) => setBillingSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-slate-500 font-medium">
+                                <tr>
+                                    <th className="p-3">Nombre Completo</th>
+                                    <th className="p-3">Identificación</th>
+                                    <th className="p-3">Contacto</th>
+                                    <th className="p-3">Aseguradora</th>
+                                    <th className="p-3 text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {patients.filter(p =>
+                                    p.fullName.toLowerCase().includes(billingSearchTerm.toLowerCase()) ||
+                                    p.identification.includes(billingSearchTerm)
+                                ).map(p => (
+                                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-3 font-bold text-slate-700">{p.fullName}</td>
+                                        <td className="p-3 font-mono text-slate-500">{p.identification}</td>
+                                        <td className="p-3">
+                                            <div className="text-xs">
+                                                <p className="font-medium text-slate-600">{p.phone}</p>
+                                                <p className="text-slate-400">{p.email}</p>
+                                            </div>
+                                        </td>
+                                        <td className="p-3">
+                                            <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-100 font-bold uppercase">
+                                                {p.insuranceType}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-right">
+                                            <div className="flex justify-end gap-2">
+                                                <button onClick={() => { setBillingPatient(p); setActiveTab('BILLING'); }} className="p-1.5 text-green-600 hover:bg-green-50 rounded" title="Facturar"><DollarSign size={16}/></button>
+                                                <button className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Editar"><Edit size={16}/></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
              </div>
           )}
           {/* AGENDA TAB (Now Functional) */}

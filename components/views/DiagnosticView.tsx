@@ -127,7 +127,57 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- PRINT VIEW ---
   const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const patient = MOCK_PATIENTS.find(p => p.id === patientId);
+      const patientName = patient?.fullName || 'Desconocido';
+
+      const recordsHtml = completedRecords
+          .filter(r => r.patientId === patientId && r.dateCreated.startsWith(date))
+          .map(r => `
+              <div style="margin-bottom: 30px; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
+                  <h3 style="border-bottom: 1px solid #eee; padding-bottom: 10px;">${r.chiefComplaint}</h3>
+                  <table style="width: 100%; border-collapse: collapse;">
+                      ${Object.entries(r.dynamicData).map(([key, val]) => `
+                          <tr>
+                              <td style="padding: 5px; font-weight: bold; width: 40%;">${MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key}:</td>
+                              <td style="padding: 5px;">${val}</td>
+                          </tr>
+                      `).join('')}
+                  </table>
+                  <p style="margin-top: 15px; font-size: 0.9em; color: #666;">
+                      Profesional: ${r.professionalName} | Registro: ${MOCK_USERS.find(u => u.id === r.professionalId)?.professionalLicense || 'N/A'}
+                  </p>
+              </div>
+          `).join('');
+
+      printWindow.document.write(`
+          <html>
+              <head>
+                  <title>Resultados - ${patientName}</title>
+                  <style>
+                      body { font-family: sans-serif; padding: 40px; color: #333; }
+                      .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+                      h1 { margin: 0; color: #1a56db; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1>MEDICORE IPS</h1>
+                      <p>Laboratorio Clínico e Imagenología</p>
+                      <h2>RESULTADOS DE AYUDAS DIAGNÓSTICAS</h2>
+                      <p><strong>Paciente:</strong> ${patientName} | <strong>Fecha:</strong> ${date}</p>
+                  </div>
+                  ${recordsHtml}
+                  <div style="margin-top: 50px; text-align: center; font-size: 0.8em; color: #999;">
+                      Este documento es una representación impresa de un registro electrónico.
+                  </div>
+              </body>
+          </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- RENDER FORM ---
@@ -256,7 +306,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                                                 ))}
                                             </div>
                                         </div>
-                                        <button onClick={() => handlePrintDate(patientName, date)} className="flex items-center px-4 py-2 border rounded hover:bg-white text-slate-600 font-bold text-sm">
+                                        <button onClick={() => handlePrintDate(patId, date)} className="flex items-center px-4 py-2 border rounded hover:bg-white text-slate-600 font-bold text-sm">
                                             <Printer size={16} className="mr-2"/> Imprimir Resultados Fecha
                                         </button>
                                     </div>
