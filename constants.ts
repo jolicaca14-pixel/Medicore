@@ -216,7 +216,7 @@ export const MOCK_USERS: User[] = [
     firstName: 'Victoria',
     lastName: 'Gerente',
     username: 'gerente_demo',
-    roles: [UserRole.MANAGER, UserRole.ADMIN],
+    roles: [UserRole.MANAGER],
     contracts: [],
     status: 'ACTIVE'
   }
