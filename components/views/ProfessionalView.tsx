@@ -188,11 +188,25 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           logAuditEvent(user.id, 'PATIENT_SEARCH', 'PatientList', `Searched for term: ${cleanSearch}`);
       }
 
-      return patients.filter(p =>
+      let basePatients = patients;
+      if (activeTab === 'appointments') {
+          const today = new Date().toISOString().split('T')[0];
+          const todayApptPatientIds = MOCK_APPOINTMENTS
+              .filter(a => a.date === today && a.professionalId === user.id)
+              .map(a => a.patientId);
+          basePatients = patients.filter(p => todayApptPatientIds.includes(p.id));
+      } else if (activeTab === 'records') {
+          const patientIdsWithRecords = records
+              .filter(r => r.professionalId === user.id)
+              .map(r => r.patientId);
+          basePatients = patients.filter(p => patientIdsWithRecords.includes(p.id));
+      }
+
+      return basePatients.filter(p =>
           p.fullName.toLowerCase().includes(cleanSearch) ||
           p.identification.toLowerCase().includes(cleanSearch)
       );
-  }, [patients, debouncedSearch, user.id]);
+  }, [patients, debouncedSearch, user.id, activeTab, records]);
 
   // RCV Logic State
   const [isFirstTimeRCV, setIsFirstTimeRCV] = useState(false);
@@ -1527,7 +1541,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   return (
     <div className="p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-            <h2 className="text-2xl font-bold text-slate-800">Mis Pacientes</h2>
+            <h2 className="text-2xl font-bold text-slate-800">
+                {activeTab === 'appointments' ? 'Agenda de Hoy' : (activeTab === 'records' ? 'Mis Historias Clínicas' : 'Mis Pacientes')}
+            </h2>
             <div className="relative w-full md:w-72">
                 <Search size={18} className="absolute left-3 top-[50%] translate-y-[-50%] text-slate-400" />
                 <label htmlFor="patient-search" className="sr-only">Buscar pacientes</label>

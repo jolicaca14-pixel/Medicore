@@ -59,6 +59,9 @@ const roleLabels: Record<UserRole, string> = {
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
   const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
+  const isManager = currentUserSession?.roles.includes(UserRole.MANAGER);
+  const isAccountant = currentUserSession?.roles.includes(UserRole.ACCOUNTANT);
+  const hasAdministrativeAccess = isAdmin || isManager || isAccountant;
 
   // --- STATE MANAGEMENT ---
   
@@ -90,7 +93,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [newDisciplinary, setNewDisciplinary] = useState<Partial<DisciplinaryAction>>({ type: 'COMPLAINT', status: 'OPEN' });
 
   // File Management
-  const [fileManagementTab, setFileManagementTab] = useState<'CONTRACTS' | 'PAYMENTS'>('CONTRACTS');
+  const [fileManagementTab, setFileManagementTab] = useState<'CONTRACTS' | 'PAYMENTS' | 'CLINICAL'>('CONTRACTS');
   const [isFileUploadModalOpen, setIsFileUploadModalOpen] = useState(false);
   const [newFileName, setNewFileName] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -105,6 +108,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
   const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
+
+  const [editingTemplate, setEditingTemplate] = useState<Partial<RoleTemplate>>({});
+  const [editingSection, setEditingSection] = useState<Partial<TemplateSection>>({});
+  const [editingField, setEditingField] = useState<Partial<TemplateField>>({});
 
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
@@ -130,7 +137,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
     if (users.some(u => u.id === finalUser.id)) {
         setUsers(prev => prev.map(u => u.id === finalUser.id ? finalUser : u));
     } else {
-        setUsers(prev => [...prev, finalUser]);
+        setUsers(prev => [...prev, { ...finalUser, id: finalUser.id || `u${Date.now()}`, status: 'ACTIVE' }]);
     }
     setCurrentUser({}); // Reset form
   };
@@ -306,7 +313,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
     }, 100);
   };
 
-  const handleDeleteFile = (fileId: string, type: 'CONTRACT' | 'PAYMENT') => {
+  const handleDownloadFile = (fileName: string) => {
+      const content = `Simulación de contenido para el archivo: ${fileName}\nGenerado el: ${new Date().toLocaleString()}`;
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+  };
+
+  const handleDeleteFile = (fileId: string, type: 'CONTRACT' | 'PAYMENT' | 'CLINICAL') => {
       if (!window.confirm("¿Está seguro de eliminar este archivo?")) return;
 
       if (type === 'CONTRACT') {
@@ -316,10 +336,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   contracts: user.contracts?.filter(c => c.id !== fileId)
               }))
           );
-      } else { // PAYMENT
+      } else if (type === 'PAYMENT') {
           setPaymentRequests(prev => prev.filter(p => p.id !== fileId));
       }
-      alert("Archivo eliminado.");
+      alert("Archivo eliminado de la vista administrativa.");
   };
 
   // --- RIPS GENERATION LOGIC ---
@@ -471,14 +491,70 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       alert("Paquete de RIPS generado y descargado exitosamente.");
   };
 
-  const handleNewTemplate = () => setIsTemplateModalOpen(true);
-  const handleNewSection = () => setIsSectionModalOpen(true);
-  const handleNewField = () => setIsFieldModalOpen(true);
+  const handleNewTemplate = () => {
+      setEditingTemplate({ allowedRoles: [], sections: [], active: true });
+      setIsTemplateModalOpen(true);
+  };
+  const handleEditTemplate = (t: RoleTemplate) => {
+      setEditingTemplate({ ...t });
+      setIsTemplateModalOpen(true);
+  };
+  const handleSaveTemplate = () => {
+      if (!editingTemplate.name || !editingTemplate.recordType) return alert("Nombre y Tipo de Registro son obligatorios.");
+      const templateToSave = { ...editingTemplate, id: editingTemplate.id || `t_${Date.now()}` } as RoleTemplate;
+      setTemplates(prev => {
+          if (prev.some(t => t.id === templateToSave.id)) {
+              return prev.map(t => t.id === templateToSave.id ? templateToSave : t);
+          }
+          return [...prev, templateToSave];
+      });
+      setIsTemplateModalOpen(false);
+  };
+
+  const handleNewSection = () => {
+      setEditingSection({ fields: [] });
+      setIsSectionModalOpen(true);
+  };
+  const handleEditSection = (s: TemplateSection) => {
+      setEditingSection({ ...s });
+      setIsSectionModalOpen(true);
+  };
+  const handleSaveSection = () => {
+      if (!editingSection.title) return alert("El título es obligatorio.");
+      const sectionToSave = { ...editingSection, id: editingSection.id || `sec_${Date.now()}` } as TemplateSection;
+      setGlobalSections(prev => {
+          if (prev.some(s => s.id === sectionToSave.id)) {
+              return prev.map(s => s.id === sectionToSave.id ? sectionToSave : s);
+          }
+          return [...prev, sectionToSave];
+      });
+      setIsSectionModalOpen(false);
+  };
+
+  const handleNewField = () => {
+      setEditingField({ type: 'TEXT', required: false });
+      setIsFieldModalOpen(true);
+  };
+  const handleEditField = (f: TemplateField) => {
+      setEditingField({ ...f });
+      setIsFieldModalOpen(true);
+  };
+  const handleSaveField = () => {
+      if (!editingField.id || !editingField.label) return alert("ID (Variable) y Etiqueta son obligatorios.");
+      const fieldToSave = { ...editingField, id: editingField.id! } as TemplateField;
+      setGlobalFields(prev => {
+          if (prev.some(f => f.id === fieldToSave.id)) {
+              return prev.map(f => f.id === fieldToSave.id ? fieldToSave : f);
+          }
+          return [...prev, fieldToSave];
+      });
+      setIsFieldModalOpen(false);
+  };
 
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
+  if ((activeTab === 'users' || activeTab === 'settings') && !isAdmin) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
@@ -488,8 +564,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
-  // 1. DASHBOARD (Dynamic & Actionable) - Only for Admins
-  if (activeTab === 'dashboard' && isAdmin) {
+  if (!hasAdministrativeAccess) {
+      return (
+          <div className="flex flex-col items-center justify-center h-full text-slate-400">
+              <Ban size={64} className="mb-4 text-red-400"/>
+              <h2 className="text-xl font-bold text-slate-700">Acceso Denegado</h2>
+              <p className="text-sm">No tiene permisos para ver este contenido.</p>
+          </div>
+      );
+  }
+
+  // 1. DASHBOARD (Dynamic & Actionable)
+  if (activeTab === 'dashboard') {
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
@@ -603,8 +689,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
-  // FILE MANAGEMENT MODULE - ADMIN VIEW
-  if (activeTab === 'files' && isAdmin) {
+  // FILE MANAGEMENT MODULE
+  if (activeTab === 'files' && hasAdministrativeAccess) {
     return (
         <div className="space-y-6">
             {/* File Upload Modal */}
@@ -672,13 +758,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                 <button onClick={() => setFileManagementTab('PAYMENTS')} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'PAYMENTS' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
                     Soportes de Pago
                 </button>
+                <button onClick={() => setFileManagementTab('CLINICAL')} className={`px-4 py-2 rounded-md text-sm font-bold ${fileManagementTab === 'CLINICAL' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
+                    Anexos Clínicos
+                </button>
             </div>
 
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                 <div className="flex justify-between items-center mb-4">
                     <div>
                         <h3 className="font-bold text-lg text-slate-800">
-                            {fileManagementTab === 'CONTRACTS' ? 'Archivos de Contratos' : 'Archivos de Soportes de Pago'}
+                            {fileManagementTab === 'CONTRACTS' ? 'Archivos de Contratos' : (fileManagementTab === 'PAYMENTS' ? 'Archivos de Soportes de Pago' : 'Anexos Clínicos de Pacientes')}
                         </h3>
                         <div className="relative mt-2">
                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
@@ -707,30 +796,55 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                     <tbody className="divide-y divide-slate-100">
                         {(fileManagementTab === 'CONTRACTS'
                             ? users.flatMap(u => u.contracts?.map(c => ({ ...c, userName: u.name, type: 'CONTRACT' })))
-                            : paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl, type: 'PAYMENT' })))
+                            : fileManagementTab === 'PAYMENTS'
+                                ? paymentRequests.filter(p => p.paymentReceiptUrl).map(p => ({ ...p, fileUrl: p.paymentReceiptUrl, type: 'PAYMENT' }))
+                                : MOCK_RECORDS.flatMap(r => r.attachments?.map(a => ({ ...a, fileUrl: a.url, userName: MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName || 'Paciente', type: 'CLINICAL' } || [])))
+                            )
                             .filter(file =>
                                 (file.fileUrl?.toLowerCase().includes(fileSearchTerm.toLowerCase()) ||
                                 file.userName?.toLowerCase().includes(fileSearchTerm.toLowerCase()))
                             )
                             .map((file: any) => (
-                                <tr key={file.id}>
-                                    <td className="p-3 font-medium text-slate-700">{file.fileUrl || `contrato_${file.id}.pdf`}</td>
-                                    <td className="p-3">{file.userName}</td>
-                                    <td className="p-3 text-slate-500">{new Date(file.startDate || file.dateSubmitted).toLocaleDateString()}</td>
-                                    <td className="p-3 text-right">
-                                        <button onClick={() => handleDeleteFile(file.id, file.type)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Trash2 size={14}/></button>
+                                <tr key={file.id} className="hover:bg-slate-50">
+                                    <td className="p-3 font-medium text-slate-700">{file.fileUrl || file.name || `archivo_${file.id}.pdf`}</td>
+                                    <td className="p-3">
+                                        <div className="flex items-center">
+                                            <span className={`w-2 h-2 rounded-full mr-2 ${file.type === 'CONTRACT' ? 'bg-blue-400' : (file.type === 'PAYMENT' ? 'bg-green-400' : 'bg-purple-400')}`}></span>
+                                            {file.userName}
+                                        </div>
+                                    </td>
+                                    <td className="p-3 text-slate-500">{new Date(file.startDate || file.dateSubmitted || file.date || new Date()).toLocaleDateString()}</td>
+                                    <td className="p-3 text-right space-x-1">
+                                        <button
+                                            onClick={() => handleDownloadFile(file.fileUrl || file.name || 'descarga.pdf')}
+                                            className="p-1.5 hover:bg-blue-50 rounded text-blue-600"
+                                            title="Descargar"
+                                        >
+                                            <Download size={14}/>
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteFile(file.id, file.type)}
+                                            className="p-1.5 hover:bg-red-50 rounded text-red-500"
+                                            title="Eliminar"
+                                        >
+                                            <Trash2 size={14}/></button>
                                     </td>
                                 </tr>
                             ))
                         }
+                        {((fileManagementTab === 'CONTRACTS' && users.every(u => !u.contracts?.length)) ||
+                          (fileManagementTab === 'PAYMENTS' && paymentRequests.every(p => !p.paymentReceiptUrl)) ||
+                          (fileManagementTab === 'CLINICAL' && MOCK_RECORDS.every(r => !r.attachments?.length))) && (
+                            <tr><td colSpan={4} className="p-12 text-center text-slate-400 italic">No se encontraron archivos en esta categoría.</td></tr>
+                        )}
                     </tbody>
                 </table>
             </div>
         </div>
     );
   }
-  // HR MODULE - ADMIN VIEW
-  if (activeTab === 'hr' && isAdmin) {
+  // HR MODULE
+  if (activeTab === 'hr' && hasAdministrativeAccess) {
       return (
           <div className="space-y-6">
               {/* MODALS */}
@@ -1075,7 +1189,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // 4. REPORTS TAB - NEW RIPS GENERATION
-  if (activeTab === 'reports' && isAdmin) {
+  if (activeTab === 'reports' && hasAdministrativeAccess) {
       return (
           <div className="space-y-8 animate-in fade-in duration-500">
               <h2 className="text-2xl font-bold text-slate-800 mb-2">Reportes y Analítica</h2>
@@ -1165,20 +1279,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'users' && isAdmin) {
       return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* User Form Space (Top) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6 border-b pb-4">
+            {/* User Form Space (Top) - Centro de Gestión de Identidades */}
+            <div className="bg-slate-50 p-8 rounded-2xl shadow-sm border border-slate-200">
+                 <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-6">
                     <div>
-                        <h3 className="text-lg font-bold text-slate-800">
-                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
+                        <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                            Centro de Gestión de Identidades
                         </h3>
-                        <p className="text-sm text-slate-500">Espacio dedicado para la gestión y creación de cuentas del sistema.</p>
+                        <p className="text-sm text-slate-500 font-medium">
+                            {currentUser.id && users.some(u => u.id === currentUser.id) ? `Modificando acceso para: ${currentUser.name}` : 'Plataforma centralizada para el alta y control de credenciales del personal.'}
+                        </p>
                     </div>
-                    <button onClick={handleAddNewUser} className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg flex items-center hover:bg-slate-800 transition-colors shadow-lg">
-                        <Plus size={18} className="mr-2"/> Crear Nuevo Usuario
+                    <button
+                        onClick={() => setCurrentUser({ roles: [UserRole.PROFESSIONAL] })}
+                        className="px-6 py-3 bg-blue-600 text-white text-sm font-bold rounded-xl flex items-center hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 transform hover:-translate-y-0.5"
+                    >
+                        <Plus size={20} className="mr-2"/> Nuevo Colaborador
                     </button>
                  </div>
-                 <div className="mt-6">
+                 <div className="mt-2">
                     <UserForm
                         user={currentUser}
                         onSave={handleSaveUser}
@@ -1246,28 +1365,191 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                        <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center">
+                            <LayoutTemplate className="mr-2 text-blue-600"/> {editingTemplate.id ? 'Editar Plantilla' : 'Nueva Plantilla Clínica'}
+                        </h3>
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre de la Plantilla</label>
+                                    <input className="w-full border p-2 rounded" value={editingTemplate.name || ''} onChange={e => setEditingTemplate({...editingTemplate, name: e.target.value})} placeholder="Ej: Consulta General" />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción</label>
+                                    <textarea className="w-full border p-2 rounded" rows={2} value={editingTemplate.description || ''} onChange={e => setEditingTemplate({...editingTemplate, description: e.target.value})} placeholder="Finalidad de esta plantilla..." />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Registro</label>
+                                    <select className="w-full border p-2 rounded" value={editingTemplate.recordType || ''} onChange={e => setEditingTemplate({...editingTemplate, recordType: e.target.value as RecordType})}>
+                                        <option value="">Seleccione...</option>
+                                        {Object.values(RecordType).map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex items-end">
+                                    <label className="flex items-center space-x-2 cursor-pointer mb-2">
+                                        <input type="checkbox" checked={editingTemplate.active} onChange={e => setEditingTemplate({...editingTemplate, active: e.target.checked})} className="rounded text-blue-600" />
+                                        <span className="text-sm font-bold text-slate-700">Plantilla Activa</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="border-t pt-4">
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Roles con Acceso</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {Object.values(UserRole).map(role => (
+                                        <label key={role} className="flex items-center space-x-2 text-sm p-2 hover:bg-slate-50 rounded">
+                                            <input
+                                                type="checkbox"
+                                                checked={editingTemplate.allowedRoles?.includes(role)}
+                                                onChange={e => {
+                                                    const current = editingTemplate.allowedRoles || [];
+                                                    const next = e.target.checked ? [...current, role] : current.filter(r => r !== role);
+                                                    setEditingTemplate({...editingTemplate, allowedRoles: next});
+                                                }}
+                                            />
+                                            <span>{roleLabels[role]}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="border-t pt-4">
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Secciones Incluidas</label>
+                                <div className="space-y-2 max-h-48 overflow-y-auto border p-2 rounded bg-slate-50">
+                                    {globalSections.map(sec => (
+                                        <label key={sec.id} className="flex items-center space-x-2 text-sm bg-white p-2 border rounded shadow-sm">
+                                            <input
+                                                type="checkbox"
+                                                checked={editingTemplate.sections?.some(s => s.id === sec.id)}
+                                                onChange={e => {
+                                                    const current = editingTemplate.sections || [];
+                                                    const next = e.target.checked ? [...current, sec] : current.filter(s => s.id !== sec.id);
+                                                    setEditingTemplate({...editingTemplate, sections: next});
+                                                }}
+                                            />
+                                            <span className="font-bold text-slate-700">{sec.title}</span>
+                                            <span className="text-[10px] text-slate-400">({sec.fields.length} campos)</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 mt-8">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold">Cancelar</button>
+                            <button onClick={handleSaveTemplate} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold shadow-lg shadow-blue-100 hover:bg-blue-700">
+                                Guardar Plantilla
+                            </button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6">
+                          <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center">
+                              <Layers className="mr-2 text-indigo-600"/> {editingSection.id ? 'Editar Sección' : 'Nueva Sección Clínica'}
+                          </h3>
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Título de la Sección</label>
+                                  <input className="w-full border p-2 rounded" value={editingSection.title || ''} onChange={e => setEditingSection({...editingSection, title: e.target.value})} placeholder="Ej: Antecedentes Familiares" />
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción / Ayuda Profesional</label>
+                                  <input className="w-full border p-2 rounded" value={editingSection.description || ''} onChange={e => setEditingSection({...editingSection, description: e.target.value})} placeholder="Texto que ayuda al profesional a llenar los campos..." />
+                              </div>
+
+                              <div className="border-t pt-4">
+                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Composición de Campos (Librería Global)</label>
+                                  <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto p-2 bg-slate-50 border rounded">
+                                      {globalFields.map(field => (
+                                          <label key={field.id} className="flex items-center space-x-3 p-2 bg-white border rounded hover:border-indigo-300 cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                checked={editingSection.fields?.some(f => f.id === field.id)}
+                                                onChange={e => {
+                                                    const current = editingSection.fields || [];
+                                                    const next = e.target.checked ? [...current, field] : current.filter(f => f.id !== field.id);
+                                                    setEditingSection({...editingSection, fields: next});
+                                                }}
+                                              />
+                                              <div>
+                                                  <p className="text-sm font-bold text-slate-700">{field.label}</p>
+                                                  <p className="text-[10px] text-slate-500 font-mono">{field.id} • {field.type}</p>
+                                              </div>
+                                          </label>
+                                      ))}
+                                  </div>
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-3 mt-8">
+                              <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold">Cancelar</button>
+                              <button onClick={handleSaveSection} className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold shadow-lg hover:bg-indigo-700">
+                                  Guardar Sección
+                              </button>
+                          </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center">
+                              <Calculator className="mr-2 text-purple-600"/> {editingField.id ? 'Editar Campo' : 'Nuevo Campo de Datos'}
+                          </h3>
+                          <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">ID (Variable Única)</label>
+                                  <input className="w-full border p-2 rounded font-mono text-sm" value={editingField.id || ''} onChange={e => setEditingField({...editingField, id: e.target.value.toLowerCase().replace(/\s+/g, '_')})} placeholder="v_presion_art" disabled={!!editingField.id && globalFields.some(f => f.id === editingField.id)} />
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Etiqueta (Label)</label>
+                                  <input className="w-full border p-2 rounded text-sm" value={editingField.label || ''} onChange={e => setEditingField({...editingField, label: e.target.value})} placeholder="Ej: Tensión Arterial" />
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Dato</label>
+                                  <select className="w-full border p-2 rounded text-sm" value={editingField.type || ''} onChange={e => setEditingField({...editingField, type: e.target.value as FieldType})}>
+                                      <option value="TEXT">Texto Corto</option>
+                                      <option value="TEXTAREA">Área de Texto (Largo)</option>
+                                      <option value="NUMBER">Numérico</option>
+                                      <option value="DATE">Fecha</option>
+                                      <option value="SELECT">Selección Múltiple</option>
+                                      <option value="CALCULATED">Cálculo Automático</option>
+                                      <option value="HEADER">Encabezado Visual</option>
+                                  </select>
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Unidad (Opcional)</label>
+                                  <input className="w-full border p-2 rounded text-sm" value={editingField.unit || ''} onChange={e => setEditingField({...editingField, unit: e.target.value})} placeholder="Ej: mmHg, mg/dL, kg" />
+                              </div>
+                              <div className="col-span-2">
+                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Placeholder / Ayuda</label>
+                                  <input className="w-full border p-2 rounded text-sm" value={editingField.placeholder || ''} onChange={e => setEditingField({...editingField, placeholder: e.target.value})} placeholder="Texto tenue dentro del campo..." />
+                              </div>
+                              {editingField.type === 'SELECT' && (
+                                  <div className="col-span-2">
+                                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Opciones (Separadas por comas)</label>
+                                      <input className="w-full border p-2 rounded text-sm" value={editingField.options?.join(', ') || ''} onChange={e => setEditingField({...editingField, options: e.target.value.split(',').map(s => s.trim())})} placeholder="Opción 1, Opción 2, Opción 3" />
+                                  </div>
+                              )}
+                              {editingField.type === 'CALCULATED' && (
+                                  <div className="col-span-2">
+                                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Fórmula (JS-like)</label>
+                                      <input className="w-full border p-2 rounded text-sm font-mono bg-purple-50" value={editingField.formula || ''} onChange={e => setEditingField({...editingField, formula: e.target.value})} placeholder="[peso] / ([estatura] * [estatura])" />
+                                  </div>
+                              )}
+                              <div className="flex items-center space-x-2 pt-2">
+                                  <input type="checkbox" checked={editingField.required} onChange={e => setEditingField({...editingField, required: e.target.checked})} className="rounded text-purple-600" />
+                                  <label className="text-sm font-bold text-slate-700">Obligatorio</label>
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-3 mt-8">
+                              <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold">Cancelar</button>
+                              <button onClick={handleSaveField} className="px-6 py-2 bg-purple-600 text-white rounded-lg font-bold shadow-lg hover:bg-purple-700">
+                                  Registrar Variable
+                              </button>
+                          </div>
                       </div>
                   </div>
               )}
@@ -1308,8 +1590,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           <LayoutTemplate size={20}/>
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button onClick={() => setIsTemplateModalOpen(true)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button onClick={() => window.confirm('¿Eliminar esta plantilla?') && alert('Plantilla eliminada')} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                                          <button onClick={() => handleEditTemplate(t)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
+                                          <button onClick={() => window.confirm('¿Eliminar esta plantilla?') && setTemplates(prev => prev.filter(p => p.id !== t.id))} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
                                       </div>
                                   </div>
                                   <h4 className="font-bold text-slate-800">{t.name}</h4>
@@ -1371,7 +1653,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           ))}
                                           {sec.fields.length > 4 && <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] text-slate-500">+{sec.fields.length - 4}</div>}
                                       </div>
-                                      <button onClick={() => setIsSectionModalOpen(true)} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => handleEditSection(sec)} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
                                   </div>
                               </div>
                           ))}
@@ -1431,7 +1713,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                               ) : <span className="text-xs text-slate-400">Opcional</span>}
                                           </td>
                                           <td className="p-3 text-right">
-                                              <button onClick={() => setIsFieldModalOpen(true)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button onClick={() => handleEditField(field)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
                                           </td>
                                       </tr>
                                   ))}
