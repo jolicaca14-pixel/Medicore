@@ -14,6 +14,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   // --- PATIENTS & AGENDA STATE ---
   const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
+  const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoadingAppts, setIsLoadingAppts] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -267,16 +268,78 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const html = `
+        <html>
+          <head>
+            <title>Factura ${invoice.id}</title>
+            <style>
+              body { font-family: 'Inter', sans-serif; color: #1e293b; padding: 40px; }
+              .header { display: flex; justify-content: space-between; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; margin-bottom: 30px; }
+              .logo { font-weight: 900; font-size: 24px; color: #0f172a; }
+              .invoice-info { text-align: right; }
+              .client-info { margin-bottom: 30px; }
+              table { w-full; border-collapse: collapse; margin-bottom: 30px; width: 100%; }
+              th { text-align: left; background: #f8fafc; padding: 12px; font-size: 12px; text-transform: uppercase; color: #64748b; }
+              td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+              .totals { margin-left: auto; width: 300px; }
+              .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
+              .grand-total { font-weight: 900; font-size: 18px; color: #0f172a; border-top: 2px solid #f1f5f9; margin-top: 10px; padding-top: 10px; }
+              .footer { margin-top: 50px; font-size: 10px; color: #94a3b8; text-align: center; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="logo">MEDICORE IPS</div>
+              <div class="invoice-info">
+                <p><strong>FACTURA DE VENTA</strong></p>
+                <p>N° ${invoice.id}</p>
+                <p>${new Date(invoice.date).toLocaleDateString()}</p>
+              </div>
+            </div>
+            <div class="client-info">
+              <p><strong>PACIENTE:</strong> ${invoice.patientName}</p>
+              <p><strong>TIPO:</strong> ${invoice.payerType === 'PATIENT' ? 'Particular' : 'Aseguradora (EPS)'}</p>
+              <p><strong>ESTADO:</strong> ${invoice.status}</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Descripción</th>
+                  <th>Cant.</th>
+                  <th>Unitario</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${invoice.items.map(item => `
+                  <tr>
+                    <td>${item.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>${formatCurrency(item.price)}</td>
+                    <td>${formatCurrency(item.price * item.quantity)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div class="totals">
+              <div class="total-row"><span>Subtotal:</span> <span>${formatCurrency(invoice.subtotal)}</span></div>
+              <div class="total-row"><span>Descuento:</span> <span>- ${formatCurrency(invoice.discount)}</span></div>
+              <div class="total-row grand-total"><span>TOTAL:</span> <span>${formatCurrency(invoice.total)}</span></div>
+              <div class="total-row"><span>Pagado:</span> <span>${formatCurrency(invoice.total - invoice.balance)}</span></div>
+              <div class="total-row"><span>Saldo Pendiente:</span> <span>${formatCurrency(invoice.balance)}</span></div>
+            </div>
+            <div class="footer">
+              <p>Representación gráfica de factura electrónica. MediCore Pro - Software de Gestión en Salud.</p>
+            </div>
+            <script>window.print();</script>
+          </body>
+        </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
@@ -338,11 +401,96 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       <div className="flex-1 overflow-y-auto p-8">
           
           {/* PATIENTS TAB */}
-          {activeTab === 'PATIENTS' && (
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
-             </div>
-          )}
+          {activeTab === 'PATIENTS' && (() => {
+             const filteredPatients = patients.filter(p =>
+                p.fullName.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                p.identification.includes(patientSearchQuery)
+             );
+
+             return (
+                <div className="space-y-6">
+                   <div className="flex justify-between items-center mb-6">
+                      <div>
+                        <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+                        <p className="text-sm text-slate-500">Gestión de base de datos institucional de pacientes.</p>
+                      </div>
+                      <button className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-slate-800 shadow-lg transition-transform hover:-translate-y-0.5">
+                        <Plus size={18} className="mr-2"/> Nuevo Registro
+                      </button>
+                   </div>
+
+                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                      <div className="relative mb-6">
+                        <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
+                        <input
+                          type="text"
+                          placeholder="Buscar por Nombre Completo o Documento de Identidad..."
+                          className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all shadow-sm"
+                          value={patientSearchQuery}
+                          onChange={(e) => setPatientSearchQuery(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-slate-50 text-slate-500 font-medium">
+                            <tr>
+                              <th className="p-4">Identificación</th>
+                              <th className="p-4">Nombre Completo</th>
+                              <th className="p-4">Contacto</th>
+                              <th className="p-4">Aseguradora</th>
+                              <th className="p-4 text-right">Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredPatients.map(p => (
+                              <tr key={p.id} className="hover:bg-slate-50 transition-colors cursor-pointer group">
+                                <td className="p-4 font-mono text-slate-600 font-medium">{p.identification}</td>
+                                <td className="p-4 font-bold text-slate-800">{p.fullName}</td>
+                                <td className="p-4 text-xs">
+                                  <p className="font-medium text-slate-700">{p.phone}</p>
+                                  <p className="text-slate-400">{p.email}</p>
+                                </td>
+                                <td className="p-4">
+                                  <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-[10px] font-bold border border-blue-100 uppercase tracking-wider">
+                                    {p.insuranceType}
+                                  </span>
+                                </td>
+                                <td className="p-4 text-right">
+                                  <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setBillingPatient(p);
+                                        setActiveTab('BILLING');
+                                      }}
+                                      className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors border border-transparent hover:border-blue-100"
+                                      title="Nueva Factura"
+                                    >
+                                      <DollarSign size={18}/>
+                                    </button>
+                                    <button onClick={(e) => e.stopPropagation()} className="text-slate-400 hover:bg-slate-50 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100">
+                                      <Edit size={18}/>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                            {filteredPatients.length === 0 && (
+                              <tr>
+                                <td colSpan={5} className="p-16 text-center text-slate-400">
+                                  <Users size={48} className="mx-auto mb-4 opacity-20"/>
+                                  <p className="italic">No se encontraron pacientes con los criterios de búsqueda.</p>
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                   </div>
+                </div>
+             );
+          })()}
           {/* AGENDA TAB (Now Functional) */}
           {activeTab === 'AGENDA' && (
               <div>
