@@ -97,24 +97,50 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       const val = dynamicData[field.id] || '';
       return (
           <div key={field.id} className="col-span-1">
-              <label className="block text-xs font-bold text-slate-500 mb-1">
+              <label htmlFor={`diag-field-${field.id}`} className="block text-xs font-bold text-slate-500 mb-1">
                   {field.label} {field.unit && <span className="text-slate-400">({field.unit})</span>}
               </label>
               
               {field.type === 'TEXTAREA' ? (
-                  <textarea className="w-full p-2 border rounded text-sm" rows={3} value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})} />
+                  <textarea id={`diag-field-${field.id}`} className="w-full p-2 border rounded text-sm" rows={3} value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})} />
               ) : field.type === 'SELECT' ? (
-                  <select className="w-full p-2 border rounded text-sm" value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}>
+                  <select id={`diag-field-${field.id}`} className="w-full p-2 border rounded text-sm" value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}>
                       <option value="">-</option>
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'FILE' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50">
-                      <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
-                      <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                  <div className="relative">
+                      <label
+                        className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center cursor-pointer hover:bg-slate-50 transition-all flex flex-col items-center justify-center min-h-[100px]"
+                        htmlFor={`file-upload-${field.id}`}
+                      >
+                          {val ? (
+                              <div className="text-green-600 animate-in zoom-in">
+                                  <CheckCircle size={32} className="mx-auto mb-2"/>
+                                  <p className="text-xs font-bold">{val}</p>
+                                  <p className="text-[10px] text-slate-400 mt-1">Haga clic para cambiar el archivo</p>
+                              </div>
+                          ) : (
+                              <>
+                                  <Upload size={24} className="text-slate-400 mb-2"/>
+                                  <p className="text-xs text-slate-500 font-medium">Adjuntar Imágenes / Documentos</p>
+                                  <p className="text-[10px] text-slate-400 uppercase tracking-tighter mt-1">DICOM, JPG, PDF (MÁX 10MB)</p>
+                              </>
+                          )}
+                      </label>
+                      <input
+                        type="file"
+                        id={`file-upload-${field.id}`}
+                        className="hidden"
+                        onChange={(e) => {
+                            const fileName = e.target.files?.[0]?.name || "archivo_adjunto.jpg";
+                            setDynamicData({...dynamicData, [field.id]: fileName});
+                        }}
+                      />
                   </div>
               ) : (
                   <input 
+                    id={`diag-field-${field.id}`}
                     type={field.type === 'NUMBER' ? 'number' : 'text'} 
                     className="w-full p-2 border rounded text-sm"
                     value={val} 
@@ -126,8 +152,71 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const groupRecords = completedRecords.filter(r =>
+        MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientName &&
+        r.dateCreated.startsWith(date)
+      );
+
+      const html = `
+        <html>
+          <head>
+            <title>Resultados - ${patientName}</title>
+            <style>
+              body { font-family: 'Inter', sans-serif; color: #1e293b; padding: 50px; line-height: 1.5; }
+              .header { display: flex; justify-content: space-between; border-bottom: 3px solid #0f172a; padding-bottom: 20px; margin-bottom: 40px; }
+              .logo-area { font-weight: 900; font-size: 28px; color: #0f172a; letter-spacing: -1px; }
+              .report-title { text-align: right; text-transform: uppercase; font-weight: 700; color: #64748b; font-size: 14px; }
+              .patient-card { background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+              .record-item { margin-bottom: 40px; page-break-inside: avoid; }
+              .record-header { background: #0f172a; color: white; padding: 10px 15px; border-radius: 8px; font-weight: 700; font-size: 14px; margin-bottom: 15px; }
+              .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+              .field { border-bottom: 1px solid #e2e8f0; padding: 8px 0; }
+              .label { font-weight: 700; color: #64748b; font-size: 11px; text-transform: uppercase; }
+              .value { font-size: 14px; color: #1e293b; margin-top: 2px; }
+              .footer { margin-top: 60px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 10px; color: #94a3b8; text-align: center; }
+              .signature { margin-top: 40px; text-align: right; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="logo-area">MEDICORE PRO</div>
+              <div class="report-title">Reporte Consolidado de Diagnóstico</div>
+            </div>
+            <div class="patient-card">
+              <div><span class="label">Paciente:</span> <div class="value">${patientName}</div></div>
+              <div><span class="label">Fecha de Estudio:</span> <div class="value">${date}</div></div>
+            </div>
+            ${groupRecords.map(r => `
+              <div class="record-item">
+                <div class="record-header">${r.chiefComplaint}</div>
+                <div class="field-grid">
+                  ${Object.entries(r.dynamicData).map(([key, val]) => {
+                      const label = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+                      return `
+                        <div class="field">
+                          <span class="label">${label}:</span>
+                          <div class="value">${val}</div>
+                        </div>
+                      `;
+                  }).join('')}
+                </div>
+              </div>
+            `).join('')}
+            <div class="signature">
+              <p>__________________________</p>
+              <p>Firma Profesional Responsable</p>
+            </div>
+            <div class="footer">Este documento es un reporte clínico generado electrónicamente. MediCore Pro Clinical Suite.</div>
+            <script>window.print();</script>
+          </body>
+        </html>
+      `;
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---

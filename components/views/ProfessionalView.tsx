@@ -188,11 +188,28 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           logAuditEvent(user.id, 'PATIENT_SEARCH', 'PatientList', `Searched for term: ${cleanSearch}`);
       }
 
-      return patients.filter(p =>
+      let baseList = patients;
+
+      // 📍 CONTEXT-AWARE FILTERING
+      if (activeTab === 'appointments') {
+          const today = new Date().toISOString().split('T')[0];
+          const todayPatientIds = MOCK_APPOINTMENTS
+              .filter(a => a.date === today && a.professionalId === user.id)
+              .map(a => a.patientId);
+          baseList = patients.filter(p => todayPatientIds.includes(p.id));
+      } else if (activeTab === 'records') {
+          const previouslyTreatedIds = records
+              .filter(r => r.professionalId === user.id)
+              .map(r => r.patientId);
+          const uniqueTreatedIds = Array.from(new Set(previouslyTreatedIds));
+          baseList = patients.filter(p => uniqueTreatedIds.includes(p.id));
+      }
+
+      return baseList.filter(p =>
           p.fullName.toLowerCase().includes(cleanSearch) ||
           p.identification.toLowerCase().includes(cleanSearch)
       );
-  }, [patients, debouncedSearch, user.id]);
+  }, [patients, debouncedSearch, user.id, activeTab, records]);
 
   // RCV Logic State
   const [isFirstTimeRCV, setIsFirstTimeRCV] = useState(false);
@@ -274,9 +291,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   // Handle Tab Change from Sidebar (e.g. My Production or HR)
   useEffect(() => {
-    if (activeTab === 'reports' || activeTab === 'hr') {
+    if (activeTab === 'reports' || activeTab === 'hr' || activeTab === 'appointments' || activeTab === 'records') {
         setViewMode('LIST'); // Reset any patient view
         setSelectedPatient(null);
+        setPatientSearch('');
     }
   }, [activeTab]);
 

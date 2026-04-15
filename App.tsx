@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, UserRole } from './types';
 import { MOCK_USERS } from './constants';
 import { useAuth } from './hooks/useAuth';
+import { ToastProvider } from './hooks/useToast';
 import { Layout } from './components/Layout';
 import { ProfessionalView } from './components/views/ProfessionalView';
 import { AdminView } from './components/views/AdminView';
@@ -137,7 +138,7 @@ const Login: React.FC<{ onLogin: (u: string, p: string) => Promise<any>, isLoadi
   );
 };
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const { user, isLoading, login, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -180,6 +181,14 @@ const App: React.FC = () => {
       
       {(user.roles.includes(UserRole.BACTERIOLOGIST) || user.roles.includes(UserRole.RADIOLOGIST)) && <DiagnosticView user={user} onLogout={logout} />}
     </Layout>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   );
 };
 
