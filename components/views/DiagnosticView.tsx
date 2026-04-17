@@ -126,8 +126,94 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const [patId] = completedRecords.find(r => MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientName)?.patientId.split('|') || [''];
+    const patient = MOCK_PATIENTS.find(p => p.fullName === patientName);
+    const recordsInGroup = completedRecords.filter(r => r.patientId === patient?.id && r.dateCreated.startsWith(date));
+
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>Resultados Diagnósticos - ${patientName}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; }
+                    .header { border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; }
+                    .header h1 { color: #1e3a8a; margin: 0; }
+                    .patient-info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
+                    .result-block { margin-bottom: 40px; page-break-inside: avoid; }
+                    .result-header { background: #1e3a8a; color: white; padding: 8px 15px; border-radius: 4px; font-weight: bold; margin-bottom: 15px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                    th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
+                    th { background: #f1f5f9; font-weight: 600; color: #64748b; font-size: 0.8rem; text-transform: uppercase; }
+                    .footer { margin-top: 50px; border-top: 1px solid #e2e8f0; pt: 20px; font-size: 0.8rem; color: #94a3b8; text-align: center; }
+                    .stamp { margin-top: 30px; border-top: 1px solid #000; width: 200px; text-align: center; padding-top: 5px; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div>
+                        <h1>MediCore Pro</h1>
+                        <p>Plataforma de Salud Integral</p>
+                    </div>
+                    <div style="text-align: right">
+                        <p><strong>Fecha Impresión:</strong> ${new Date().toLocaleString()}</p>
+                        <p><strong>Documento:</strong> ${patient?.identification || 'N/A'}</p>
+                    </div>
+                </div>
+
+                <div class="patient-info">
+                    <h2 style="margin-top: 0; color: #1e3a8a;">${patientName}</h2>
+                    <p><strong>Fecha de Resultados:</strong> ${date}</p>
+                    <p><strong>Sede:</strong> Principal - Bogotá D.C.</p>
+                </div>
+
+                ${recordsInGroup.map(r => `
+                    <div class="result-block">
+                        <div class="result-header">${r.chiefComplaint}</div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Parámetro</th>
+                                    <th>Valor</th>
+                                    <th>Unidad</th>
+                                    <th>Referencia</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${Object.entries(r.dynamicData).map(([key, val]) => {
+                                    const field = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key);
+                                    return `
+                                        <tr>
+                                            <td><strong>${field?.label || key}</strong></td>
+                                            <td>${val}</td>
+                                            <td>${field?.unit || '-'}</td>
+                                            <td style="color: #64748b; font-size: 0.8rem">Normal</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `).join('')}
+
+                <div class="stamp">
+                    <p><strong>Firma Profesional</strong></p>
+                    <p>${user.name}</p>
+                    <p>${user.professionalLicense || 'Reg. Médico'}</p>
+                </div>
+
+                <div class="footer">
+                    <p>Este documento es una representación digital de los resultados diagnósticos almacenados en MediCore Pro.</p>
+                    <p>La interpretación de estos resultados debe ser realizada por un profesional de la salud calificado.</p>
+                </div>
+                <script>window.print();</script>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
   };
 
   // --- RENDER FORM ---

@@ -141,6 +141,11 @@ const App: React.FC = () => {
   const { user, isLoading, login, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
 
+  // Reset tab on user change to avoid permission ghosting
+  React.useEffect(() => {
+    setActiveTab('dashboard');
+  }, [user?.id]);
+
   // API Key Check
   if (!import.meta.env.VITE_GEMINI_API_KEY) {
     return (
