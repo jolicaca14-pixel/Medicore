@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType, TariffItem, Contract, ContractType, ContractAudit, DisciplinaryAction, PaymentRequest, ClinicalRecord, RecordType, RecordStatus, Patient } from '../../types';
+import { hasAdministrativeAccess, isSystemAdmin } from '../../utils/security';
 import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
 import { 
@@ -58,7 +59,8 @@ const roleLabels: Record<UserRole, string> = {
 };
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
-  const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
+  const isAdmin = isSystemAdmin(currentUserSession?.roles || []);
+  const hasAdminAccess = hasAdministrativeAccess(currentUserSession?.roles || []);
 
   // --- STATE MANAGEMENT ---
   
@@ -92,6 +94,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // File Management
   const [fileManagementTab, setFileManagementTab] = useState<'CONTRACTS' | 'PAYMENTS'>('CONTRACTS');
   const [isFileUploadModalOpen, setIsFileUploadModalOpen] = useState(false);
+  const [fileStatusMessage, setFileStatusMessage] = useState<{ text: string, type: 'success' | 'error' | 'info' } | null>(null);
   const [newFileName, setNewFileName] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [fileSearchTerm, setFileSearchTerm] = useState('');
@@ -119,7 +122,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
   
   const handleAddNewUser = () => { 
-      setCurrentUser({ id: `u${Date.now()}`, roles: [UserRole.PROFESSIONAL], status: 'ACTIVE', name: '', username: '' }); 
+      setCurrentUser({ id: `u${Date.now()}`, roles: [UserRole.PROFESSIONAL], status: 'ACTIVE', firstName: '', lastName: '', name: '', username: '', documentNumber: '' });
   };
 
   const handleSaveUser = (userToSave: Partial<User>) => {
@@ -274,7 +277,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         newUsers[userIndex].contracts = [...(newUsers[userIndex].contracts || []), newContract];
                         return newUsers;
                     });
-                    alert(`Contrato "${newFileName}" agregado al usuario seleccionado.`);
+                    setFileStatusMessage({ text: `Contrato "${newFileName}" agregado exitosamente.`, type: 'success' });
                 } else { // PAYMENTS
                     const user = users.find(u => u.id === selectedUserIdForUpload);
                     if (!user) return;
@@ -292,13 +295,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         paymentReceiptUrl: newFileName,
                     };
                     setPaymentRequests(prev => [...prev, newPaymentRequest]);
-                    alert(`Soporte de pago "${newFileName}" agregado.`);
+                    setFileStatusMessage({ text: `Soporte de pago "${newFileName}" registrado.`, type: 'success' });
                 }
                 // --- END OF LOGIC ---
 
                 setIsFileUploadModalOpen(false);
                 setNewFileName('');
                 setUploadProgress(0);
+                setTimeout(() => setFileStatusMessage(null), 3000);
                 return 100;
             }
             return prev + 10;
@@ -319,7 +323,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       } else { // PAYMENT
           setPaymentRequests(prev => prev.filter(p => p.id !== fileId));
       }
-      alert("Archivo eliminado.");
+      setFileStatusMessage({ text: "Archivo eliminado permanentemente.", type: 'info' });
+      setTimeout(() => setFileStatusMessage(null), 3000);
   };
 
   // --- RIPS GENERATION LOGIC ---
@@ -478,7 +483,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
+  if ((activeTab === 'users' || activeTab === 'settings') && !isAdmin) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
@@ -488,8 +493,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
+  if ((activeTab === 'dashboard' || activeTab === 'hr' || activeTab === 'files' || activeTab === 'reports') && !hasAdminAccess) {
+    return (
+        <div className="flex flex-col items-center justify-center h-full text-slate-400">
+            <Ban size={64} className="mb-4 text-red-400"/>
+            <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
+            <p className="text-sm">Se requieren permisos Administrativos para acceder a este módulo.</p>
+        </div>
+    );
+}
+
   // 1. DASHBOARD (Dynamic & Actionable) - Only for Admins
-  if (activeTab === 'dashboard' && isAdmin) {
+  if (activeTab === 'dashboard' && hasAdminAccess) {
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
@@ -604,7 +619,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // FILE MANAGEMENT MODULE - ADMIN VIEW
-  if (activeTab === 'files' && isAdmin) {
+  if (activeTab === 'files' && hasAdminAccess) {
     return (
         <div className="space-y-6">
             {/* File Upload Modal */}
@@ -674,6 +689,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                 </button>
             </div>
 
+            {fileStatusMessage && (
+                <div className={`p-4 rounded-lg flex items-center justify-between animate-in slide-in-from-top-4 duration-300 ${
+                    fileStatusMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' :
+                    fileStatusMessage.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
+                    'bg-blue-50 text-blue-700 border border-blue-200'
+                }`}>
+                    <div className="flex items-center">
+                        {fileStatusMessage.type === 'success' ? <CheckCircle size={18} className="mr-2"/> : <Info size={18} className="mr-2"/>}
+                        <span className="text-sm font-bold">{fileStatusMessage.text}</span>
+                    </div>
+                    <button onClick={() => setFileStatusMessage(null)}><X size={16}/></button>
+                </div>
+            )}
+
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                 <div className="flex justify-between items-center mb-4">
                     <div>
@@ -730,7 +759,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
     );
   }
   // HR MODULE - ADMIN VIEW
-  if (activeTab === 'hr' && isAdmin) {
+  if (activeTab === 'hr' && hasAdminAccess) {
       return (
           <div className="space-y-6">
               {/* MODALS */}
@@ -1075,7 +1104,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // 4. REPORTS TAB - NEW RIPS GENERATION
-  if (activeTab === 'reports' && isAdmin) {
+  if (activeTab === 'reports' && hasAdminAccess) {
       return (
           <div className="space-y-8 animate-in fade-in duration-500">
               <h2 className="text-2xl font-bold text-slate-800 mb-2">Reportes y Analítica</h2>
@@ -1166,11 +1195,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* User Form Space (Top) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <div className="bg-slate-50 p-8 rounded-2xl shadow-sm border border-slate-200">
+                 <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
                     <div>
-                        <h3 className="text-lg font-bold text-slate-800">
-                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
+                        <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Centro de Gestión de Identidades'}
                         </h3>
                         <p className="text-sm text-slate-500">Espacio dedicado para la gestión y creación de cuentas del sistema.</p>
                     </div>
@@ -1247,27 +1276,83 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><LayoutTemplate className="mr-2 text-blue-600"/> Configurar Plantilla</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Nombre de la Plantilla</label>
+                                <input type="text" className="w-full border p-2 rounded text-sm" placeholder="Ej: Consulta General" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Descripción</label>
+                                <textarea className="w-full border p-2 rounded text-sm" rows={2}></textarea>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Tipo de Registro</label>
+                                <select className="w-full border p-2 rounded text-sm">
+                                    {Object.values(RecordType).map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                            <button onClick={() => { setIsTemplateModalOpen(false); alert("Plantilla guardada (Simulado)"); }} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm">Guardar Plantilla</button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><Layers className="mr-2 text-blue-600"/> Configurar Sección</h3>
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Título de la Sección</label>
+                                  <input type="text" className="w-full border p-2 rounded text-sm" placeholder="Ej: Examen Físico" />
+                              </div>
+                              <p className="text-xs text-slate-500">Seleccione los campos que desea incluir en esta sección de la biblioteca.</p>
+                              <div className="max-h-40 overflow-y-auto border rounded p-2 space-y-1">
+                                  {globalFields.map(f => (
+                                      <label key={f.id} className="flex items-center space-x-2 p-1 hover:bg-slate-50 rounded cursor-pointer">
+                                          <input type="checkbox" className="rounded border-slate-300" />
+                                          <span className="text-xs text-slate-700">{f.label}</span>
+                                      </label>
+                                  ))}
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                              <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                              <button onClick={() => { setIsSectionModalOpen(false); alert("Sección actualizada (Simulado)"); }} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm">Guardar Sección</button>
+                          </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><Type className="mr-2 text-blue-600"/> Configurar Variable</h3>
+                          <div className="grid grid-cols-2 gap-4">
+                              <div className="col-span-2">
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Etiqueta del Campo</label>
+                                  <input type="text" className="w-full border p-2 rounded text-sm" placeholder="Ej: Tensión Arterial" />
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">ID Único</label>
+                                  <input type="text" className="w-full border p-2 rounded text-sm font-mono" placeholder="v_ta_sys" />
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Tipo de Dato</label>
+                                  <select className="w-full border p-2 rounded text-sm">
+                                      <option value="TEXT">Texto Corto</option>
+                                      <option value="NUMBER">Numérico</option>
+                                      <option value="TEXTAREA">Texto Largo</option>
+                                      <option value="SELECT">Selección</option>
+                                  </select>
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                              <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                              <button onClick={() => { setIsFieldModalOpen(false); alert("Campo guardado (Simulado)"); }} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm">Guardar Variable</button>
+                          </div>
                       </div>
                   </div>
               )}

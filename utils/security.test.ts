@@ -27,7 +27,30 @@ const testSanitizeInput = () => {
   console.log('All security tests passed.');
 };
 
+import { UserRole } from '../types';
+import { hasAdministrativeAccess, isSystemAdmin } from './security';
+
+const testRBAC = () => {
+  console.log('Testing RBAC logic...');
+
+  // Admin should have everything
+  console.assert(isSystemAdmin([UserRole.ADMIN]) === true, 'Admin should be System Admin');
+  console.assert(hasAdministrativeAccess([UserRole.ADMIN]) === true, 'Admin should have Administrative Access');
+
+  // Manager/Accountant should have admin access but not system admin
+  console.assert(isSystemAdmin([UserRole.MANAGER]) === false, 'Manager should not be System Admin');
+  console.assert(hasAdministrativeAccess([UserRole.MANAGER]) === true, 'Manager should have Administrative Access');
+  console.assert(hasAdministrativeAccess([UserRole.ACCOUNTANT]) === true, 'Accountant should have Administrative Access');
+
+  // Professional should have neither
+  console.assert(isSystemAdmin([UserRole.PROFESSIONAL]) === false, 'Professional should not be System Admin');
+  console.assert(hasAdministrativeAccess([UserRole.PROFESSIONAL]) === false, 'Professional should not have Administrative Access');
+
+  console.log('RBAC tests passed.');
+};
+
 // Auto-execute if run directly (logic for test runner would go here)
 if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
     testSanitizeInput();
+    testRBAC();
 }
