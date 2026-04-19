@@ -25,3 +25,25 @@ export const sanitizeInput = (input: string | undefined | null): string => {
   // For a production environment, a more robust, well-tested library like DOMPurify is strongly recommended.
   return input.replace(/<|>/g, '');
 };
+
+import { UserRole } from '../types';
+
+/**
+ * Checks if a user has administrative access to core modules (Dashboard, HR, Reports, Files).
+ * This includes ADMIN, MANAGER, and ACCOUNTANT roles.
+ */
+export const hasAdministrativeAccess = (roles: UserRole[]): boolean => {
+  return roles.some(role =>
+    role === UserRole.ADMIN ||
+    role === UserRole.MANAGER ||
+    role === UserRole.ACCOUNTANT
+  );
+};
+
+/**
+ * Checks if a user is a strict System Administrator.
+ * Only the ADMIN role is allowed to manage users and system settings.
+ */
+export const isSystemAdmin = (roles: UserRole[]): boolean => {
+  return roles.includes(UserRole.ADMIN);
+};
