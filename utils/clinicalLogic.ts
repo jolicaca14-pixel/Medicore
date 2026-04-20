@@ -48,7 +48,9 @@ export const getVitalWarning = (id: string, value: string, age?: number): string
  * Calculates BMI (Body Mass Index)
  */
 export const calculateBMI = (weightKg: number, heightM: number): string => {
-  if (!weightKg || !heightM) return '0.00';
+  if (!weightKg || !heightM || weightKg <= 0 || heightM <= 0) return '0.00';
+  // 🛡️ DOC HOUSE: Validar rangos físicos posibles
+  if (weightKg > 600 || heightM > 2.5) return '0.00';
   return (weightKg / (heightM * heightM)).toFixed(2);
 };
 
@@ -80,10 +82,14 @@ export const getFraminghamColor = (risk: number | string): string => {
  * Calculates GFR (Glomerular Filtration Rate) using Cockcroft-Gault formula.
  */
 export const calculateTFG = (age: number, weightKg: number, creatinine: number, gender: 'M' | 'F'): number => {
-  if (age <= 0 || weightKg <= 0 || creatinine <= 0) return 0;
+  // 🛡️ DOC HOUSE: Validaciones de seguridad clínica
+  if (age < 18 || age > 120) return 0; // Cockcroft-Gault es para adultos
+  if (weightKg <= 0 || weightKg > 600) return 0;
+  if (creatinine <= 0 || creatinine > 20) return 0;
+
   let tfg = ((140 - age) * weightKg) / (72 * creatinine);
   if (gender === 'F') tfg *= 0.85;
-  return tfg;
+  return Number(tfg.toFixed(2));
 };
 
 /**
@@ -91,7 +97,10 @@ export const calculateTFG = (age: number, weightKg: number, creatinine: number, 
  * (For demonstration purposes, based on basic parameters)
  */
 export const calculateFramingham = (age: number, gender: 'M' | 'F', sysBp: number, cholTotal: number, hdl: number, smoker: boolean): number => {
-  if (age <= 0) return 0;
+  // 🛡️ DOC HOUSE: Validación de rangos clínicos para score
+  if (age < 20 || age > 79) return 0; // Framingham suele validarse en este rango
+  if (sysBp < 80 || sysBp > 250) return 0;
+  if (cholTotal < 100 || hdl < 10) return 0;
 
   let points = 0;
 
