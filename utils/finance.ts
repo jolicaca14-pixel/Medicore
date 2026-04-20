@@ -40,3 +40,29 @@ export const calculateLiquidatedPay = (baseRate: number, quantity: number, surch
   if (!surchargeType) return base;
   return base + (base * SURCHARGE_RATES[surchargeType]);
 };
+
+/**
+ * 💰 LEDGER: Tax Retention Utilities (Colombian Standards)
+ */
+export const TAX_RATES = {
+  RETEFUENTE: 0.11, // 11% for professional services
+  ICA: 0.00966,     // 0.966% for ICA
+};
+
+/**
+ * Calculates tax retentions for a given gross amount.
+ */
+export const calculateRetentions = (grossAmount: number) => {
+  const retefuente = grossAmount * TAX_RATES.RETEFUENTE;
+  const ica = grossAmount * TAX_RATES.ICA;
+  const totalRetentions = retefuente + ica;
+  const netAmount = grossAmount - totalRetentions;
+
+  return {
+    grossAmount,
+    retefuente: Number(retefuente.toFixed(2)),
+    ica: Number(ica.toFixed(2)),
+    totalRetentions: Number(totalRetentions.toFixed(2)),
+    netAmount: Number(netAmount.toFixed(2)),
+  };
+};
