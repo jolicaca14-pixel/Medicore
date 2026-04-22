@@ -1,10 +1,11 @@
-import { sanitizeInput } from './security';
+import { sanitizeInput, isSystemAdmin, hasAdministrativeAccess, maskIdentification } from './security';
+import { UserRole } from '../types';
 
 /**
  * 🧪 Smith: Security Unit Tests
  * Run with: node utils/security.test.js (after compilation)
  */
-const testSanitizeInput = () => {
+const testSecurityUtils = () => {
   console.log('Testing sanitizeInput...');
 
   // Test case 1: Simple string
@@ -24,10 +25,24 @@ const testSanitizeInput = () => {
   console.assert(sanitizeInput(null as any) === '', 'Test 4 Failed');
   console.assert(sanitizeInput(undefined as any) === '', 'Test 5 Failed');
 
+  console.log('Testing isSystemAdmin...');
+  console.assert(isSystemAdmin([UserRole.ADMIN]) === true, 'Admin check failed');
+  console.assert(isSystemAdmin([UserRole.PROFESSIONAL]) === false, 'Non-Admin check failed');
+
+  console.log('Testing hasAdministrativeAccess...');
+  console.assert(hasAdministrativeAccess([UserRole.ADMIN]) === true, 'Admin admin access failed');
+  console.assert(hasAdministrativeAccess([UserRole.MANAGER]) === true, 'Manager admin access failed');
+  console.assert(hasAdministrativeAccess([UserRole.ACCOUNTANT]) === true, 'Accountant admin access failed');
+  console.assert(hasAdministrativeAccess([UserRole.PROFESSIONAL]) === false, 'Professional admin access failed');
+
+  console.log('Testing maskIdentification...');
+  console.assert(maskIdentification('12345678') === '****5678', 'Masking long ID failed');
+  console.assert(maskIdentification('123') === '123', 'Masking short ID failed');
+
   console.log('All security tests passed.');
 };
 
 // Auto-execute if run directly (logic for test runner would go here)
-if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-    testSanitizeInput();
+if (typeof process !== 'undefined' && (process.env.NODE_ENV === 'test' || import.meta.url.endsWith(process.argv[1]))) {
+    testSecurityUtils();
 }

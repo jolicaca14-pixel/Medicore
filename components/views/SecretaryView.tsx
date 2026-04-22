@@ -339,8 +339,62 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+             <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                   <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div className="flex items-center border rounded-lg bg-slate-50 px-3 py-2 mb-6">
+                        <Search size={18} className="text-slate-400 mr-2"/>
+                        <input
+                            className="bg-transparent w-full outline-none text-sm"
+                            placeholder="Buscar por Nombre o Cédula..."
+                            value={billingSearchTerm}
+                            onChange={e => setBillingSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-medium">
+                            <tr>
+                                <th className="p-4">Paciente</th>
+                                <th className="p-4">Identificación</th>
+                                <th className="p-4">Contacto</th>
+                                <th className="p-4">Aseguradora</th>
+                                <th className="p-4 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {patients.filter(p =>
+                                p.fullName.toLowerCase().includes(billingSearchTerm.toLowerCase()) ||
+                                p.identification.includes(billingSearchTerm)
+                            ).map(p => (
+                                <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="p-4 font-bold text-slate-800">{p.fullName}</td>
+                                    <td className="p-4 font-mono">{p.identification}</td>
+                                    <td className="p-4">
+                                        <p className="text-xs text-slate-600">{p.phone}</p>
+                                        <p className="text-[10px] text-slate-400">{p.email}</p>
+                                    </td>
+                                    <td className="p-4">
+                                        <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-[10px] font-bold">
+                                            {p.insuranceType}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <button
+                                            onClick={() => { setBillingPatient(p); setActiveTab('BILLING'); }}
+                                            className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700 flex items-center ml-auto"
+                                        >
+                                            <DollarSign size={14} className="mr-1"/> Facturar
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
              </div>
           )}
           {/* AGENDA TAB (Now Functional) */}
