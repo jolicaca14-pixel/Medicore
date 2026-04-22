@@ -126,8 +126,94 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const recordsToPrint = completedRecords.filter(r => {
+          const patient = MOCK_PATIENTS.find(p => p.id === r.patientId);
+          return patient?.fullName === patientName && r.dateCreated.startsWith(date);
+      });
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const resultsHtml = recordsToPrint.map(r => `
+          <div style="margin-bottom: 30px; border-bottom: 1px solid #eee; padding-bottom: 15px;">
+              <h3 style="color: #2563eb; margin-bottom: 10px;">${r.chiefComplaint}</h3>
+              <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                  <tr style="background: #f8fafc;">
+                      <th style="text-align: left; padding: 8px; border: 1px solid #e2e8f0;">Parámetro</th>
+                      <th style="text-align: left; padding: 8px; border: 1px solid #e2e8f0;">Resultado</th>
+                  </tr>
+                  ${Object.entries(r.dynamicData).map(([key, val]) => {
+                      const field = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key);
+                      return `
+                          <tr>
+                              <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">${field?.label || key}</td>
+                              <td style="padding: 8px; border: 1px solid #e2e8f0;">${val} ${field?.unit || ''}</td>
+                          </tr>
+                      `;
+                  }).join('')}
+              </table>
+          </div>
+      `).join('');
+
+      printWindow.document.write(`
+          <html>
+              <head>
+                  <title>Resultados de Ayudas Diagnósticas - ${patientName}</title>
+                  <style>
+                      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; }
+                      .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 30px; }
+                      .logo { font-size: 24px; font-bold: true; color: #0f172a; }
+                      .info { font-size: 12px; color: #64748b; }
+                      .patient-box { background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 30px; }
+                      .footer { margin-top: 50px; font-size: 10px; text-align: center; color: #94a3b8; }
+                      @media print { .no-print { display: none; } }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <div class="logo">MEDICORE PRO</div>
+                      <div class="info">
+                          Laboratorio e Imagenología de Alta Complejidad<br/>
+                          Res. 1234 de 2023 - MinSalud
+                      </div>
+                  </div>
+                  <div class="patient-box">
+                      <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 10px;">
+                          <div><strong>Paciente:</strong> ${patientName}</div>
+                          <div><strong>Fecha de Informe:</strong> ${date}</div>
+                          <div><strong>Sede:</strong> Principal (Bogotá)</div>
+                          <div><strong>ID Informe:</strong> DIAG-${Date.now()}</div>
+                      </div>
+                  </div>
+
+                  <h2 style="text-align: center; text-transform: uppercase; margin-bottom: 30px;">Informe de Resultados</h2>
+
+                  ${resultsHtml}
+
+                  <div style="margin-top: 60px; display: flex; justify-content: space-between;">
+                      <div style="text-align: center; width: 200px;">
+                          <div style="border-bottom: 1px solid #000; height: 40px;"></div>
+                          <p style="font-size: 12px;">Firma Especialista</p>
+                      </div>
+                      <div style="text-align: center; width: 200px;">
+                          <div style="border-bottom: 1px solid #000; height: 40px;"></div>
+                          <p style="font-size: 12px;">Sello Institucional</p>
+                      </div>
+                  </div>
+
+                  <div class="footer">
+                      Este documento es un informe de resultados diagnósticos. Debe ser interpretado por su médico tratante.<br/>
+                      Generado electrónicamente por MediCore Pro - ${new Date().toLocaleString()}
+                  </div>
+
+                  <div class="no-print" style="margin-top: 40px; text-align: center;">
+                      <button onclick="window.print()" style="padding: 10px 20px; background: #0f172a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Imprimir Documento</button>
+                  </div>
+              </body>
+          </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---
@@ -238,8 +324,8 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                     ) : (
                         <div className="space-y-4">
                             {/* Mock Grouping Logic */}
-                            {Array.from(new Set(completedRecords.map(r => `${r.patientId}|${r.dateCreated.split('T')[0]}`))).map(groupKey => {
-                                const [patId, date] = groupKey.split('|');
+                            {Array.from(new Set(completedRecords.map(r => `${r.patientId}|${(r.dateCreated as string).split('T')[0]}`))).map(groupKey => {
+                                const [patId, date] = (groupKey as string).split('|');
                                 const recordsInGroup = completedRecords.filter(r => r.patientId === patId && r.dateCreated.startsWith(date));
                                 const patientName = MOCK_PATIENTS.find(p => p.id === patId)?.fullName || 'Desconocido';
 

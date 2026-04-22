@@ -188,11 +188,27 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           logAuditEvent(user.id, 'PATIENT_SEARCH', 'PatientList', `Searched for term: ${cleanSearch}`);
       }
 
-      return patients.filter(p =>
+      let result = patients;
+
+      // TAB-BASED FILTERING
+      if (activeTab === 'appointments') {
+          const today = new Date().toISOString().split('T')[0];
+          const patientsWithAppts = MOCK_APPOINTMENTS
+              .filter(a => a.date === today && a.professionalId === user.id)
+              .map(a => a.patientId);
+          result = result.filter(p => patientsWithAppts.includes(p.id));
+      } else if (activeTab === 'records') {
+          const patientsWithHistory = records
+              .filter(r => r.professionalId === user.id)
+              .map(r => r.patientId);
+          result = result.filter(p => patientsWithHistory.includes(p.id));
+      }
+
+      return result.filter(p =>
           p.fullName.toLowerCase().includes(cleanSearch) ||
           p.identification.toLowerCase().includes(cleanSearch)
       );
-  }, [patients, debouncedSearch, user.id]);
+  }, [patients, debouncedSearch, user.id, activeTab, records]);
 
   // RCV Logic State
   const [isFirstTimeRCV, setIsFirstTimeRCV] = useState(false);
@@ -235,7 +251,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   useEffect(() => {
     const fetchPatients = async () => {
         try {
-            const data = await patientService.getAll();
+            const data = await patientService.getPatients();
             if (data && data.length > 0) setPatients(data);
         } catch (error) {
             console.warn("Usando datos locales de pacientes (Servidor no disponible)");
@@ -274,7 +290,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   // Handle Tab Change from Sidebar (e.g. My Production or HR)
   useEffect(() => {
-    if (activeTab === 'reports' || activeTab === 'hr') {
+    if (activeTab === 'reports' || activeTab === 'hr' || activeTab === 'appointments' || activeTab === 'records' || activeTab === 'dashboard') {
         setViewMode('LIST'); // Reset any patient view
         setSelectedPatient(null);
     }
