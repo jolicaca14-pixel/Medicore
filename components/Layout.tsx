@@ -58,6 +58,13 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
         { id: 'reports', label: 'Gestión Financiera', icon: DollarSign },
         { id: 'settings', label: 'Plantillas / Roles', icon: Settings },
       ];
+    } else if (roles.includes(UserRole.MANAGER) || roles.includes(UserRole.ACCOUNTANT)) {
+      items = [
+        ...items,
+        { id: 'dashboard', label: 'Panel Control', icon: LayoutDashboard },
+        { id: 'hr', label: 'Gestión Humana', icon: Briefcase },
+        { id: 'reports', label: 'Analítica Financiera', icon: DollarSign },
+      ];
     }
     
     if (roles.includes(UserRole.PROFESSIONAL) || roles.includes(UserRole.PSYCHOLOGIST)) {
