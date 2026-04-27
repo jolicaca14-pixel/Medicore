@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType, TariffItem, Contract, ContractType, ContractAudit, DisciplinaryAction, PaymentRequest, ClinicalRecord, RecordType, RecordStatus, Patient } from '../../types';
 import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
+import { ripsService, billingService } from '../../services/ripsService';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
 import { 
     Shield, Users, FileText, Settings, Plus, Edit, Trash2, X, Save, 
@@ -112,6 +113,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [generatedRips, setGeneratedRips] = useState<{
       US: any[], AC: any[], AP: any[], AF: any[]
   } | null>(null);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
 
   // --- USER HANDLERS ---
   const handleEditUser = (user: User) => { 
@@ -322,153 +325,27 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       alert("Archivo eliminado.");
   };
 
-  // --- RIPS GENERATION LOGIC ---
-  const generateRIPS = () => {
-      // 1. Filter Records by Date and Status
-      const filteredRecords = MOCK_RECORDS.filter(r => {
-          const d = r.dateCreated.split('T')[0];
-          return d >= ripsStartDate && d <= ripsEndDate && r.status === RecordStatus.FINALIZED;
-      });
-
-      if (filteredRecords.length === 0) {
-          alert("No se encontraron registros finalizados en el rango de fechas seleccionado.");
-          setGeneratedRips(null);
-          return;
-      }
-
-      // 2. Generate US (Usuarios)
-      const uniquePatientIds = Array.from(new Set(filteredRecords.map(r => r.patientId)));
-      const usFile = uniquePatientIds.map(pid => {
-          const p = MOCK_PATIENTS.find(pt => pt.id === pid);
-          if (!p) return null;
-          return {
-              tipo_documento: 'CC', // Mock
-              numero_documento: p.identification,
-              codigo_admin: 'EPS001',
-              tipo_usuario: '1', // Contributivo
-              apellido_1: p.fullName.split(' ')[1] || 'Unknown',
-              apellido_2: '',
-              nombre_1: p.fullName.split(' ')[0],
-              nombre_2: '',
-              edad: new Date().getFullYear() - new Date(p.birthDate).getFullYear(),
-              unidad_medida_edad: '1',
-              sexo: p.gender,
-              depto: '11', // Bogota
-              municipio: '001',
-              zona: 'U'
-          };
-      }).filter(Boolean);
-
-      // 3. Generate AC (Consultas)
-      const acFile = filteredRecords
-          .filter(r => [RecordType.GENERAL, RecordType.PSYCHOLOGY, RecordType.NUTRITION, RecordType.PYP_CV_RISK, RecordType.PYP_GROWTH_DEV, RecordType.PYP_PREGNANCY].includes(r.recordType))
-          .map(r => ({
-              numero_factura: `FAC-${r.id}`, // Mock Link
-              codigo_prestador: '1100100001',
-              tipo_documento: 'CC',
-              numero_documento: MOCK_PATIENTS.find(p => p.id === r.patientId)?.identification,
-              fecha_consulta: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
-              numero_autorizacion: 'AUT-000',
-              codigo_consulta: r.recordType === RecordType.PSYCHOLOGY ? '890208' : '890201',
-              finalidad: '10', // Tratamiento
-              causa_externa: '13', // Enfermedad general
-              dx_principal: r.diagnoses?.[0]?.code || 'Z000',
-              dx_relacionado_1: r.diagnoses?.[1]?.code || '',
-              dx_relacionado_2: '',
-              dx_relacionado_3: '',
-              tipo_dx_principal: '1', // Impresion diagnostica
-              valor_consulta: 45000,
-              valor_cuota_moderadora: 4500,
-              valor_neto: 40500
-          }));
-
-      // 4. Generate AP (Procedimientos) - From 'performedProcedures' or Lab/Imaging Records
-      let apFile: any[] = [];
-      
-      // 4a. Procedures embedded in records
-      filteredRecords.forEach(r => {
-          if (r.performedProcedures && r.performedProcedures.length > 0) {
-              r.performedProcedures.forEach(proc => {
-                  apFile.push({
-                      numero_factura: `FAC-${r.id}`,
-                      codigo_prestador: '1100100001',
-                      tipo_documento: 'CC',
-                      numero_documento: MOCK_PATIENTS.find(p => p.id === r.patientId)?.identification,
-                      fecha_procedimiento: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
-                      numero_autorizacion: 'AUT-000',
-                      codigo_procedimiento: proc.code,
-                      ambito: '1', // Ambulatorio
-                      finalidad: '1', // Diagnostico
-                      personal_atiende: '1', // Especialista
-                      dx_principal: r.diagnoses?.[0]?.code || 'Z000',
-                      dx_relacionado: '',
-                      complicacion: '',
-                      acto_qx: '1', // Unico
-                      valor: 25000 // Mock value
-                  });
-              });
-          }
-          // 4b. Pure Diagnostic Records (Lab/Img)
-          if (r.recordType === RecordType.LAB_RESULT || r.recordType === RecordType.IMAGING_REPORT) {
-               // Determine CUPS based on type (Mock logic)
-               const cups = r.recordType === RecordType.LAB_RESULT ? '902213' : '871020';
-               apFile.push({
-                  numero_factura: `FAC-${r.id}`,
-                  codigo_prestador: '1100100001',
-                  tipo_documento: 'CC',
-                  numero_documento: MOCK_PATIENTS.find(p => p.id === r.patientId)?.identification,
-                  fecha_procedimiento: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
-                  numero_autorizacion: 'AUT-000',
-                  codigo_procedimiento: cups,
-                  ambito: '1',
-                  finalidad: '1',
-                  personal_atiende: '4', // Bacteriologo/Otros
-                  dx_principal: '',
-                  dx_relacionado: '',
-                  complicacion: '',
-                  acto_qx: '1',
-                  valor: 35000
-              });
-          }
-      });
-
-      // 5. Generate AF (Transacciones/Facturas)
-      const afFile = filteredRecords.map(r => ({
-          codigo_prestador: '1100100001',
-          razon_social: 'MEDICORE IPS SAS',
-          tipo_id: 'NI',
-          numero_id: '900123456',
-          numero_factura: `FAC-${r.id}`,
-          fecha_expedicion: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
-          fecha_inicio: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
-          fecha_final: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
-          codigo_entidad: 'EPS001',
-          nombre_entidad: 'EPS SANITAS',
-          numero_contrato: 'CONT-2024',
-          plan_beneficios: 'PBS',
-          numero_poliza: '',
-          valor_copago: 4500,
-          valor_comision: 0,
-          valor_descuentos: 0,
-          valor_neto: 40500
-      }));
-
-      setGeneratedRips({ US: usFile, AC: acFile, AP: apFile, AF: afFile });
+  // --- RIPS GENERATION LOGIC (Real Implementation via Service) ---
+  const generateRIPS = async () => {
+    try {
+        await ripsService.downloadUS(ripsStartDate, ripsEndDate);
+        await ripsService.downloadAC(ripsStartDate, ripsEndDate);
+        alert("Archivos RIPS (US y AC) descargados exitosamente.");
+    } catch (e: any) {
+        alert("Error al generar RIPS: " + e.message);
+    }
   };
 
-  const downloadRIPS = () => {
-      if (!generatedRips) return;
-      const content = JSON.stringify(generatedRips, null, 2);
-      const blob = new Blob([content], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `RIPS_${ripsStartDate}_${ripsEndDate}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      alert("Paquete de RIPS generado y descargado exitosamente.");
+  const fetchInvoices = async () => {
+    setIsLoadingInvoices(true);
+    try {
+        const data = await billingService.getAllInvoices();
+        setInvoices(data);
+    } catch (e: any) {
+        console.error("Error fetching invoices:", e);
+    } finally {
+        setIsLoadingInvoices(false);
+    }
   };
 
   const handleNewTemplate = () => setIsTemplateModalOpen(true);
@@ -1074,69 +951,96 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
-  // 4. REPORTS TAB - NEW RIPS GENERATION
+  // 4. REPORTS TAB - NEW RIPS & BILLING MANAGEMENT
   if (activeTab === 'reports' && isAdmin) {
       return (
           <div className="space-y-8 animate-in fade-in duration-500">
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">Reportes y Analítica</h2>
+              <h2 className="text-2xl font-bold text-slate-800 mb-2">Gestión Financiera & RIPS</h2>
               
-              {/* RIPS GENERATOR SECTION */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                  <div className="flex justify-between items-start mb-6">
-                      <div>
-                          <h3 className="font-bold text-lg text-slate-800 flex items-center">
-                              <FileJson className="mr-2 text-purple-600"/> Generación de RIPS
-                          </h3>
-                          <p className="text-sm text-slate-500">Generación de Archivos Planos (JSON/TXT) para validación en MinSalud.</p>
-                      </div>
-                      <div className="flex items-center space-x-3 bg-slate-50 p-2 rounded-lg">
-                          <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase">Fecha Inicio</label>
-                              <input type="date" className="border rounded px-2 py-1 text-sm bg-white" value={ripsStartDate} onChange={e => setRipsStartDate(e.target.value)} />
-                          </div>
-                          <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase">Fecha Fin</label>
-                              <input type="date" className="border rounded px-2 py-1 text-sm bg-white" value={ripsEndDate} onChange={e => setRipsEndDate(e.target.value)} />
-                          </div>
-                          <button onClick={generateRIPS} className="h-full bg-purple-600 text-white px-4 py-2 rounded font-bold text-sm shadow hover:bg-purple-700 flex items-center">
-                              <Zap size={16} className="mr-2"/> Generar
-                          </button>
-                      </div>
-                  </div>
-
-                  {generatedRips ? (
-                      <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                          <div className="flex justify-between items-center gap-4">
-                              <div className="grid grid-cols-4 gap-4 flex-1">
-                                  {Object.entries(generatedRips).map(([key, data]) => (
-                                      <div key={key} className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
-                                          <h4 className="font-bold text-2xl text-slate-800">{data.length}</h4>
-                                          <p className="text-xs text-slate-500 font-bold uppercase">Archivo {key}</p>
-                                      </div>
-                                  ))}
-                              </div>
-                              <button onClick={downloadRIPS} className="bg-green-600 text-white px-6 py-4 rounded-xl font-bold flex flex-col items-center justify-center shadow-lg hover:bg-green-700 transition-all min-w-[120px]">
-                                  <Download size={24} className="mb-1"/>
-                                  <span className="text-[10px] uppercase">Descargar</span>
-                              </button>
-                          </div>
-                          
-                          <div className="border rounded-lg overflow-hidden">
-                               <div className="bg-slate-100 px-4 py-2 border-b">
-                                  <span className="font-mono text-xs font-bold text-slate-600">Previsualización (Formato JSON Res. 2275/2023)</span>
-                              </div>
-                              <div className="bg-slate-900 text-green-400 p-4 font-mono text-xs h-64 overflow-y-auto">
-                                  {JSON.stringify(generatedRips, null, 2)}
-                              </div>
-                          </div>
-                      </div>
-                  ) : (
-                      <div className="text-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-300">
-                          <FileJson size={48} className="mx-auto text-slate-300 mb-4"/>
-                          <p className="text-sm text-slate-500">Seleccione un rango de fechas y haga clic en "Generar" para crear los reportes.</p>
-                      </div>
-                  )}
+              <div className="flex space-x-1 bg-white p-1.5 rounded-xl border border-slate-200 w-fit shadow-sm">
+                  <button
+                    aria-pressed={fileManagementTab === 'CONTRACTS'}
+                    onClick={() => setFileManagementTab('CONTRACTS')}
+                    className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${fileManagementTab === 'CONTRACTS' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+                  >
+                      RIPS (MinSalud)
+                  </button>
+                  <button
+                    aria-pressed={fileManagementTab === 'PAYMENTS'}
+                    onClick={() => { setFileManagementTab('PAYMENTS'); fetchInvoices(); }}
+                    className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${fileManagementTab === 'PAYMENTS' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+                  >
+                      Facturación Automática
+                  </button>
               </div>
+
+              {fileManagementTab === 'CONTRACTS' && (
+                  <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                            <h3 className="font-bold text-xl text-slate-800 flex items-center">
+                                <FileJson className="mr-3 text-purple-600" size={24}/> Generación de RIPS
+                            </h3>
+                            <p className="text-sm text-slate-500 mt-1 font-medium">Generación de Archivos Planos (US, AC) para validación en MinSalud según Res. 3374.</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <div className="space-y-1">
+                                <label htmlFor="rips-start" className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha Inicio</label>
+                                <input id="rips-start" type="date" className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-purple-500 outline-none font-bold text-slate-700" value={ripsStartDate} onChange={e => setRipsStartDate(e.target.value)} />
+                            </div>
+                            <div className="space-y-1">
+                                <label htmlFor="rips-end" className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha Fin</label>
+                                <input id="rips-end" type="date" className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-purple-500 outline-none font-bold text-slate-700" value={ripsEndDate} onChange={e => setRipsEndDate(e.target.value)} />
+                            </div>
+                            <button onClick={generateRIPS} className="self-end bg-purple-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-lg shadow-purple-100 hover:bg-purple-700 hover:-translate-y-0.5 transition-all flex items-center">
+                                <Download size={18} className="mr-2"/> Descargar TXT
+                            </button>
+                        </div>
+                    </div>
+                  </div>
+              )}
+
+              {fileManagementTab === 'PAYMENTS' && (
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <h3 className="font-bold text-lg text-slate-800 mb-4 flex items-center">
+                        <CreditCard className="mr-2 text-green-600"/> Facturas Generadas (Borradores)
+                    </h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-slate-500 font-medium">
+                                <tr>
+                                    <th className="p-3">Nº Factura</th>
+                                    <th className="p-3">Paciente</th>
+                                    <th className="p-3">Fecha</th>
+                                    <th className="p-3 text-right">Valor Total</th>
+                                    <th className="p-3 text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {isLoadingInvoices ? (
+                                    <tr><td colSpan={5} className="p-8 text-center"><Loader2 className="animate-spin mx-auto h-8 w-8 text-blue-500"/></td></tr>
+                                ) : invoices.map(inv => (
+                                    <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-3 font-mono font-bold text-slate-700">{inv.numero_factura}</td>
+                                        <td className="p-3">
+                                            <p className="font-medium">{inv.paciente_nombre}</p>
+                                            <p className="text-[10px] text-slate-400">{inv.paciente_id_num}</p>
+                                        </td>
+                                        <td className="p-3 text-slate-500">{new Date(inv.fecha_emision).toLocaleDateString()}</td>
+                                        <td className="p-3 text-right font-bold text-green-700">{formatCurrency(parseFloat(inv.valor_total))}</td>
+                                        <td className="p-3 text-center">
+                                            <span className="px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 text-[10px] font-bold">BORRADOR</span>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {!isLoadingInvoices && invoices.length === 0 && (
+                                    <tr><td colSpan={5} className="p-8 text-center text-slate-400 italic">No hay facturas generadas.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                  </div>
+              )}
 
               {/* FINANCIAL CHARTS (Existing Logic) */}
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">

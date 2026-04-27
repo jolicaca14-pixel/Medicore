@@ -102,7 +102,71 @@ VALUES
 ON CONFLICT (identificacion) DO NOTHING;
 
 -- Comentarios para documentación
+-- Tabla de Historias Clínicas
+CREATE TABLE IF NOT EXISTS historias_clinicas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    fecha_creacion TIMESTAMP DEFAULT NOW(),
+    fecha_finalizacion TIMESTAMP,
+    motivo_consulta TEXT,
+    enfermedad_actual TEXT,
+    revision_sistemas TEXT,
+    examen_fisico JSONB,
+    signos_vitales JSONB,
+    diagnoses JSONB DEFAULT '[]',
+    prescriptions JSONB DEFAULT '[]',
+    performed_procedures JSONB DEFAULT '[]',
+    plan_manejo TEXT,
+    status VARCHAR(20) DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'FINALIZED')),
+    signature_hash VARCHAR(255),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para historias clínicas
+CREATE INDEX IF NOT EXISTS idx_historias_paciente ON historias_clinicas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_historias_profesional ON historias_clinicas(profesional_id);
+CREATE INDEX IF NOT EXISTS idx_historias_status ON historias_clinicas(status);
+
 COMMENT ON TABLE usuarios IS 'Tabla de usuarios del sistema con control de acceso basado en roles (RBAC)';
 COMMENT ON TABLE sesiones IS 'Tabla de sesiones activas con refresh tokens para autenticación JWT';
+-- Tabla de Auditoría
+CREATE TABLE IF NOT EXISTS auditoria (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    accion VARCHAR(50) NOT NULL,
+    modulo VARCHAR(50) NOT NULL,
+    detalle JSONB,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para auditoría
+CREATE INDEX IF NOT EXISTS idx_auditoria_usuario ON auditoria(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_auditoria_created_at ON auditoria(created_at);
+
+COMMENT ON TABLE historias_clinicas IS 'Almacén persistente de historias clínicas electrónicas e inmutables';
+-- Tabla de Facturas
+CREATE TABLE IF NOT EXISTS facturas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    numero_factura VARCHAR(20) UNIQUE NOT NULL,
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    historia_clinica_id UUID REFERENCES historias_clinicas(id) ON DELETE SET NULL,
+    fecha_emision TIMESTAMP DEFAULT NOW(),
+    valor_total DECIMAL(12, 2) NOT NULL,
+    estado VARCHAR(20) DEFAULT 'DRAFT' CHECK (estado IN ('DRAFT', 'PAID', 'CANCELLED')),
+    detalle JSONB DEFAULT '[]',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para facturas
+CREATE INDEX IF NOT EXISTS idx_facturas_paciente ON facturas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_facturas_numero ON facturas(numero_factura);
+
+COMMENT ON TABLE auditoria IS 'Logs de auditoría para trazabilidad de acciones sensibles y acceso a PII';
+COMMENT ON TABLE facturas IS 'Registro de facturación y cobro por servicios de salud';
 COMMENT ON COLUMN usuarios.password_hash IS 'Hash de contraseña generado con bcrypt (salt rounds >= 12)';
 COMMENT ON COLUMN sesiones.refresh_token IS 'Refresh token JWT con vida de 7 días';
