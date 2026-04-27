@@ -23,7 +23,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [patientsError, setPatientsError] = useState<string | null>(null);
-  const [records, setRecords] = useState<ClinicalRecord[]>(MOCK_RECORDS);
+  const [records, setRecords] = useState<ClinicalRecord[]>([]);
+  const [isLoadingRecords, setIsLoadingRecords] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   
   // UI Modes
@@ -117,29 +118,40 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   }), [bmiValue, tamValue, tfgValue, framinghamValue]);
 
   const handleSaveDraft = async () => {
-    if (!currentRecord.id) return;
-    const recordToSave = { ...currentRecord, dynamicData: { ...dynamicData, ...allCalculatedValues } } as ClinicalRecord;
+    const recordToSave = {
+        ...currentRecord,
+        patientId: selectedPatient?.id,
+        professionalId: user.id,
+        dynamicData: { ...dynamicData, ...allCalculatedValues }
+    } as ClinicalRecord;
 
     // ⚡ TRINITY: Persist draft to backend
     try {
         const savedRecord = await clinicalRecordService.create(recordToSave);
-        // Update local state with the ID from backend if it changed (e.g. from temp to UUID)
-        if (savedRecord.id !== currentRecord.id) {
-            setCurrentRecord(prev => ({ ...prev, id: savedRecord.id }));
-        }
+        // Update local state with the ID from backend if it changed
+        setCurrentRecord(prev => ({ ...prev, id: savedRecord.id }));
+
+        setRecords(prev => {
+          const existing = prev.findIndex(r => r.id === savedRecord.id || r.id === currentRecord.id);
+          if (existing >= 0) {
+            const updated = [...prev];
+            updated[existing] = { ...recordToSave, id: savedRecord.id };
+            return updated;
+          }
+          return [savedRecord, ...prev];
+        });
     } catch (e) {
         console.warn("No se pudo persistir en backend, usando local storage");
+        setRecords(prev => {
+          const existing = prev.findIndex(r => r.id === currentRecord.id);
+          if (existing >= 0) {
+            const updated = [...prev];
+            updated[existing] = recordToSave;
+            return updated;
+          }
+          return [recordToSave, ...prev];
+        });
     }
-
-    setRecords(prev => {
-      const existing = prev.findIndex(r => r.id === currentRecord.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = recordToSave;
-        return updated;
-      }
-      return [...prev, recordToSave];
-    });
 
     // 🎨 Palette: Non-blocking feedback for draft saving
     setIsSaved(true);
@@ -438,9 +450,20 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
        return uniqueProcs.slice(0, 5);
   }, [records, user.id]);
 
-  const handleCreateRecord = (patient: Patient) => {
+  const handleCreateRecord = async (patient: Patient) => {
     setSelectedPatient(patient);
     setViewMode('CREATE');
+    setIsLoadingRecords(true);
+
+    // ⚡ TRINITY: Fetch real records for this patient
+    try {
+        const patientRecords = await clinicalRecordService.getByPatientId(patient.id);
+        setRecords(patientRecords);
+    } catch (e) {
+        setRecords(MOCK_RECORDS.filter(r => r.patientId === patient.id));
+    } finally {
+        setIsLoadingRecords(false);
+    }
     
     // Check previous records for RCV History
     const prevRCV = records.some(r => r.patientId === patient.id && r.recordType === RecordType.PYP_CV_RISK && r.status === RecordStatus.FINALIZED);

@@ -7,16 +7,20 @@ export class ClinicalRecordController {
             const records = await ClinicalRecordService.getByPatientId(req.params.patientId);
             res.json(records);
         } catch (error: any) {
-            res.status(500).json({ message: error.message });
+            res.status(500).json({ error: error.message });
         }
     }
 
     static async create(req: Request, res: Response) {
         try {
-            const record = await ClinicalRecordService.createOrUpdate(req.body);
+            const professionalId = (req as any).user.id;
+            const record = await ClinicalRecordService.createOrUpdate({
+                ...req.body,
+                professionalId
+            });
             res.status(201).json(record);
         } catch (error: any) {
-            res.status(500).json({ message: error.message });
+            res.status(400).json({ error: error.message });
         }
     }
 
@@ -25,10 +29,10 @@ export class ClinicalRecordController {
             const { id } = req.params;
             const { signature } = req.body;
             const record = await ClinicalRecordService.finalize(id, signature);
-            if (!record) return res.status(404).json({ message: 'Historia no encontrada' });
+            if (!record) return res.status(404).json({ error: 'Historia no encontrada' });
             res.json(record);
         } catch (error: any) {
-            res.status(500).json({ message: error.message });
+            res.status(400).json({ error: error.message });
         }
     }
 }
