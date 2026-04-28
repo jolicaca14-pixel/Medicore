@@ -25,6 +25,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
   const [activeTab, setActiveTab] = useState<'PENDING' | 'HISTORY'>('PENDING');
+  const [statusMessage, setStatusMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
   
   // Mock Diagnostic Orders
   const [orders, setOrders] = useState<Order[]>([
@@ -89,7 +90,8 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      setStatusMessage({ text: "Resultado guardado correctamente.", type: 'success' });
+      setTimeout(() => setStatusMessage(null), 3000);
   };
 
   // --- RENDER FIELD ---
@@ -127,7 +129,8 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- PRINT VIEW ---
   const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+      setStatusMessage({ text: `Generando PDF consolidado para ${patientId} (${date})...`, type: 'success' });
+      setTimeout(() => setStatusMessage(null), 3000);
   };
 
   // --- RENDER FORM ---
@@ -172,6 +175,12 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   // --- DASHBOARD ---
   return (
     <div className="p-8 max-w-7xl mx-auto">
+        {statusMessage && (
+            <div className={`fixed top-24 right-8 z-[60] p-4 rounded-xl shadow-2xl flex items-center animate-in slide-in-from-right-10 duration-300 ${statusMessage.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                {statusMessage.type === 'success' ? <CheckCircle size={20} className="mr-3"/> : <AlertCircle size={20} className="mr-3"/>}
+                <p className="font-bold text-sm">{statusMessage.text}</p>
+            </div>
+        )}
         <div className="flex justify-between items-center mb-8">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800">{isLab ? 'Laboratorio Clínico' : 'Imagenología y Radiología'}</h2>
