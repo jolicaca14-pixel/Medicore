@@ -23,6 +23,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [patientsError, setPatientsError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
   const [records, setRecords] = useState<ClinicalRecord[]>(MOCK_RECORDS);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   
@@ -304,7 +305,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       setHrUser(updatedUser); // Update local view state
       
       // In a real app, this would call an API.
-      alert("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
+      setStatusMessage({ text: "Sus descargos han sido registrados correctamente.", type: 'success' });
+      setTimeout(() => setStatusMessage(null), 3000);
       setShowDescargosModal(false);
   };
 
@@ -333,7 +335,11 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   const handleOpenPaymentModal = () => {
       const activeContract = hrUser.contracts?.find(c => c.isActive && c.type === ContractType.OPS);
-      if (!activeContract) return alert("Solo disponible para contratos OPS Activos.");
+      if (!activeContract) {
+          setStatusMessage({ text: "Solo disponible para contratos OPS Activos.", type: 'error' });
+          setTimeout(() => setStatusMessage(null), 3000);
+          return;
+      }
       
       setNewPayment({
           period: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
@@ -368,6 +374,9 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       setPaymentRequests([request, ...paymentRequests]);
       setShowPaymentModal(false);
       
+      setStatusMessage({ text: "Cuenta de cobro generada y notificada a Administración.", type: 'success' });
+      setTimeout(() => setStatusMessage(null), 3000);
+
       // Generate PDF logic (Mock)
       const pdfWindow = window.open('', '_blank');
       if(pdfWindow) {
@@ -392,8 +401,6 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           `);
           pdfWindow.document.close();
       }
-
-      alert("Cuenta de cobro generada y notificada a Administración.");
   };
 
 
@@ -522,15 +529,16 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     if (action === 'FINALIZE') {
         // 🩺 DOC HOUSE: Gender-based clinical validation
         if (selectedPatient.gender === 'M' && (selectedTemplate?.recordType === RecordType.PYP_PREGNANCY || selectedTemplate?.recordType === RecordType.PYP_PUERPERIUM)) {
-            alert("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.");
+            setStatusMessage({ text: "Error: Plantillas de control prenatal no aplicables a hombres.", type: 'error' });
+            setTimeout(() => setStatusMessage(null), 3000);
             return;
         }
 
         // 🩺 DOC HOUSE: Clinical safety check for empty antecedents.
         if (!currentRecord.antecedents || currentRecord.antecedents.trim() === '') {
-            const confirmEmpty = window.confirm("Atención: Los antecedentes clínicos están vacíos. ¿Desea continuar sin registrar antecedentes?");
+            // Using browser confirm for critical safety check, though we could use a custom modal later
+            const confirmEmpty = window.confirm("Atención: Los antecedentes clínicos están vacíos. ¿Desea continuar?");
             if (!confirmEmpty) {
-                // Return to first tab which usually contains history/antecedents
                 if (selectedTemplate?.sections?.length) {
                     setActiveFormTab(selectedTemplate.sections[0].id);
                 }
@@ -539,14 +547,16 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         }
 
         if ((!currentRecord.diagnoses || currentRecord.diagnoses.length === 0) && selectedTemplate?.recordType !== RecordType.PROCEDURE) {
-            alert("Es obligatorio seleccionar al menos un diagnóstico CIE-11.");
+            setStatusMessage({ text: "Es obligatorio seleccionar al menos un diagnóstico CIE-11.", type: 'error' });
+            setTimeout(() => setStatusMessage(null), 3000);
             setActiveFormTab('orders_tab');
             return;
         }
         // VALIDATE BARTHEL IF REQUIRED
         if (isFirstTimeRCV && selectedTemplate?.recordType === RecordType.PYP_CV_RISK) {
             if(!dynamicData['global_barthel']) {
-                alert("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.");
+                setStatusMessage({ text: "La Escala de Barthel es obligatoria para el programa de RCV.", type: 'error' });
+                setTimeout(() => setStatusMessage(null), 3000);
                 return;
             }
         }
@@ -615,7 +625,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           setShowAuthModal(false);
           setViewMode('LIST');
           setSelectedPatient(null);
-          alert(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`);
+          setStatusMessage({ text: "Historia finalizada y RDA enviado exitosamente.", type: 'success' });
+          setTimeout(() => setStatusMessage(null), 5000);
         }, 2500);
       } else {
         setShowAuthModal(false);
@@ -627,7 +638,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   
   const handleAddDiagnosis = (code: string, name: string) => {
       if (!validateCIE11Code(code)) {
-          alert("Código CIE-11 no válido para este paciente.");
+          setStatusMessage({ text: "Código CIE-11 no válido para este paciente.", type: 'error' });
+          setTimeout(() => setStatusMessage(null), 3000);
           return;
       }
       if (currentRecord.diagnoses?.some(d => d.code === code)) return;
@@ -679,7 +691,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       const currentAnalysis = dynamicData['d_analisis'] || '';
       const newAnalysis = currentAnalysis + importText;
       setDynamicData({ ...dynamicData, d_analisis: newAnalysis });
-      alert(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
+      setStatusMessage({ text: `Datos de ${result.chiefComplaint} importados correctamente.`, type: 'success' });
+      setTimeout(() => setStatusMessage(null), 3000);
   };
 
   const renderField = (field: any, isReadOnly: boolean) => {
@@ -1118,6 +1131,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     
     return (
       <div className="flex flex-col h-[calc(100vh-100px)] relative">
+         {statusMessage && (
+            <div className={`fixed top-24 right-8 z-[60] p-4 rounded-xl shadow-2xl flex items-center animate-in slide-in-from-right-10 duration-300 ${statusMessage.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                {statusMessage.type === 'success' ? <CheckCircle size={20} className="mr-3"/> : <AlertCircle size={20} className="mr-3"/>}
+                <p className="font-bold text-sm">{statusMessage.text}</p>
+            </div>
+         )}
          
          {showRDAModal && <RDAViewerModal />}
 
@@ -1526,6 +1545,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // --- LIST VIEW ---
   return (
     <div className="p-6">
+        {statusMessage && (
+            <div className={`fixed top-24 right-8 z-[60] p-4 rounded-xl shadow-2xl flex items-center animate-in slide-in-from-right-10 duration-300 ${statusMessage.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                {statusMessage.type === 'success' ? <CheckCircle size={20} className="mr-3"/> : <AlertCircle size={20} className="mr-3"/>}
+                <p className="font-bold text-sm">{statusMessage.text}</p>
+            </div>
+        )}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
             <h2 className="text-2xl font-bold text-slate-800">Mis Pacientes</h2>
             <div className="relative w-full md:w-72">

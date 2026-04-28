@@ -46,12 +46,16 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   // --- BILLING STATE ---
   const [billingPatient, setBillingPatient] = useState<Patient | null>(null);
   const [billingSearchTerm, setBillingSearchTerm] = useState(''); // Search state
+  const [patientSearchTerm, setPatientSearchTerm] = useState(''); // Separate search for patient directory
 
   const [selectedServices, setSelectedServices] = useState<InvoiceItem[]>([]);
   const [globalDiscount, setGlobalDiscount] = useState<number>(0);
   const [partialPayment, setPartialPayment] = useState<string>('');
   const [tariffMode, setTariffMode] = useState<'SOAT' | 'PARTICULAR'>('SOAT');
   const [invoices, setInvoices] = useState<Invoice[]>([]); // Cartera
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<Invoice | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
 
   // Manual Item
   const [manualItemName, setManualItemName] = useState('');
@@ -280,21 +284,23 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   // --- CARTERA HANDLERS ---
-  const registerPayment = (id: string) => {
-      const inv = invoices.find(i => i.id === id);
-      if(!inv) return;
+  const handleOpenPaymentModal = (inv: Invoice) => {
+      setSelectedInvoiceForPayment(inv);
+      setPaymentAmount(inv.balance.toString());
+      setIsPaymentModalOpen(true);
+  };
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
+  const handleRegisterPayment = () => {
+      if (!selectedInvoiceForPayment || !paymentAmount) return;
+      const amount = parseFloat(paymentAmount);
       
-      if(amount > inv.balance) {
+      if(amount > selectedInvoiceForPayment.balance) {
           alert("El monto ingresado supera el saldo pendiente.");
           return;
       }
 
       setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
+          if (invoice.id !== selectedInvoiceForPayment.id) return invoice;
           const newBalance = invoice.balance - amount;
           const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
           return {
@@ -304,7 +310,9 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
-      alert("Pago registrado correctamente.");
+      setIsPaymentModalOpen(false);
+      setSelectedInvoiceForPayment(null);
+      setPaymentAmount('');
   };
 
   return (
@@ -339,8 +347,86 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+             <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+                    <button className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-slate-800 transition-colors">
+                        <Plus size={18} className="mr-2"/> Nuevo Paciente
+                    </button>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="relative mb-6">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                        <input
+                            type="text"
+                            placeholder="Buscar paciente por nombre, identificación o correo..."
+                            className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                            value={patientSearchTerm}
+                            onChange={(e) => setPatientSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-slate-500 font-medium">
+                                <tr>
+                                    <th className="p-4">Paciente</th>
+                                    <th className="p-4">Identificación</th>
+                                    <th className="p-4">Contacto</th>
+                                    <th className="p-4">Aseguradora</th>
+                                    <th className="p-4 text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {patients
+                                    .filter(p =>
+                                        p.fullName.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+                                        p.identification.includes(patientSearchTerm) ||
+                                        p.email?.toLowerCase().includes(patientSearchTerm.toLowerCase())
+                                    )
+                                    .map(p => (
+                                        <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="p-4">
+                                                <div className="font-bold text-slate-800">{p.fullName}</div>
+                                                <div className="text-xs text-slate-500">{new Date().getFullYear() - new Date(p.birthDate).getFullYear()} años • {p.gender === 'M' ? 'Masculino' : 'Femenino'}</div>
+                                            </td>
+                                            <td className="p-4 font-mono text-slate-600">{p.identification}</td>
+                                            <td className="p-4">
+                                                <div className="text-slate-700">{p.phone}</div>
+                                                <div className="text-xs text-slate-400">{p.email}</div>
+                                            </td>
+                                            <td className="p-4">
+                                                <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-bold uppercase">{p.insuranceType}</span>
+                                            </td>
+                                            <td className="p-4 text-right">
+                                                <div className="flex justify-end space-x-1">
+                                                    <button onClick={() => { handleSelectBillingPatient(p); setActiveTab('BILLING'); }} className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Facturar">
+                                                        <DollarSign size={16}/>
+                                                    </button>
+                                                    <button onClick={() => { handleOpenApptModal(); setNewAppt({...newAppt, patientId: p.id}); setActiveTab('AGENDA'); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Agendar Cita">
+                                                        <Calendar size={16}/>
+                                                    </button>
+                                                    <button className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors">
+                                                        <Edit size={16}/>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                {patients.filter(p =>
+                                    p.fullName.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+                                    p.identification.includes(patientSearchTerm) ||
+                                    p.email?.toLowerCase().includes(patientSearchTerm.toLowerCase())
+                                ).length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="p-8 text-center text-slate-400 italic">No se encontraron pacientes con ese criterio.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
              </div>
           )}
           {/* AGENDA TAB (Now Functional) */}
@@ -649,6 +735,49 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           {/* CARTERA TAB (Enhanced) */}
           {activeTab === 'CARTERA' && (
               <div>
+                  {isPaymentModalOpen && selectedInvoiceForPayment && (
+                      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+                              <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                                  <DollarSign className="mr-2 text-green-600"/> Registrar Abono / Pago
+                              </h3>
+                              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-4">
+                                  <p className="text-xs font-bold text-slate-500 uppercase mb-1">Paciente</p>
+                                  <p className="font-bold text-slate-800">{selectedInvoiceForPayment.patientName}</p>
+                                  <div className="flex justify-between mt-3">
+                                      <div>
+                                          <p className="text-[10px] font-bold text-slate-500 uppercase">Factura</p>
+                                          <p className="font-mono text-sm">{selectedInvoiceForPayment.id}</p>
+                                      </div>
+                                      <div className="text-right">
+                                          <p className="text-[10px] font-bold text-slate-500 uppercase">Saldo Pendiente</p>
+                                          <p className="font-bold text-red-600">{formatCurrency(selectedInvoiceForPayment.balance)}</p>
+                                      </div>
+                                  </div>
+                              </div>
+                              <div className="mb-6">
+                                  <label className="block text-sm font-bold text-slate-700 mb-2">Monto a Recibir</label>
+                                  <div className="relative">
+                                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                                      <input
+                                          id="payment-amount-input"
+                                          type="number"
+                                          className="w-full pl-8 pr-4 py-3 border-2 border-blue-100 rounded-xl focus:border-blue-500 outline-none text-lg font-bold text-slate-800"
+                                          value={paymentAmount}
+                                          onChange={e => setPaymentAmount(e.target.value)}
+                                          autoFocus
+                                      />
+                                  </div>
+                              </div>
+                              <div className="flex gap-2">
+                                  <button onClick={() => setIsPaymentModalOpen(false)} className="flex-1 px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                                  <button onClick={handleRegisterPayment} className="flex-2 px-6 py-3 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 shadow-lg shadow-green-100 transition-all active:scale-95">
+                                      Confirmar Recaudo
+                                  </button>
+                              </div>
+                          </div>
+                      </div>
+                  )}
                    <h2 className="text-2xl font-bold text-slate-800 mb-6">Cartera (Cuentas por Cobrar)</h2>
                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                        <table className="w-full text-sm text-left">
@@ -679,7 +808,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                       <td className="p-4 text-right flex justify-end space-x-2">
                                           <button onClick={() => printInvoice(inv)} className="bg-slate-200 text-slate-700 p-2 rounded hover:bg-slate-300" title="Imprimir"><Printer size={16}/></button>
                                           {inv.status !== 'PAID' && (
-                                              <button onClick={() => registerPayment(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
+                                              <button onClick={() => handleOpenPaymentModal(inv)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
                                                   Abonar
                                               </button>
                                           )}
