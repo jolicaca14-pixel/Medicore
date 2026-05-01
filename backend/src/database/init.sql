@@ -69,6 +69,75 @@ CREATE INDEX IF NOT EXISTS idx_citas_fecha ON citas(fecha);
 CREATE INDEX IF NOT EXISTS idx_citas_paciente ON citas(paciente_id);
 CREATE INDEX IF NOT EXISTS idx_citas_profesional ON citas(profesional_id);
 
+-- Tabla de historias clínicas
+CREATE TABLE IF NOT EXISTS historias_clinicas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id),
+    record_type VARCHAR(50) NOT NULL,
+    status VARCHAR(20) DEFAULT 'DRAFT',
+    date_created TIMESTAMP DEFAULT NOW(),
+    date_finalized TIMESTAMP,
+    chief_complaint TEXT,
+    history_of_present_illness TEXT,
+    antecedents TEXT,
+    plan TEXT,
+    dynamic_data JSONB DEFAULT '{}',
+    diagnoses JSONB DEFAULT '[]',
+    prescriptions JSONB DEFAULT '[]',
+    performed_procedures JSONB DEFAULT '[]',
+    rda_status VARCHAR(20) DEFAULT 'PENDING',
+    rda_payload TEXT,
+    email_sent BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para historias clínicas
+CREATE INDEX IF NOT EXISTS idx_hce_paciente ON historias_clinicas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_hce_profesional ON historias_clinicas(profesional_id);
+CREATE INDEX IF NOT EXISTS idx_hce_status ON historias_clinicas(status);
+
+-- Tabla de recetas (fórmulas médicas)
+CREATE TABLE IF NOT EXISTS recetas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id),
+    historia_clinica_id UUID REFERENCES historias_clinicas(id),
+    fecha TIMESTAMP DEFAULT NOW(),
+    items JSONB DEFAULT '[]',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para recetas
+CREATE INDEX IF NOT EXISTS idx_recetas_paciente ON recetas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_recetas_profesional ON recetas(profesional_id);
+
+-- Tabla de resultados diagnósticos (Laboratorio e Imagenología)
+CREATE TABLE IF NOT EXISTS resultados_diagnosticos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id),
+    especialista_id UUID REFERENCES usuarios(id),
+    tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('LABORATORIO', 'IMAGENOLOGIA')),
+    nombre_examen VARCHAR(255) NOT NULL,
+    resultado_texto TEXT,
+    unidades VARCHAR(50),
+    valores_referencia TEXT,
+    estado VARCHAR(20) DEFAULT 'PENDING' CHECK (estado IN ('PENDIENTE', 'VALIDADO')),
+    url_adjunto VARCHAR(500),
+    fecha_solicitud TIMESTAMP DEFAULT NOW(),
+    fecha_resultado TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para diagnósticos
+CREATE INDEX IF NOT EXISTS idx_diag_paciente ON resultados_diagnosticos(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_diag_tipo ON resultados_diagnosticos(tipo);
+CREATE INDEX IF NOT EXISTS idx_diag_estado ON resultados_diagnosticos(estado);
+
 -- Usuario administrador por defecto (password: admin123)
 -- Hash generado con bcrypt, salt rounds = 12
 INSERT INTO usuarios (username, password_hash, rol, nombre_completo, documento, email)
