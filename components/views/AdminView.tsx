@@ -113,6 +113,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       US: any[], AC: any[], AP: any[], AF: any[]
   } | null>(null);
 
+  // Billing & Financial Management
+  const [financialTab, setFinancialTab] = useState<'OVERVIEW' | 'BILLING' | 'RIPS'>('OVERVIEW');
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
+
   // --- USER HANDLERS ---
   const handleEditUser = (user: User) => { 
       setCurrentUser({ ...user }); 
@@ -469,6 +474,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       alert("Paquete de RIPS generado y descargado exitosamente.");
+  };
+
+  const handleRipsDownload = async (type: 'US' | 'AC') => {
+      if (selectedInvoices.length === 0) return alert("Seleccione al menos una factura para generar RIPS.");
+      try {
+          await billingService.downloadRIPS(type, selectedInvoices);
+      } catch (error: any) {
+          alert(error.message);
+      }
   };
 
   const handleNewTemplate = () => setIsTemplateModalOpen(true);
@@ -1074,89 +1088,118 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
-  // 4. REPORTS TAB - NEW RIPS GENERATION
+  // 4. REPORTS TAB - FINANCIAL MANAGEMENT
   if (activeTab === 'reports' && isAdmin) {
       return (
-          <div className="space-y-8 animate-in fade-in duration-500">
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">Reportes y Analítica</h2>
-              
-              {/* RIPS GENERATOR SECTION */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                  <div className="flex justify-between items-start mb-6">
-                      <div>
-                          <h3 className="font-bold text-lg text-slate-800 flex items-center">
-                              <FileJson className="mr-2 text-purple-600"/> Generación de RIPS
+          <div className="space-y-6 animate-in fade-in duration-500">
+              <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-2xl font-bold text-slate-800">Gestión Financiera</h2>
+              </div>
+
+              <div className="flex space-x-1 bg-white p-1 rounded-lg border border-slate-200 w-fit">
+                  <button onClick={() => setFinancialTab('OVERVIEW')} className={`px-4 py-2 rounded-md text-sm font-bold ${financialTab === 'OVERVIEW' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
+                      Vista General
+                  </button>
+                  <button onClick={() => setFinancialTab('BILLING')} className={`px-4 py-2 rounded-md text-sm font-bold ${financialTab === 'BILLING' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
+                      Facturación
+                  </button>
+                  <button onClick={() => setFinancialTab('RIPS')} className={`px-4 py-2 rounded-md text-sm font-bold ${financialTab === 'RIPS' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
+                      Generación RIPS
+                  </button>
+              </div>
+
+              {financialTab === 'OVERVIEW' && (
+                  <div className="grid grid-cols-1 gap-6">
+                      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                          <h3 className="font-bold text-lg text-slate-800 mb-6 flex items-center">
+                              <TrendingUp className="mr-2 text-green-600"/> Indicadores Financieros
                           </h3>
-                          <p className="text-sm text-slate-500">Generación de Archivos Planos (JSON/TXT) para validación en MinSalud.</p>
+                          <div className="h-80">
+                               <ResponsiveContainer width="100%" height="100%">
+                                   <ComposedChart data={generateFinancialData('MONTH', false)}>
+                                       <CartesianGrid stroke="#f5f5f5" vertical={false} />
+                                       <XAxis dataKey="name" />
+                                       <YAxis tickFormatter={(val) => `$${val/1000000}M`} />
+                                       <Tooltip formatter={(val: number) => formatCurrency(val)} />
+                                       <Bar dataKey="income" name="Ingresos" barSize={20} fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                                       <Line type="monotone" dataKey="profit" name="Margen Neto" stroke="#10b981" strokeWidth={2} dot={false} />
+                                   </ComposedChart>
+                               </ResponsiveContainer>
+                          </div>
                       </div>
-                      <div className="flex items-center space-x-3 bg-slate-50 p-2 rounded-lg">
-                          <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase">Fecha Inicio</label>
-                              <input type="date" className="border rounded px-2 py-1 text-sm bg-white" value={ripsStartDate} onChange={e => setRipsStartDate(e.target.value)} />
-                          </div>
-                          <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase">Fecha Fin</label>
-                              <input type="date" className="border rounded px-2 py-1 text-sm bg-white" value={ripsEndDate} onChange={e => setRipsEndDate(e.target.value)} />
-                          </div>
-                          <button onClick={generateRIPS} className="h-full bg-purple-600 text-white px-4 py-2 rounded font-bold text-sm shadow hover:bg-purple-700 flex items-center">
-                              <Zap size={16} className="mr-2"/> Generar
+                  </div>
+              )}
+
+              {financialTab === 'BILLING' && (
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                      <div className="flex justify-between items-center mb-4">
+                          <h3 className="font-bold text-lg text-slate-800">Facturas Generadas</h3>
+                          <button
+                            onClick={async () => setInvoices(await billingService.getAllInvoices())}
+                            className="text-blue-600 text-sm font-bold flex items-center"
+                          >
+                              <Activity size={16} className="mr-1"/> Actualizar
                           </button>
                       </div>
+                      <table className="w-full text-sm text-left">
+                          <thead className="bg-slate-50 text-slate-500 font-medium">
+                              <tr>
+                                  <th className="p-3"><input type="checkbox" onChange={(e) => e.target.checked ? setSelectedInvoices(invoices.map(i => i.id)) : setSelectedInvoices([])} /></th>
+                                  <th className="p-3">Factura ID</th>
+                                  <th className="p-3">Fecha</th>
+                                  <th className="p-3">Valor Total</th>
+                                  <th className="p-3">Estado</th>
+                                  <th className="p-3 text-right">Acciones</th>
+                              </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                              {invoices.map(inv => (
+                                  <tr key={inv.id}>
+                                      <td className="p-3"><input type="checkbox" checked={selectedInvoices.includes(inv.id)} onChange={(e) => e.target.checked ? setSelectedInvoices([...selectedInvoices, inv.id]) : setSelectedInvoices(selectedInvoices.filter(id => id !== inv.id))} /></td>
+                                      <td className="p-3 font-mono text-xs">{inv.id.slice(0,8)}</td>
+                                      <td className="p-3">{new Date(inv.date).toLocaleDateString()}</td>
+                                      <td className="p-3 font-bold">{formatCurrency(inv.totalAmount)}</td>
+                                      <td className="p-3"><span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-50 text-blue-700 font-bold">{inv.status}</span></td>
+                                      <td className="p-3 text-right"><Printer size={14} className="inline text-slate-400 cursor-pointer"/></td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
                   </div>
+              )}
 
-                  {generatedRips ? (
-                      <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                          <div className="flex justify-between items-center gap-4">
-                              <div className="grid grid-cols-4 gap-4 flex-1">
-                                  {Object.entries(generatedRips).map(([key, data]) => (
-                                      <div key={key} className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
-                                          <h4 className="font-bold text-2xl text-slate-800">{data.length}</h4>
-                                          <p className="text-xs text-slate-500 font-bold uppercase">Archivo {key}</p>
-                                      </div>
-                                  ))}
-                              </div>
-                              <button onClick={downloadRIPS} className="bg-green-600 text-white px-6 py-4 rounded-xl font-bold flex flex-col items-center justify-center shadow-lg hover:bg-green-700 transition-all min-w-[120px]">
-                                  <Download size={24} className="mb-1"/>
-                                  <span className="text-[10px] uppercase">Descargar</span>
+              {financialTab === 'RIPS' && (
+                  <div className="space-y-6">
+                      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                          <h3 className="font-bold text-lg text-slate-800 mb-4">Generación de RIPS (Res. 2275)</h3>
+                          <div className="grid grid-cols-2 gap-4 mb-6">
+                              <button
+                                onClick={() => handleRipsDownload('US')}
+                                className="p-6 border rounded-xl hover:bg-slate-50 transition-colors flex flex-col items-center justify-center gap-2"
+                              >
+                                  <Users className="text-blue-600" size={32}/>
+                                  <span className="font-bold">Archivo US (Usuarios)</span>
+                                  <span className="text-[10px] text-slate-500 uppercase">{selectedInvoices.length} facturas seleccionadas</span>
+                              </button>
+                              <button
+                                onClick={() => handleRipsDownload('AC')}
+                                className="p-6 border rounded-xl hover:bg-slate-50 transition-colors flex flex-col items-center justify-center gap-2"
+                              >
+                                  <FileText className="text-green-600" size={32}/>
+                                  <span className="font-bold">Archivo AC (Consultas)</span>
+                                  <span className="text-[10px] text-slate-500 uppercase">{selectedInvoices.length} facturas seleccionadas</span>
                               </button>
                           </div>
-                          
-                          <div className="border rounded-lg overflow-hidden">
-                               <div className="bg-slate-100 px-4 py-2 border-b">
-                                  <span className="font-mono text-xs font-bold text-slate-600">Previsualización (Formato JSON Res. 2275/2023)</span>
-                              </div>
-                              <div className="bg-slate-900 text-green-400 p-4 font-mono text-xs h-64 overflow-y-auto">
-                                  {JSON.stringify(generatedRips, null, 2)}
-                              </div>
+                          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex items-start">
+                              <Info size={18} className="text-blue-600 mr-2 mt-0.5"/>
+                              <p className="text-xs text-blue-800">
+                                  Para generar los archivos RIPS, primero seleccione las facturas correspondientes en la pestaña "Facturación".
+                                  El sistema generará automáticamente los archivos planos US y AC cumpliendo con el estándar colombiano.
+                              </p>
                           </div>
                       </div>
-                  ) : (
-                      <div className="text-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-300">
-                          <FileJson size={48} className="mx-auto text-slate-300 mb-4"/>
-                          <p className="text-sm text-slate-500">Seleccione un rango de fechas y haga clic en "Generar" para crear los reportes.</p>
-                      </div>
-                  )}
-              </div>
-
-              {/* FINANCIAL CHARTS (Existing Logic) */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                  <h3 className="font-bold text-lg text-slate-800 mb-6 flex items-center">
-                      <TrendingUp className="mr-2 text-green-600"/> Indicadores Financieros
-                  </h3>
-                  {/* Reuse existing chart logic */}
-                  <div className="h-80">
-                       <ResponsiveContainer width="100%" height="100%">
-                           <ComposedChart data={generateFinancialData('MONTH', false)}>
-                               <CartesianGrid stroke="#f5f5f5" vertical={false} />
-                               <XAxis dataKey="name" />
-                               <YAxis tickFormatter={(val) => `$${val/1000000}M`} />
-                               <Tooltip formatter={(val: number) => formatCurrency(val)} />
-                               <Bar dataKey="income" name="Ingresos" barSize={20} fill="#0ea5e9" radius={[4, 4, 0, 0]} />
-                               <Line type="monotone" dataKey="profit" name="Margen Neto" stroke="#10b981" strokeWidth={2} dot={false} />
-                           </ComposedChart>
-                       </ResponsiveContainer>
                   </div>
-              </div>
+              )}
           </div>
       );
   }

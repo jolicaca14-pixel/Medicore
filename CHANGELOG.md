@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-01-28] - 10-Cycle Protocol Jules (Phase 11)
+
+### Added
+- **PostgreSQL Persistence**: Complete migration of Clinical Records (HCE) to PostgreSQL.
+- **Billing Module**: New `/api/facturacion` endpoints and frontend services.
+- **RIPS Compliance**: Automated generation of US and AC files (Res. 2275).
+- **Audit System**: Centralized logging of all mutating actions in the database.
+- **Metrics API**: Real-time system statistics for administrators.
+- **Advanced Clinical Logic**: Neonatal and infant-specific vital sign thresholds.
+
+### Changed
+- **AdminView.tsx**: Redesigned "Gestión Financiera" tab with Billing and RIPS management.
+- **backend/src/server.ts**: Integrated audit middleware and registered all module routes.
+- **utils/security.ts**: Enhanced RBAC utilities (`isSystemAdmin`, `hasAdministrativeAccess`).
+
+### Fixed
+- **Inalterability**: Enforced medical record inalterability once finalized via backend guards.
+
 ## [2026-01-23] - 10-Cycle Optimization (Protocol Jules)
 
 ### Added
