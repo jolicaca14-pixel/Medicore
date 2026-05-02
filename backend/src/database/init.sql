@@ -102,7 +102,76 @@ VALUES
 ON CONFLICT (identificacion) DO NOTHING;
 
 -- Comentarios para documentación
+-- Tabla de historias clínicas
+CREATE TABLE IF NOT EXISTS historias_clinicas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id),
+    profesional_nombre VARCHAR(255),
+    tipo_registro VARCHAR(50) NOT NULL,
+    fecha_creacion TIMESTAMP DEFAULT NOW(),
+    fecha_finalizacion TIMESTAMP,
+    estado VARCHAR(20) DEFAULT 'DRAFT' CHECK (estado IN ('DRAFT', 'FINALIZED')),
+
+    rda_status VARCHAR(50),
+    rda_payload TEXT,
+
+    motivo_consulta TEXT,
+    enfermedad_actual TEXT,
+    antecedentes TEXT,
+    datos_dinamicos JSONB DEFAULT '{}',
+
+    diagnosticos JSONB DEFAULT '[]',
+    plan_tratamiento TEXT,
+
+    prescripciones JSONB DEFAULT '[]',
+    procedimientos_realizados JSONB DEFAULT '[]',
+
+    adjuntos JSONB DEFAULT '[]',
+    notas_aclaratorias JSONB DEFAULT '[]',
+    email_enviado BOOLEAN DEFAULT false,
+
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para historias clínicas
+CREATE INDEX IF NOT EXISTS idx_hce_paciente ON historias_clinicas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_hce_profesional ON historias_clinicas(profesional_id);
+CREATE INDEX IF NOT EXISTS idx_hce_fecha ON historias_clinicas(fecha_creacion);
+
+-- Tabla de facturación
+CREATE TABLE IF NOT EXISTS facturas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id),
+    clinical_record_id UUID REFERENCES historias_clinicas(id),
+    total_amount DECIMAL(12, 2) NOT NULL,
+    estado VARCHAR(20) DEFAULT 'DRAFT' CHECK (estado IN ('DRAFT', 'PAID', 'CANCELLED')),
+    items JSONB DEFAULT '[]',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_facturas_paciente ON facturas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_facturas_hce ON facturas(clinical_record_id);
+
+-- Tabla de auditoría
+CREATE TABLE IF NOT EXISTS auditoria (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usuario_id UUID REFERENCES usuarios(id),
+    accion VARCHAR(10) NOT NULL,
+    tabla VARCHAR(50) NOT NULL,
+    registro_id VARCHAR(100),
+    detalles JSONB,
+    ip_address VARCHAR(45),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_auditoria_usuario ON auditoria(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria(created_at);
+
 COMMENT ON TABLE usuarios IS 'Tabla de usuarios del sistema con control de acceso basado en roles (RBAC)';
 COMMENT ON TABLE sesiones IS 'Tabla de sesiones activas con refresh tokens para autenticación JWT';
+COMMENT ON TABLE historias_clinicas IS 'Almacén central de Historias Clínicas Electrónicas (HCE)';
 COMMENT ON COLUMN usuarios.password_hash IS 'Hash de contraseña generado con bcrypt (salt rounds >= 12)';
 COMMENT ON COLUMN sesiones.refresh_token IS 'Refresh token JWT con vida de 7 días';

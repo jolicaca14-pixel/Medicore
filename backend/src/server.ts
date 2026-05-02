@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import authRoutes from './modulos/auth/routes';
 import patientRoutes from './modulos/pacientes/routes';
 import agendaRoutes from './modulos/agenda/routes';
+import facturacionRoutes from './modulos/facturacion/routes';
+import { auditMiddleware } from './middlewares/auditMiddleware';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -20,11 +22,15 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(auditMiddleware);
 
 // Rutas
+import clinicalRoutes from './modulos/historias-clinicas/routes';
 app.use('/api/auth', authRoutes);
 app.use('/api/pacientes', patientRoutes);
 app.use('/api/agenda', agendaRoutes);
+app.use('/api/facturacion', facturacionRoutes);
+app.use('/api/historias-clinicas', clinicalRoutes);
 
 // Ruta de health check
 app.get('/health', (req: Request, res: Response) => {

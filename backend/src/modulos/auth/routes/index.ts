@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/AuthController';
-import { authenticateToken } from '../middlewares/authMiddleware';
+import { authenticateToken, requireRole } from '../middlewares/authMiddleware';
+import { MetricsService } from '../services/MetricsService';
 
 const router = Router();
 
@@ -28,5 +29,14 @@ router.post('/logout', AuthController.logout);
  * Requiere autenticación
  */
 router.get('/me', authenticateToken, AuthController.me);
+
+router.get('/metrics', authenticateToken, requireRole(['admin']), async (req, res) => {
+    try {
+        const metrics = await MetricsService.getOverviewMetrics();
+        res.json(metrics);
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+});
 
 export default router;

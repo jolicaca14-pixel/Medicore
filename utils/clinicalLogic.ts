@@ -8,14 +8,17 @@
  *
  * @param id The field ID (e.g., 'global_sys_bp')
  * @param value The value of the field
- * @param age Optional age for context-aware thresholds
+ * @param age Optional age for context-aware thresholds (in years)
+ * @param ageMonths Optional age in months for infants
  * @returns A string with the warning or null if normal
  */
-export const getVitalWarning = (id: string, value: string, age?: number): string | null => {
+export const getVitalWarning = (id: string, value: string, age?: number, ageMonths?: number): string | null => {
   const n = parseFloat(value);
   if (isNaN(n)) return null;
 
   const isPediatric = age !== undefined && age < 15;
+  const isInfant = ageMonths !== undefined && ageMonths < 12;
+  const isNewborn = ageMonths !== undefined && ageMonths < 1;
 
   if (id === 'global_sys_bp') {
     if (isPediatric) {
@@ -30,6 +33,16 @@ export const getVitalWarning = (id: string, value: string, age?: number): string
     if (n < 60) return 'Hipotensión: Diástole baja';
   }
   if (id === 'global_heart_rate' || id === 'v_fc') {
+    if (isNewborn) {
+      if (n > 180) return 'Taquicardia Neonatal';
+      if (n < 100) return 'Bradicardia Neonatal';
+      return null;
+    }
+    if (isInfant) {
+      if (n > 160) return 'Taquicardia Lactante';
+      if (n < 80) return 'Bradicardia Lactante';
+      return null;
+    }
     if (n > 100) return 'Taquicardia: FC elevada';
     if (n < 60) return 'Bradicardia: FC baja';
   }
