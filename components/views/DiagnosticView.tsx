@@ -37,6 +37,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [dynamicData, setDynamicData] = useState<Record<string, any>>({});
   const [completedRecords, setCompletedRecords] = useState<ClinicalRecord[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<Record<string, string>>({});
 
   // Filter orders based on user role
   const myOrders = orders.filter(o => 
@@ -54,6 +55,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   const handleSelectOrder = (order: Order) => {
       setSelectedOrder(order);
       setDynamicData({}); // Reset form
+      setSelectedFiles({});
   };
 
   const handleSaveResult = () => {
@@ -97,24 +99,49 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       const val = dynamicData[field.id] || '';
       return (
           <div key={field.id} className="col-span-1">
-              <label className="block text-xs font-bold text-slate-500 mb-1">
+              <label htmlFor={field.id} className="block text-xs font-bold text-slate-500 mb-1">
                   {field.label} {field.unit && <span className="text-slate-400">({field.unit})</span>}
               </label>
               
               {field.type === 'TEXTAREA' ? (
-                  <textarea className="w-full p-2 border rounded text-sm" rows={3} value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})} />
+                  <textarea id={field.id} className="w-full p-2 border rounded text-sm" rows={3} value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})} />
               ) : field.type === 'SELECT' ? (
-                  <select className="w-full p-2 border rounded text-sm" value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}>
+                  <select id={field.id} className="w-full p-2 border rounded text-sm" value={val} onChange={e => setDynamicData({...dynamicData, [field.id]: e.target.value})}>
                       <option value="">-</option>
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'FILE' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50">
-                      <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
-                      <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                  <div className="relative">
+                      <input
+                        type="file"
+                        id={field.id}
+                        className="hidden"
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if(file) setSelectedFiles({...selectedFiles, [field.id]: file.name});
+                        }}
+                      />
+                      <label
+                        htmlFor={field.id}
+                        className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50 flex flex-col items-center justify-center transition-colors"
+                      >
+                          {selectedFiles[field.id] ? (
+                              <>
+                                  <CheckCircle size={20} className="text-green-500 mb-2"/>
+                                  <p className="text-xs font-bold text-slate-800">{selectedFiles[field.id]}</p>
+                                  <p className="text-[10px] text-slate-400">Click para cambiar</p>
+                              </>
+                          ) : (
+                              <>
+                                  <Upload size={20} className="text-slate-400 mb-2"/>
+                                  <p className="text-xs text-slate-500">Cargar imágenes (DICOM/JPG)</p>
+                              </>
+                          )}
+                      </label>
                   </div>
               ) : (
                   <input 
+                    id={field.id}
                     type={field.type === 'NUMBER' ? 'number' : 'text'} 
                     className="w-full p-2 border rounded text-sm"
                     value={val} 
@@ -126,8 +153,55 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head>
+                  <title>Resultados de Diagnóstico - ${patientName}</title>
+                  <style>
+                      body { font-family: sans-serif; padding: 40px; color: #1e293b; }
+                      .header { border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; mb-20px; }
+                      .badge { background: #f1f5f9; padding: 4px 8px; rounded: 4px; font-size: 12px; }
+                      h1 { color: #0f172a; margin-bottom: 5px; }
+                      .date { color: #64748b; font-size: 14px; }
+                      .record { margin-top: 30px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; }
+                      .record-title { font-weight: bold; font-size: 18px; margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; }
+                      .field { display: flex; margin-bottom: 5px; font-size: 14px; }
+                      .field-label { font-weight: bold; width: 200px; color: #475569; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1>MediCore Pro - Informe de Resultados</h1>
+                      <div class="date">Paciente: <strong>${patientName}</strong> | Fecha: ${date}</div>
+                  </div>
+                  <div class="content">
+                      <p>A continuación se consolidan los resultados de los exámenes realizados en la fecha indicada.</p>
+                      ${completedRecords
+                        .filter(r => MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientName && r.dateCreated.startsWith(date))
+                        .map(r => `
+                          <div class="record">
+                              <div class="record-title">${r.chiefComplaint}</div>
+                              ${Object.entries(r.dynamicData).map(([key, val]) => `
+                                  <div class="field">
+                                      <span class="field-label">${MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key}:</span>
+                                      <span class="field-value">${val}</span>
+                                  </div>
+                              `).join('')}
+                          </div>
+                      `).join('')}
+                  </div>
+                  <div style="margin-top: 50px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 12px; color: #94a3b8;">
+                      Documento generado electrónicamente por MediCore Pro.
+                  </div>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+          printWindow.print();
+      }
   };
 
   // --- RENDER FORM ---
