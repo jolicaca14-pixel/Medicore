@@ -46,6 +46,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   // --- BILLING STATE ---
   const [billingPatient, setBillingPatient] = useState<Patient | null>(null);
   const [billingSearchTerm, setBillingSearchTerm] = useState(''); // Search state
+  const [patientSearchTerm, setPatientSearchTerm] = useState(''); // Search for PATIENTS tab
 
   const [selectedServices, setSelectedServices] = useState<InvoiceItem[]>([]);
   const [globalDiscount, setGlobalDiscount] = useState<number>(0);
@@ -267,34 +268,113 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head>
+                  <title>Factura de Venta - ${invoice.id}</title>
+                  <style>
+                      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #334155; }
+                      .invoice-box { max-width: 800px; margin: auto; border: 1px solid #eee; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.05); }
+                      .header { display: flex; justify-content: space-between; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px; }
+                      .info { margin-bottom: 30px; }
+                      table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                      th { background: #f8fafc; text-align: left; padding: 12px; border-bottom: 1px solid #e2e8f0; }
+                      td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+                      .totals { text-align: right; }
+                      .total-row { font-size: 1.25rem; font-weight: bold; color: #1e293b; }
+                      .footer { text-align: center; margin-top: 50px; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+                      .status-badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+                      .paid { background: #dcfce7; color: #166534; }
+                      .pending { background: #fee2e2; color: #991b1b; }
+                  </style>
+              </head>
+              <body>
+                  <div class="invoice-box">
+                      <div class="header">
+                          <div>
+                              <h1 style="margin:0; color: #1d4ed8;">MediCore Pro</h1>
+                              <p style="margin:5px 0; color: #64748b;">HCE & Gestión Administrativa</p>
+                          </div>
+                          <div style="text-align: right">
+                              <h2 style="margin:0;">FACTURA DE VENTA</h2>
+                              <p style="margin:5px 0; font-family: monospace;">N° ${invoice.id}</p>
+                              <span class="status-badge ${invoice.status === 'PAID' ? 'paid' : 'pending'}">${invoice.status}</span>
+                          </div>
+                      </div>
+
+                      <div class="info">
+                          <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                          <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+                          <p><strong>Tipo de Pago:</strong> ${invoice.payerType === 'PATIENT' ? 'Particular' : 'Aseguradora (EPS)'}</p>
+                      </div>
+
+                      <table>
+                          <thead>
+                              <tr>
+                                  <th>Descripción / CUPS</th>
+                                  <th>Cant.</th>
+                                  <th>Precio Unit.</th>
+                                  <th style="text-align: right">Total</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              ${invoice.items.map(item => `
+                                  <tr>
+                                      <td>${item.name} <br/><small style="color:#64748b">${item.code}</small></td>
+                                      <td>${item.quantity}</td>
+                                      <td>${formatCurrency(item.price)}</td>
+                                      <td style="text-align: right">${formatCurrency(item.price * item.quantity)}</td>
+                                  </tr>
+                              `).join('')}
+                          </tbody>
+                      </table>
+
+                      <div class="totals">
+                          <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+                          <p>Descuentos: - ${formatCurrency(invoice.discount)}</p>
+                          <p class="total-row">TOTAL: ${formatCurrency(invoice.total)}</p>
+                          <hr/>
+                          <p style="color: #16a34a; font-weight: bold;">Abonado: ${formatCurrency(invoice.total - invoice.balance)}</p>
+                          <p style="color: #dc2626; font-weight: bold;">Saldo Pendiente: ${formatCurrency(invoice.balance)}</p>
+                      </div>
+
+                      <div class="footer">
+                          Esta factura ha sido generada por el sistema MediCore Pro. <br/>
+                          Gracias por confiar en nuestros servicios de salud.
+                      </div>
+                  </div>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+          setTimeout(() => {
+              printWindow.print();
+          }, 500);
+      }
   };
 
   // --- CARTERA HANDLERS ---
-  const registerPayment = (id: string) => {
-      const inv = invoices.find(i => i.id === id);
-      if(!inv) return;
+  const [paymentModalData, setPaymentModalData] = useState<{ id: string, balance: number } | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
+  const handleOpenPaymentModal = (id: string, balance: number) => {
+      setPaymentModalData({ id, balance });
+      setPaymentAmount(balance.toString());
+  };
+
+  const handleConfirmPayment = () => {
+      if(!paymentModalData) return;
+      const amount = parseFloat(paymentAmount);
       
-      if(amount > inv.balance) {
+      if(amount > paymentModalData.balance) {
           alert("El monto ingresado supera el saldo pendiente.");
           return;
       }
 
       setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
+          if (invoice.id !== paymentModalData.id) return invoice;
           const newBalance = invoice.balance - amount;
           const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
           return {
@@ -304,6 +384,8 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
+      setPaymentModalData(null);
+      setPaymentAmount('');
       alert("Pago registrado correctamente.");
   };
 
@@ -339,8 +421,70 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+             <div className="space-y-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+                    <div className="relative w-72">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                        <input
+                            type="text"
+                            placeholder="Buscar paciente..."
+                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            value={patientSearchTerm}
+                            onChange={(e) => setPatientSearchTerm(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-medium">
+                            <tr>
+                                <th className="p-4">Paciente</th>
+                                <th className="p-4">Identificación</th>
+                                <th className="p-4">Contacto</th>
+                                <th className="p-4">Aseguradora</th>
+                                <th className="p-4 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {patients
+                                .filter(p =>
+                                    p.fullName.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+                                    p.identification.includes(patientSearchTerm) ||
+                                    p.email.toLowerCase().includes(patientSearchTerm.toLowerCase())
+                                )
+                                .map(p => (
+                                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-4">
+                                            <div className="font-bold text-slate-800">{p.fullName}</div>
+                                            <div className="text-xs text-slate-400">{p.gender === 'M' ? 'Masculino' : 'Femenino'}, {new Date().getFullYear() - new Date(p.birthDate).getFullYear()} años</div>
+                                        </td>
+                                        <td className="p-4 font-mono text-slate-600">{p.identification}</td>
+                                        <td className="p-4">
+                                            <div className="text-slate-700">{p.phone}</div>
+                                            <div className="text-xs text-slate-400">{p.email}</div>
+                                        </td>
+                                        <td className="p-4">
+                                            <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-bold border border-blue-100">{p.insuranceType}</span>
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            <div className="flex justify-end space-x-2">
+                                                <button onClick={() => { setBillingPatient(p); setActiveTab('BILLING'); }} className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors" title="Facturar"><DollarSign size={16}/></button>
+                                                <button onClick={() => handleOpenApptModal({ patientId: p.id, patientName: p.fullName } as Appointment)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Agendar"><Calendar size={16}/></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            }
+                            {patients.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="p-8 text-center text-slate-400 italic">No hay pacientes registrados.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
              </div>
           )}
           {/* AGENDA TAB (Now Functional) */}
@@ -679,7 +823,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                       <td className="p-4 text-right flex justify-end space-x-2">
                                           <button onClick={() => printInvoice(inv)} className="bg-slate-200 text-slate-700 p-2 rounded hover:bg-slate-300" title="Imprimir"><Printer size={16}/></button>
                                           {inv.status !== 'PAID' && (
-                                              <button onClick={() => registerPayment(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
+                                              <button onClick={() => handleOpenPaymentModal(inv.id, inv.balance)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
                                                   Abonar
                                               </button>
                                           )}

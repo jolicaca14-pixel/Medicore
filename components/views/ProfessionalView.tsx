@@ -827,18 +827,28 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                   <p className="text-xs font-bold text-slate-700 mb-2">Cargar Soportes (PDF)</p>
                                   <div className="space-y-2">
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
-                                          <div className="flex items-center">
-                                              <FileText size={16} className="text-slate-400 mr-2"/>
-                                              <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
+                                          <div className="flex items-center overflow-hidden">
+                                              <FileText size={16} className="text-slate-400 mr-2 flex-shrink-0"/>
+                                              <span className="text-xs text-slate-600 truncate">Planilla Seguridad Social</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <input type="file" id="upload-ss" className="hidden" onChange={(e) => {
+                                              if (e.target.files?.[0]) {
+                                                  alert(`Archivo "${e.target.files[0].name}" cargado localmente.`);
+                                              }
+                                          }} />
+                                          <label htmlFor="upload-ss" className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100 cursor-pointer flex-shrink-0">Seleccionar...</label>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
-                                          <div className="flex items-center">
-                                              <FileText size={16} className="text-slate-400 mr-2"/>
-                                              <span className="text-xs text-slate-600">Informe de Actividades</span>
+                                          <div className="flex items-center overflow-hidden">
+                                              <FileText size={16} className="text-slate-400 mr-2 flex-shrink-0"/>
+                                              <span className="text-xs text-slate-600 truncate">Informe de Actividades</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <input type="file" id="upload-ia" className="hidden" onChange={(e) => {
+                                              if (e.target.files?.[0]) {
+                                                  alert(`Archivo "${e.target.files[0].name}" cargado localmente.`);
+                                              }
+                                          }} />
+                                          <label htmlFor="upload-ia" className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100 cursor-pointer flex-shrink-0">Seleccionar...</label>
                                       </div>
                                   </div>
                               </div>
