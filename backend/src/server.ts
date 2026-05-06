@@ -5,6 +5,10 @@ import dotenv from 'dotenv';
 import authRoutes from './modulos/auth/routes';
 import patientRoutes from './modulos/pacientes/routes';
 import agendaRoutes from './modulos/agenda/routes';
+import clinicalRoutes from './modulos/historias-clinicas/routes';
+import recetaRoutes from './modulos/recetas/routes';
+import ripsRoutes from './modulos/rips/routes';
+import reportesRoutes from './modulos/reportes/routes';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -25,6 +29,10 @@ app.use(cookieParser());
 app.use('/api/auth', authRoutes);
 app.use('/api/pacientes', patientRoutes);
 app.use('/api/agenda', agendaRoutes);
+app.use('/api/historias-clinicas', clinicalRoutes);
+app.use('/api/recetas', recetaRoutes);
+app.use('/api/rips', ripsRoutes);
+app.use('/api/reportes', reportesRoutes);
 
 // Ruta de health check
 app.get('/health', (req: Request, res: Response) => {
@@ -45,6 +53,10 @@ app.get('/', (req: Request, res: Response) => {
             auth: '/api/auth',
             pacientes: '/api/pacientes',
             agenda: '/api/agenda',
+            'historias-clinicas': '/api/historias-clinicas',
+            recetas: '/api/recetas',
+            rips: '/api/rips',
+            reportes: '/api/reportes',
         }
     });
 });

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { ClinicalRecordService } from '../services/ClinicalRecordService';
+import { ICDService } from '../services/ICDService';
 
 export class ClinicalRecordController {
     static async getByPatientId(req: Request, res: Response) {
@@ -29,6 +30,16 @@ export class ClinicalRecordController {
             res.json(record);
         } catch (error: any) {
             res.status(500).json({ message: error.message });
+        }
+    }
+
+    static async searchICD(req: Request, res: Response) {
+        try {
+            const { q } = req.query;
+            const results = await ICDService.search(q as string || '');
+            res.json(results);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
         }
     }
 }
