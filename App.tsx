@@ -175,7 +175,7 @@ const App: React.FC = () => {
       {user.roles.includes(UserRole.PROFESSIONAL) && <ProfessionalView user={user} onLogout={logout} activeTab={activeTab} />}
       
       {/* Pass activeTab and setter to AdminView for navigation control */}
-      {(user.roles.includes(UserRole.ADMIN) || user.roles.includes(UserRole.ACCOUNTANT) || user.roles.includes(UserRole.MANAGER)) &&
+      {(user.roles.some(r => [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.MANAGER].includes(r))) &&
         <AdminView activeTab={activeTab} setActiveTab={setActiveTab} currentUserSession={user} />}
       
       {(user.roles.includes(UserRole.BACTERIOLOGIST) || user.roles.includes(UserRole.RADIOLOGIST)) && <DiagnosticView user={user} onLogout={logout} />}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserRole, AppNotification } from '../types';
 import { MOCK_NOTIFICATIONS } from '../constants';
+import { isSystemAdmin, hasAdministrativeAccess } from '../utils/security';
 import { 
   LogOut, 
   LayoutDashboard, 
@@ -48,16 +49,20 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
     let items: any[] = [];
     const roles = user.roles || [];
 
-    if (roles.includes(UserRole.ADMIN)) {
-      items = [
-        ...items,
-        { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
-        { id: 'users', label: 'Gestión Usuarios', icon: Users },
-        { id: 'files', label: 'Gestión Archivos', icon: FileText },
-        { id: 'hr', label: 'Talento Humano', icon: Briefcase }, // NEW HR MODULE
-        { id: 'reports', label: 'Gestión Financiera', icon: DollarSign },
-        { id: 'settings', label: 'Plantillas / Roles', icon: Settings },
-      ];
+    const isAdmin = isSystemAdmin(user);
+    const hasAdminAccess = hasAdministrativeAccess(user);
+
+    if (hasAdminAccess) {
+      items.push({ id: 'dashboard', label: 'Panel Control', icon: LayoutDashboard });
+      items.push({ id: 'hr', label: 'Gestión Humana', icon: Briefcase });
+      items.push({ id: 'reports', label: 'Analítica Financiera', icon: DollarSign });
+    }
+
+    if (isAdmin) {
+      // Exclusively for ADMIN
+      items.push({ id: 'users', label: 'Centro Usuarios', icon: Users });
+      items.push({ id: 'settings', label: 'Configuración', icon: Settings });
+      items.push({ id: 'files', label: 'Gestión Archivos', icon: FileText });
     }
     
     if (roles.includes(UserRole.PROFESSIONAL) || roles.includes(UserRole.PSYCHOLOGIST)) {
