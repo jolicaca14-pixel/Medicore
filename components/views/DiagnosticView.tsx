@@ -127,7 +127,50 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- PRINT VIEW ---
   const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+      const recordsInGroup = completedRecords.filter(r => r.patientId === patientId || MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientId);
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const resultsHtml = recordsInGroup.map(r => `
+          <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #eee; border-radius: 8px;">
+              <h3 style="margin-top: 0; color: #1e293b;">${r.chiefComplaint}</h3>
+              <p style="font-size: 12px; color: #64748b;">Fecha: ${new Date(r.dateCreated).toLocaleString()} | Profesional: ${r.professionalName}</p>
+              <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 10px;">
+                  ${Object.entries(r.dynamicData).map(([key, val]) => `
+                      <div style="font-size: 14px;">
+                          <strong style="color: #475569;">${MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key}:</strong>
+                          <span>${val}</span>
+                      </div>
+                  `).join('')}
+              </div>
+          </div>
+      `).join('');
+
+      printWindow.document.write(`
+          <html>
+              <head>
+                  <title>Resultados de Diagnóstico - ${patientId}</title>
+                  <style>
+                      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #334155; }
+                      .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; }
+                      .footer { margin-top: 50px; font-size: 10px; color: #94a3b8; text-align: center; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <h1 style="margin: 0; color: #1e40af;">MediCore Pro - Reporte de Diagnóstico</h1>
+                      <p style="margin: 5px 0 0 0;">Paciente: ${patientId} | Fecha Reporte: ${date}</p>
+                  </div>
+                  ${resultsHtml}
+                  <div class="footer">
+                      Documento generado electrónicamente. Firma digital verificada institucionalmente.
+                  </div>
+                  <script>window.print();</script>
+              </body>
+          </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType, TariffItem, Contract, ContractType, ContractAudit, DisciplinaryAction, PaymentRequest, ClinicalRecord, RecordType, RecordStatus, Patient } from '../../types';
 import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
+import { isSystemAdmin, hasAdministrativeAccess } from '../../utils/security';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
 import { 
     Shield, Users, FileText, Settings, Plus, Edit, Trash2, X, Save, 
@@ -58,7 +59,8 @@ const roleLabels: Record<UserRole, string> = {
 };
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
-  const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
+  const isAdmin = isSystemAdmin(currentUserSession);
+  const hasAdminAccess = hasAdministrativeAccess(currentUserSession);
 
   // --- STATE MANAGEMENT ---
   
@@ -89,6 +91,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // Disciplinary
   const [newDisciplinary, setNewDisciplinary] = useState<Partial<DisciplinaryAction>>({ type: 'COMPLAINT', status: 'OPEN' });
 
+  // Feedback State
+  const [statusMessage, setStatusMessage] = useState<{ text: string, type: 'SUCCESS' | 'ERROR' } | null>(null);
+
+  const showStatus = (text: string, type: 'SUCCESS' | 'ERROR' = 'SUCCESS') => {
+    setStatusMessage({ text, type });
+    setTimeout(() => setStatusMessage(null), 3000);
+  };
+
   // File Management
   const [fileManagementTab, setFileManagementTab] = useState<'CONTRACTS' | 'PAYMENTS'>('CONTRACTS');
   const [isFileUploadModalOpen, setIsFileUploadModalOpen] = useState(false);
@@ -105,6 +115,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
   const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
+
+  const [currentTemplate, setCurrentTemplate] = useState<Partial<RoleTemplate>>({});
+  const [currentSection, setCurrentSection] = useState<Partial<TemplateSection>>({});
+  const [currentField, setCurrentField] = useState<Partial<TemplateField>>({});
 
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
@@ -188,12 +202,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       setSelectedHRUser(updatedUser); // Update local ref
       
       setNewContract({ type: ContractType.NOMINA, isActive: true, userId: selectedHRUser.id, status: 'ACTIVE', auditTrail: [] }); // Reset
-      alert("Contrato guardado con historial de auditoría.");
+      showStatus("Contrato guardado con historial de auditoría.");
   };
 
   const handleSaveDisciplinary = () => {
       if(!selectedHRUser) return;
-      if(!newDisciplinary.title || !newDisciplinary.description) return alert("Complete título y descripción");
+      if(!newDisciplinary.title || !newDisciplinary.description) return showStatus("Complete título y descripción", 'ERROR');
 
       const action: DisciplinaryAction = {
           id: `disc-${Date.now()}`,
@@ -211,7 +225,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       setSelectedHRUser(updatedUser);
       
       setNewDisciplinary({ type: 'COMPLAINT', status: 'OPEN' });
-      alert("Caso registrado. El empleado podrá ver esto y responder.");
+      showStatus("Caso registrado. El empleado podrá ver esto y responder.");
   };
 
   const handleOpenPaymentModal = (req: PaymentRequest) => {
@@ -222,11 +236,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   const handleConfirmPayment = () => {
       if(!selectedPaymentReq) return;
-      if(!paymentReceiptFile) return alert("Debe cargar el desprendible de pago.");
+      if(!paymentReceiptFile) return showStatus("Debe cargar el desprendible de pago.", 'ERROR');
 
       setPaymentRequests(prev => prev.map(req => req.id === selectedPaymentReq.id ? { ...req, status: 'PAID', paymentReceiptUrl: paymentReceiptFile } : req));
       setIsPaymentModalOpen(false);
-      alert(`Pago registrado exitosamente para ${selectedPaymentReq.userName}.`);
+      showStatus(`Pago registrado exitosamente para ${selectedPaymentReq.userName}.`);
   };
 
   const handleRejectPayment = (reqId: string) => {
@@ -243,7 +257,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   const handleConfirmUpload = () => {
     if (!newFileName) {
-        alert("Por favor, ingrese un nombre de archivo.");
+        showStatus("Por favor, ingrese un nombre de archivo.", 'ERROR');
         return;
     }
 
@@ -274,7 +288,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         newUsers[userIndex].contracts = [...(newUsers[userIndex].contracts || []), newContract];
                         return newUsers;
                     });
-                    alert(`Contrato "${newFileName}" agregado al usuario seleccionado.`);
+                    showStatus(`Contrato "${newFileName}" agregado al usuario seleccionado.`);
                 } else { // PAYMENTS
                     const user = users.find(u => u.id === selectedUserIdForUpload);
                     if (!user) return;
@@ -292,7 +306,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         paymentReceiptUrl: newFileName,
                     };
                     setPaymentRequests(prev => [...prev, newPaymentRequest]);
-                    alert(`Soporte de pago "${newFileName}" agregado.`);
+                    showStatus(`Soporte de pago "${newFileName}" agregado.`);
                 }
                 // --- END OF LOGIC ---
 
@@ -319,7 +333,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       } else { // PAYMENT
           setPaymentRequests(prev => prev.filter(p => p.id !== fileId));
       }
-      alert("Archivo eliminado.");
+      showStatus("Archivo eliminado.");
   };
 
   // --- RIPS GENERATION LOGIC ---
@@ -468,17 +482,94 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      alert("Paquete de RIPS generado y descargado exitosamente.");
+      showStatus("Paquete de RIPS generado y descargado exitosamente.");
   };
 
-  const handleNewTemplate = () => setIsTemplateModalOpen(true);
-  const handleNewSection = () => setIsSectionModalOpen(true);
-  const handleNewField = () => setIsFieldModalOpen(true);
+  const handleNewTemplate = () => {
+    setCurrentTemplate({ active: true, allowedRoles: [], sections: [], recordType: RecordType.GENERAL });
+    setIsTemplateModalOpen(true);
+  };
+  const handleEditTemplate = (t: RoleTemplate) => {
+    setCurrentTemplate({...t});
+    setIsTemplateModalOpen(true);
+  };
+  const handleSaveTemplate = () => {
+    if(!currentTemplate.name || !currentTemplate.recordType) return alert("Complete nombre y tipo de registro.");
+    const template: RoleTemplate = {
+        ...currentTemplate,
+        id: currentTemplate.id || `t_${Date.now()}`,
+        name: currentTemplate.name!,
+        description: currentTemplate.description || '',
+        active: currentTemplate.active ?? true,
+        allowedRoles: currentTemplate.allowedRoles || [],
+        sections: currentTemplate.sections || [],
+        recordType: currentTemplate.recordType!
+    } as RoleTemplate;
+
+    if (templates.some(t => t.id === template.id)) {
+        setTemplates(templates.map(t => t.id === template.id ? template : t));
+    } else {
+        setTemplates([...templates, template]);
+    }
+    setIsTemplateModalOpen(false);
+  };
+
+  const handleNewSection = () => {
+    setCurrentSection({ fields: [] });
+    setIsSectionModalOpen(true);
+  };
+  const handleEditSection = (s: TemplateSection) => {
+    setCurrentSection({...s});
+    setIsSectionModalOpen(true);
+  };
+  const handleSaveSection = () => {
+    if(!currentSection.title) return alert("Complete el título de la sección.");
+    const section: TemplateSection = {
+        ...currentSection,
+        id: currentSection.id || `s_${Date.now()}`,
+        title: currentSection.title!,
+        fields: currentSection.fields || []
+    } as TemplateSection;
+
+    if (globalSections.some(s => s.id === section.id)) {
+        setGlobalSections(globalSections.map(s => s.id === section.id ? section : s));
+    } else {
+        setGlobalSections([...globalSections, section]);
+    }
+    setIsSectionModalOpen(false);
+  };
+
+  const handleNewField = () => {
+    setCurrentField({ type: 'TEXT', required: false });
+    setIsFieldModalOpen(true);
+  };
+  const handleEditField = (f: TemplateField) => {
+    setCurrentField({...f});
+    setIsFieldModalOpen(true);
+  };
+  const handleSaveField = () => {
+    if(!currentField.label || !currentField.type) return alert("Complete etiqueta y tipo de campo.");
+    const field: TemplateField = {
+        ...currentField,
+        id: currentField.id || `f_${Date.now()}`,
+        label: currentField.label!,
+        type: currentField.type as FieldType,
+        required: currentField.required ?? false,
+        isGlobal: true
+    } as TemplateField;
+
+    if (globalFields.some(f => f.id === field.id)) {
+        setGlobalFields(globalFields.map(f => f.id === field.id ? field : f));
+    } else {
+        setGlobalFields([...globalFields, field]);
+    }
+    setIsFieldModalOpen(false);
+  };
 
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
+  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'files') && !isAdmin) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
@@ -488,13 +579,32 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
+  if (activeTab === 'hr' && !hasAdminAccess) {
+    return (
+        <div className="flex flex-col items-center justify-center h-full text-slate-400">
+            <Ban size={64} className="mb-4 text-red-400"/>
+            <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
+            <p className="text-sm">Se requieren permisos administrativos para acceder a este módulo.</p>
+        </div>
+    );
+  }
+
   // 1. DASHBOARD (Dynamic & Actionable) - Only for Admins
-  if (activeTab === 'dashboard' && isAdmin) {
+  if (activeTab === 'dashboard' && hasAdminAccess) {
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
       return (
-          <div className="space-y-6 animate-in fade-in duration-500">
+          <div className="space-y-6 animate-in fade-in duration-500 relative">
+              {/* Status Notifications Overlay */}
+              {statusMessage && (
+                  <div className={`fixed top-20 right-8 z-[100] px-6 py-3 rounded-xl shadow-2xl flex items-center animate-in slide-in-from-right-4 duration-300 border ${
+                      statusMessage.type === 'SUCCESS' ? 'bg-green-600 text-white border-green-500' : 'bg-red-600 text-white border-red-500'
+                  }`}>
+                      {statusMessage.type === 'SUCCESS' ? <CheckCircle size={20} className="mr-2"/> : <AlertCircle size={20} className="mr-2"/>}
+                      <span className="font-bold text-sm">{statusMessage.text}</span>
+                  </div>
+              )}
               {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
@@ -606,7 +716,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // FILE MANAGEMENT MODULE - ADMIN VIEW
   if (activeTab === 'files' && isAdmin) {
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 relative">
+            {/* Status Notifications Overlay */}
+            {statusMessage && (
+                <div className={`fixed top-20 right-8 z-[100] px-6 py-3 rounded-xl shadow-2xl flex items-center animate-in slide-in-from-right-4 duration-300 border ${
+                    statusMessage.type === 'SUCCESS' ? 'bg-green-600 text-white border-green-500' : 'bg-red-600 text-white border-red-500'
+                }`}>
+                    {statusMessage.type === 'SUCCESS' ? <CheckCircle size={20} className="mr-2"/> : <AlertCircle size={20} className="mr-2"/>}
+                    <span className="font-bold text-sm">{statusMessage.text}</span>
+                </div>
+            )}
             {/* File Upload Modal */}
             {isFileUploadModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -730,9 +849,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
     );
   }
   // HR MODULE - ADMIN VIEW
-  if (activeTab === 'hr' && isAdmin) {
+  if (activeTab === 'hr' && hasAdminAccess) {
       return (
-          <div className="space-y-6">
+          <div className="space-y-6 relative">
+              {/* Status Notifications Overlay */}
+              {statusMessage && (
+                  <div className={`fixed top-20 right-8 z-[100] px-6 py-3 rounded-xl shadow-2xl flex items-center animate-in slide-in-from-right-4 duration-300 border ${
+                      statusMessage.type === 'SUCCESS' ? 'bg-green-600 text-white border-green-500' : 'bg-red-600 text-white border-red-500'
+                  }`}>
+                      {statusMessage.type === 'SUCCESS' ? <CheckCircle size={20} className="mr-2"/> : <AlertCircle size={20} className="mr-2"/>}
+                      <span className="font-bold text-sm">{statusMessage.text}</span>
+                  </div>
+              )}
               {/* MODALS */}
               {isPaymentModalOpen && selectedPaymentReq && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -1075,9 +1203,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // 4. REPORTS TAB - NEW RIPS GENERATION
-  if (activeTab === 'reports' && isAdmin) {
+  if (activeTab === 'reports' && hasAdminAccess) {
       return (
-          <div className="space-y-8 animate-in fade-in duration-500">
+          <div className="space-y-8 animate-in fade-in duration-500 relative">
+              {/* Status Notifications Overlay */}
+              {statusMessage && (
+                  <div className={`fixed top-20 right-8 z-[100] px-6 py-3 rounded-xl shadow-2xl flex items-center animate-in slide-in-from-right-4 duration-300 border ${
+                      statusMessage.type === 'SUCCESS' ? 'bg-green-600 text-white border-green-500' : 'bg-red-600 text-white border-red-500'
+                  }`}>
+                      {statusMessage.type === 'SUCCESS' ? <CheckCircle size={20} className="mr-2"/> : <AlertCircle size={20} className="mr-2"/>}
+                      <span className="font-bold text-sm">{statusMessage.text}</span>
+                  </div>
+              )}
               <h2 className="text-2xl font-bold text-slate-800 mb-2">Reportes y Analítica</h2>
               
               {/* RIPS GENERATOR SECTION */}
@@ -1164,21 +1301,47 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // 2. USERS LIST - Only Admin
   if (activeTab === 'users' && isAdmin) {
       return (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="space-y-6 animate-in fade-in duration-500 relative">
+            {/* Status Notifications Overlay */}
+            {statusMessage && (
+                <div className={`fixed top-20 right-8 z-[100] px-6 py-3 rounded-xl shadow-2xl flex items-center animate-in slide-in-from-right-4 duration-300 border ${
+                    statusMessage.type === 'SUCCESS' ? 'bg-green-600 text-white border-green-500' : 'bg-red-600 text-white border-red-500'
+                }`}>
+                    {statusMessage.type === 'SUCCESS' ? <CheckCircle size={20} className="mr-2"/> : <AlertCircle size={20} className="mr-2"/>}
+                    <span className="font-bold text-sm">{statusMessage.text}</span>
+                </div>
+            )}
             {/* User Form Space (Top) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <div className="bg-slate-50 p-8 rounded-2xl border border-slate-200 shadow-inner">
+                 <div className="flex justify-between items-center mb-8">
                     <div>
-                        <h3 className="text-lg font-bold text-slate-800">
-                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
-                        </h3>
-                        <p className="text-sm text-slate-500">Espacio dedicado para la gestión y creación de cuentas del sistema.</p>
+                        <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
+                            <Shield className="mr-3 text-blue-600" size={28}/>
+                            Centro de Gestión de Identidades
+                        </h2>
+                        <p className="text-slate-500 font-medium">Configure roles, permisos y credenciales de acceso institucional.</p>
                     </div>
-                    <button onClick={handleAddNewUser} className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg flex items-center hover:bg-slate-800 transition-colors shadow-lg">
-                        <Plus size={18} className="mr-2"/> Crear Nuevo Usuario
-                    </button>
+                    {!currentUser.id && (
+                        <div className="bg-blue-600/10 px-4 py-2 rounded-full border border-blue-200">
+                             <span className="text-blue-700 font-bold text-sm">Modo: Creación de Cuenta</span>
+                        </div>
+                    )}
                  </div>
-                 <div className="mt-6">
+
+                 <div className="bg-white p-6 rounded-xl shadow-xl border border-slate-100 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-2 h-full bg-blue-600"></div>
+                    <div className="flex justify-between items-center mb-6 border-b pb-4">
+                        <h3 className="text-lg font-bold text-slate-800 flex items-center">
+                            {currentUser.id && users.some(u => u.id === currentUser.id) ? (
+                                <><Edit className="mr-2 text-orange-500" size={20}/> Modificar Usuario Existente</>
+                            ) : (
+                                <><Plus className="mr-2 text-blue-600" size={20}/> Registrar Nuevo Colaborador</>
+                            )}
+                        </h3>
+                        {currentUser.id && (
+                            <button onClick={() => setCurrentUser({})} className="text-xs font-bold text-red-600 hover:underline">Cancelar Edición</button>
+                        )}
+                    </div>
                     <UserForm
                         user={currentUser}
                         onSave={handleSaveUser}
@@ -1190,9 +1353,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
             {/* User List Space (Bottom) */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <h3 className="font-bold text-slate-800 mb-6 flex items-center">
-                    <Users className="mr-2 text-blue-600"/> Directorio General de Usuarios
-                </h3>
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-slate-800 flex items-center">
+                        <Users className="mr-2 text-blue-600"/> Directorio General de Usuarios
+                    </h3>
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                        {users.length} Cuentas Activas
+                    </div>
+                </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
@@ -1239,35 +1407,141 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // 3. SETTINGS TAB - Only Admin
   if (activeTab === 'settings' && isAdmin) {
       return (
-          <div className="space-y-6 animate-in fade-in duration-500">
+          <div className="space-y-6 animate-in fade-in duration-500 relative">
+              {/* Status Notifications Overlay */}
+              {statusMessage && (
+                  <div className={`fixed top-20 right-8 z-[100] px-6 py-3 rounded-xl shadow-2xl flex items-center animate-in slide-in-from-right-4 duration-300 border ${
+                      statusMessage.type === 'SUCCESS' ? 'bg-green-600 text-white border-green-500' : 'bg-red-600 text-white border-red-500'
+                  }`}>
+                      {statusMessage.type === 'SUCCESS' ? <CheckCircle size={20} className="mr-2"/> : <AlertCircle size={20} className="mr-2"/>}
+                      <span className="font-bold text-sm">{statusMessage.text}</span>
+                  </div>
+              )}
               <div className="flex justify-between items-center mb-4">
                   <h2 className="text-2xl font-bold text-slate-800">Configuración del Sistema</h2>
               </div>
               
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">{currentTemplate.id ? 'Editar' : 'Nueva'} Plantilla</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase">Nombre</label>
+                                <input className="w-full border p-2 rounded" value={currentTemplate.name || ''} onChange={e => setCurrentTemplate({...currentTemplate, name: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase">Tipo de Registro</label>
+                                <select className="w-full border p-2 rounded" value={currentTemplate.recordType} onChange={e => setCurrentTemplate({...currentTemplate, recordType: e.target.value as RecordType})}>
+                                    {Object.values(RecordType).map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase">Descripción</label>
+                                <textarea className="w-full border p-2 rounded" value={currentTemplate.description || ''} onChange={e => setCurrentTemplate({...currentTemplate, description: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase">Roles Permitidos</label>
+                                <div className="grid grid-cols-2 gap-2 mt-1">
+                                    {Object.values(UserRole).map(role => (
+                                        <label key={role} className="flex items-center text-xs">
+                                            <input
+                                                type="checkbox"
+                                                className="mr-2"
+                                                checked={currentTemplate.allowedRoles?.includes(role)}
+                                                onChange={e => {
+                                                    const roles = currentTemplate.allowedRoles || [];
+                                                    const newRoles = e.target.checked ? [...roles, role] : roles.filter(r => r !== role);
+                                                    setCurrentTemplate({...currentTemplate, allowedRoles: newRoles});
+                                                }}
+                                            /> {roleLabels[role]}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium">Cancelar</button>
+                            <button onClick={handleSaveTemplate} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar Plantilla</button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">{currentSection.id ? 'Editar' : 'Nueva'} Sección</h3>
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="text-xs font-bold text-slate-500 uppercase">Título de la Sección</label>
+                                  <input className="w-full border p-2 rounded" value={currentSection.title || ''} onChange={e => setCurrentSection({...currentSection, title: e.target.value})} />
+                              </div>
+                              <div>
+                                  <label className="text-xs font-bold text-slate-500 uppercase">Vincular Campos (Globales)</label>
+                                  <div className="max-h-40 overflow-y-auto border rounded mt-1 p-2 space-y-1">
+                                      {globalFields.map(f => (
+                                          <label key={f.id} className="flex items-center text-xs">
+                                              <input
+                                                type="checkbox"
+                                                className="mr-2"
+                                                checked={currentSection.fields?.some(sf => sf.id === f.id)}
+                                                onChange={e => {
+                                                    const fields = currentSection.fields || [];
+                                                    const newFields = e.target.checked ? [...fields, f] : fields.filter(sf => sf.id !== f.id);
+                                                    setCurrentSection({...currentSection, fields: newFields});
+                                                }}
+                                              /> {f.label} <span className="ml-1 text-slate-400">({f.id})</span>
+                                          </label>
+                                      ))}
+                                  </div>
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                              <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium">Cancelar</button>
+                              <button onClick={handleSaveSection} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar Sección</button>
+                          </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">{currentField.id ? 'Editar' : 'Nuevo'} Campo</h3>
+                          <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div className="col-span-2">
+                                      <label className="text-xs font-bold text-slate-500 uppercase">Etiqueta (Label)</label>
+                                      <input className="w-full border p-2 rounded" value={currentField.label || ''} onChange={e => setCurrentField({...currentField, label: e.target.value})} />
+                                  </div>
+                                  <div>
+                                      <label className="text-xs font-bold text-slate-500 uppercase">Tipo</label>
+                                      <select className="w-full border p-2 rounded" value={currentField.type} onChange={e => setCurrentField({...currentField, type: e.target.value as FieldType})}>
+                                          <option value="TEXT">Texto Corto</option>
+                                          <option value="TEXTAREA">Área de Texto</option>
+                                          <option value="NUMBER">Número</option>
+                                          <option value="DATE">Fecha</option>
+                                          <option value="SELECT">Selección</option>
+                                          <option value="CALCULATED">Calculado</option>
+                                          <option value="HEADER">Encabezado</option>
+                                          <option value="FILE">Archivo/Imagen</option>
+                                      </select>
+                                  </div>
+                                  <div>
+                                      <label className="text-xs font-bold text-slate-500 uppercase">Unidad (Opcional)</label>
+                                      <input className="w-full border p-2 rounded" placeholder="Ej. mmHg, kg" value={currentField.unit || ''} onChange={e => setCurrentField({...currentField, unit: e.target.value})} />
+                                  </div>
+                                  <div className="col-span-2">
+                                      <label className="flex items-center text-sm font-bold text-slate-700">
+                                          <input type="checkbox" className="mr-2" checked={currentField.required} onChange={e => setCurrentField({...currentField, required: e.target.checked})} />
+                                          ¿Es un campo obligatorio?
+                                      </label>
+                                  </div>
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                              <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium">Cancelar</button>
+                              <button onClick={handleSaveField} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar Campo</button>
+                          </div>
                       </div>
                   </div>
               )}
@@ -1308,8 +1582,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           <LayoutTemplate size={20}/>
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button onClick={() => setIsTemplateModalOpen(true)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button onClick={() => window.confirm('¿Eliminar esta plantilla?') && alert('Plantilla eliminada')} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                                          <button onClick={() => handleEditTemplate(t)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
+                                          <button onClick={() => window.confirm('¿Eliminar esta plantilla?') && setTemplates(templates.filter(temp => temp.id !== t.id))} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
                                       </div>
                                   </div>
                                   <h4 className="font-bold text-slate-800">{t.name}</h4>
@@ -1371,7 +1645,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           ))}
                                           {sec.fields.length > 4 && <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] text-slate-500">+{sec.fields.length - 4}</div>}
                                       </div>
-                                      <button onClick={() => setIsSectionModalOpen(true)} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => handleEditSection(sec)} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => window.confirm('¿Eliminar esta sección?') && setGlobalSections(globalSections.filter(s => s.id !== sec.id))} className="p-2 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button>
                                   </div>
                               </div>
                           ))}
@@ -1431,7 +1706,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                               ) : <span className="text-xs text-slate-400">Opcional</span>}
                                           </td>
                                           <td className="p-3 text-right">
-                                              <button onClick={() => setIsFieldModalOpen(true)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button onClick={() => handleEditField(field)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button onClick={() => window.confirm('¿Eliminar campo?') && setGlobalFields(globalFields.filter(f => f.id !== field.id))} className="p-1.5 hover:bg-slate-200 rounded text-red-500"><Trash2 size={14}/></button>
                                           </td>
                                       </tr>
                                   ))}

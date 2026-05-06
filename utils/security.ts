@@ -25,3 +25,33 @@ export const sanitizeInput = (input: string | undefined | null): string => {
   // For a production environment, a more robust, well-tested library like DOMPurify is strongly recommended.
   return input.replace(/<|>/g, '');
 };
+
+import { UserRole, User } from '../types';
+
+/**
+ * Checks if a user has the ADMIN role.
+ */
+export const isSystemAdmin = (user: User | null | undefined): boolean => {
+  return !!user?.roles.includes(UserRole.ADMIN);
+};
+
+/**
+ * Checks if a user has administrative access (ADMIN, MANAGER, or ACCOUNTANT).
+ * Used for shared modules like Dashboard, HR, and Financial Reports.
+ */
+export const hasAdministrativeAccess = (user: User | null | undefined): boolean => {
+  if (!user) return false;
+  return user.roles.some(role =>
+    role === UserRole.ADMIN ||
+    role === UserRole.MANAGER ||
+    role === UserRole.ACCOUNTANT
+  );
+};
+
+/**
+ * Masks sensitive identification numbers for privacy.
+ */
+export const maskIdentification = (id: string): string => {
+  if (id.length <= 4) return id;
+  return `${id.substring(0, 2)}***${id.substring(id.length - 2)}`;
+};
