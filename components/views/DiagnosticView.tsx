@@ -126,8 +126,65 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const recordsInGroup = completedRecords.filter(r =>
+        (MOCK_PATIENTS.find(p => p.fullName === patientName)?.id === r.patientId) &&
+        r.dateCreated.startsWith(date)
+      );
+
+      const resultsHtml = recordsInGroup.map(record => `
+        <div style="margin-bottom: 30px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+            <div style="background: #f8fafc; padding: 10px 15px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between;">
+                <strong style="color: #1e293b;">${record.chiefComplaint}</strong>
+                <span style="font-size: 12px; color: #64748b;">Ref: ${record.id}</span>
+            </div>
+            <div style="padding: 15px; display: grid; grid-template-cols: 1fr 1fr; gap: 10px;">
+                ${Object.entries(record.dynamicData).map(([key, val]) => {
+                    const label = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+                    return `
+                        <div style="font-size: 13px;">
+                            <span style="color: #64748b; font-weight: bold;">${label}:</span>
+                            <span style="color: #1e293b; margin-left: 5px;">${val}</span>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+      `).join('');
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Resultados - ${patientName}</title>
+            <style>
+              body { font-family: 'Segoe UI', sans-serif; color: #333; padding: 20px; }
+              .header { border-bottom: 3px solid #3b82f6; padding-bottom: 10px; margin-bottom: 25px; }
+              .patient-box { background: #eff6ff; padding: 15px; border-radius: 8px; margin-bottom: 25px; border-left: 5px solid #3b82f6; }
+              .footer { margin-top: 50px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1 style="margin: 0; color: #1e3a8a;">REPORTE DE APOYO DIAGNÓSTICO</h1>
+              <p style="margin: 0; font-weight: bold; color: #3b82f6;">MEDICORE IPS - Laboratorio e Imagenología</p>
+            </div>
+            <div class="patient-box">
+              <p style="margin: 0;"><strong>PACIENTE:</strong> ${patientName}</p>
+              <p style="margin: 0;"><strong>FECHA DE ESTUDIOS:</strong> ${date}</p>
+            </div>
+            ${resultsHtml}
+            <div class="footer">
+              <p>Este documento es una representación digital de resultados clínicos. Debe ser interpretado por un profesional de la salud.</p>
+              <p>Firmado digitalmente por: ${user.name} (${user.professionalLicense})</p>
+            </div>
+            <script>window.print();</script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---

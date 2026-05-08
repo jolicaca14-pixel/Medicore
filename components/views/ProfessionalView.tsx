@@ -3,7 +3,7 @@ import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
 import { clinicalRecordService } from '../../services/clinicalRecordService';
-import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
+import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2, CheckCircle } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
@@ -210,6 +210,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>(MOCK_PAYMENT_REQUESTS);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [newPayment, setNewPayment] = useState<{ period: string, amount: number, files: string[] }>({ period: '', amount: 0, files: [] });
+  const [selectedFiles, setSelectedFiles] = useState<Record<string, string>>({});
 
   // --- SUB-MODULES STATES ---
   const [procSearch, setProcSearch] = useState('');
@@ -831,14 +832,40 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <label className="flex items-center cursor-pointer">
+                                              <input
+                                                type="file"
+                                                className="hidden"
+                                                onChange={(e) => setSelectedFiles({...selectedFiles, socialSecurity: e.target.files?.[0]?.name || ''})}
+                                              />
+                                              {selectedFiles.socialSecurity ? (
+                                                  <div className="flex items-center text-[10px] text-green-600 font-bold bg-white px-2 py-1 rounded border border-green-200">
+                                                      <CheckCircle size={12} className="mr-1"/> {selectedFiles.socialSecurity.slice(0, 10)}...
+                                                  </div>
+                                              ) : (
+                                                  <span className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</span>
+                                              )}
+                                          </label>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Informe de Actividades</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <label className="flex items-center cursor-pointer">
+                                              <input
+                                                type="file"
+                                                className="hidden"
+                                                onChange={(e) => setSelectedFiles({...selectedFiles, activityReport: e.target.files?.[0]?.name || ''})}
+                                              />
+                                              {selectedFiles.activityReport ? (
+                                                  <div className="flex items-center text-[10px] text-green-600 font-bold bg-white px-2 py-1 rounded border border-green-200">
+                                                      <CheckCircle size={12} className="mr-1"/> {selectedFiles.activityReport.slice(0, 10)}...
+                                                  </div>
+                                              ) : (
+                                                  <span className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</span>
+                                              )}
+                                          </label>
                                       </div>
                                   </div>
                               </div>
