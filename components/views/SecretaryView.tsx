@@ -267,16 +267,81 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const itemsHtml = invoice.items.map(item => `
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+        </tr>
+      `).join('');
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Factura ${invoice.id}</title>
+            <style>
+              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; line-height: 1.6; }
+              .container { max-width: 800px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+              .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 20px; }
+              .logo { font-size: 24px; font-weight: bold; color: #0f172a; }
+              .invoice-info { text-align: right; }
+              .patient-info { margin-bottom: 20px; background: #f8fafc; padding: 15px; rounded: 8px; }
+              table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+              th { background: #f1f5f9; text-align: left; padding: 8px; }
+              .totals { margin-left: auto; width: 300px; }
+              .totals div { display: flex; justify-content: space-between; padding: 4px 0; }
+              .grand-total { font-size: 18px; font-weight: bold; border-top: 2px solid #0f172a; margin-top: 10px; padding-top: 10px; }
+              .footer { text-align: center; font-size: 10px; color: #94a3b8; margin-top: 40px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <div class="logo">MEDICORE IPS</div>
+                <div class="invoice-info">
+                  <h2 style="margin: 0;">FACTURA DE VENTA</h2>
+                  <p style="margin: 0;">N° ${invoice.id}</p>
+                  <p style="margin: 0;">Fecha: ${new Date(invoice.date).toLocaleDateString()}</p>
+                </div>
+              </div>
+              <div class="patient-info">
+                <p style="margin: 0;"><strong>CLIENTE:</strong> ${invoice.patientName}</p>
+                <p style="margin: 0;"><strong>ESTADO:</strong> ${invoice.status}</p>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Descripción</th>
+                    <th style="text-align: center;">Cant.</th>
+                    <th style="text-align: right;">P. Unitario</th>
+                    <th style="text-align: right;">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${itemsHtml}
+                </tbody>
+              </table>
+              <div class="totals">
+                <div><span>Subtotal:</span> <span>${formatCurrency(invoice.subtotal)}</span></div>
+                <div><span>Descuentos:</span> <span>- ${formatCurrency(invoice.discount)}</span></div>
+                <div class="grand-total"><span>TOTAL:</span> <span>${formatCurrency(invoice.total)}</span></div>
+                <div style="color: #059669;"><span>Pagado:</span> <span>${formatCurrency(invoice.total - invoice.balance)}</span></div>
+                <div style="color: #dc2626;"><span>Saldo Pendiente:</span> <span>${formatCurrency(invoice.balance)}</span></div>
+              </div>
+              <div class="footer">
+                <p>Esta factura se asimila en todos sus efectos a una letra de cambio según Art. 774 del Código de Comercio.</p>
+                <p>MediCore HCE - Tecnología para la salud</p>
+              </div>
+            </div>
+            <script>window.print();</script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
@@ -284,7 +349,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       const inv = invoices.find(i => i.id === id);
       if(!inv) return;
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
+      const amountStr = window.prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
       if (!amountStr) return;
       const amount = parseFloat(amountStr);
       
