@@ -48,7 +48,18 @@ export enum RecordType {
 }
 
 // --- NEW TEMPLATE ENGINE TYPES ---
-export type FieldType = 'TEXT' | 'TEXTAREA' | 'NUMBER' | 'DATE' | 'SELECT' | 'CHECKBOX' | 'CALCULATED' | 'HEADER' | 'INFO' | 'FILE';
+export enum FieldType {
+  TEXT = 'TEXT',
+  TEXTAREA = 'TEXTAREA',
+  NUMBER = 'NUMBER',
+  DATE = 'DATE',
+  SELECT = 'SELECT',
+  CHECKBOX = 'CHECKBOX',
+  CALCULATED = 'CALCULATED',
+  HEADER = 'HEADER',
+  INFO = 'INFO',
+  FILE = 'FILE'
+}
 
 export interface TemplateField {
   id: string;

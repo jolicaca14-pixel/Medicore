@@ -18,6 +18,13 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   const [isLoadingAppts, setIsLoadingAppts] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
+  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  const showStatus = (text: string, type: 'success' | 'error' = 'success') => {
+    setStatusMessage({ text, type });
+    setTimeout(() => setStatusMessage(null), 3000);
+  };
+
   // ⚡ TRINITY: Fetch appointments from API
   React.useEffect(() => {
     const fetchAppts = async () => {
@@ -86,7 +93,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   const handleSaveAppointment = async () => {
       if(!newAppt.patientId || !newAppt.time || !newAppt.reason || !newAppt.professionalId) {
-          alert("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)");
+          showStatus("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)", "error");
           return;
       }
       const patient = patients.find(p => p.id === newAppt.patientId);
@@ -111,7 +118,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               } as Appointment;
               setAppointments([...appointments, finalAppt]);
           } catch (e) {
-              alert("Error al guardar en servidor. Se usará modo local.");
+              showStatus("Error al guardar en servidor. Se usará modo local.", "error");
               finalAppt = {
                   id: `appt-${Date.now()}`,
                   patientId: newAppt.patientId,
@@ -153,9 +160,9 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               status: 'PENDING'
           };
           setInvoices([...invoices, newInvoice]);
-          alert("Cita agendada y Factura creada automáticamente en Cartera.");
+          showStatus("Cita agendada y Factura creada automáticamente en Cartera.");
       } else {
-          alert(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
+          showStatus(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
       }
 
       setIsApptModalOpen(false);
@@ -165,8 +172,8 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       try {
           await appointmentService.updateStatus(id, status);
           setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-          if (status === 'WAITING') alert("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
-          if (status === 'CANCELLED') alert("Cita cancelada.");
+          if (status === 'WAITING') showStatus("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
+          if (status === 'CANCELLED') showStatus("Cita cancelada.");
       } catch (e) {
           console.error("Error updating status in backend, updating locally");
           setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
@@ -263,20 +270,82 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       setSelectedServices([]);
       setBillingPatient(null);
       setPartialPayment('');
-      alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
+      showStatus(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const html = `
+          <html>
+          <head>
+              <title>Factura ${invoice.id}</title>
+              <style>
+                  body { font-family: sans-serif; padding: 40px; color: #1e293b; }
+                  .header { display: flex; justify-content: space-between; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; margin-bottom: 20px; }
+                  .invoice-title { font-size: 24px; font-bold; }
+                  .details { margin-bottom: 30px; }
+                  table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                  th { text-align: left; background: #f8fafc; padding: 10px; border-bottom: 1px solid #e2e8f0; }
+                  td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
+                  .totals { text-align: right; }
+                  .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #64748b; }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <div>
+                      <div class="invoice-title">FACTURA DE VENTA</div>
+                      <div>N° ${invoice.id}</div>
+                  </div>
+                  <div style="text-align: right;">
+                      <strong>MEDICORE IPS SAS</strong><br/>
+                      NIT: 900.123.456-1<br/>
+                      Bogotá, Colombia
+                  </div>
+              </div>
+              <div class="details">
+                  <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+                  <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                  <p><strong>Estado:</strong> ${invoice.status}</p>
+              </div>
+              <table>
+                  <thead>
+                      <tr>
+                          <th>Concepto</th>
+                          <th>Cant.</th>
+                          <th>V. Unitario</th>
+                          <th>Total</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      ${invoice.items.map(item => `
+                          <tr>
+                              <td>${item.name}</td>
+                              <td>${item.quantity}</td>
+                              <td>${formatCurrency(item.price)}</td>
+                              <td>${formatCurrency(item.price * item.quantity)}</td>
+                          </tr>
+                      `).join('')}
+                  </tbody>
+              </table>
+              <div class="totals">
+                  <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+                  <p>Descuentos: -${formatCurrency(invoice.discount)}</p>
+                  <p style="font-size: 20px; font-weight: bold;">Total: ${formatCurrency(invoice.total)}</p>
+                  <p>Saldo Pendiente: ${formatCurrency(invoice.balance)}</p>
+              </div>
+              <div class="footer">
+                  <p>Gracias por confiar en nosotros.</p>
+                  <p>Resolución DIAN N° 123456789 de 2023</p>
+              </div>
+              <script>window.print();</script>
+          </body>
+          </html>
       `;
-      alert("Imprimiendo...\n" + printContent);
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
@@ -289,7 +358,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       const amount = parseFloat(amountStr);
       
       if(amount > inv.balance) {
-          alert("El monto ingresado supera el saldo pendiente.");
+          showStatus("El monto ingresado supera el saldo pendiente.", "error");
           return;
       }
 
@@ -304,11 +373,24 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
-      alert("Pago registrado correctamente.");
+      showStatus("Pago registrado correctamente.");
   };
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50 relative">
+      {/* Status Message Toast */}
+      {statusMessage && (
+            <div className={`fixed top-4 right-4 z-[100] animate-in fade-in slide-in-from-top-4 duration-300 p-4 rounded-lg shadow-2xl flex items-center border ${
+                statusMessage.type === 'success' ? 'bg-green-600 border-green-500 text-white' : 'bg-red-600 border-red-500 text-white'
+            }`}>
+                {statusMessage.type === 'success' ? <CheckCircle className="mr-3" size={20}/> : <AlertOctagon className="mr-3" size={20}/>}
+                <span className="font-bold">{statusMessage.text}</span>
+                <button onClick={() => setStatusMessage(null)} className="ml-4 hover:bg-white/20 p-1 rounded transition-colors">
+                    <X size={16}/>
+                </button>
+            </div>
+      )}
+
       {/* Sidebar simplified for Secretary */}
       <div className="w-64 bg-white border-r border-slate-200 flex flex-col">
           <div className="p-6 border-b border-slate-100">
