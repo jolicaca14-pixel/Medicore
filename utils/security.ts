@@ -14,6 +14,8 @@
  * sanitizeInput('<script>alert("xss")</script>') // returns 'alert("xss")'
  * sanitizeInput('<b>Hello</b> World') // returns 'Hello World'
  */
+import { User, UserRole } from '../types';
+
 export const sanitizeInput = (input: string | undefined | null): string => {
   if (!input) {
     return '';
@@ -24,4 +26,23 @@ export const sanitizeInput = (input: string | undefined | null): string => {
   // For example, it does not sanitize attributes like 'onerror' or 'href="javascript:..."'.
   // For a production environment, a more robust, well-tested library like DOMPurify is strongly recommended.
   return input.replace(/<|>/g, '');
+};
+
+/**
+ * 🛡️ Sentinel: RBAC Helpers
+ */
+export const isSystemAdmin = (user: User | null | undefined): boolean => {
+  if (!user) return false;
+  return user.roles.includes(UserRole.ADMIN);
+};
+
+export const hasAdministrativeAccess = (user: User | null | undefined): boolean => {
+  if (!user) return false;
+  const adminRoles = [UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT];
+  return user.roles.some(role => adminRoles.includes(role));
+};
+
+export const maskIdentification = (id: string): string => {
+  if (id.length <= 4) return id;
+  return '***' + id.slice(-4);
 };
