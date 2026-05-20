@@ -27,7 +27,31 @@ const testSanitizeInput = () => {
   console.log('All security tests passed.');
 };
 
-// Auto-execute if run directly (logic for test runner would go here)
+import { isSystemAdmin, hasAdministrativeAccess, maskIdentification } from './security';
+import { UserRole } from '../types';
+
+const testRBAC = () => {
+    console.log('Testing RBAC helpers...');
+    const adminUser: any = { roles: [UserRole.ADMIN] };
+    const managerUser: any = { roles: [UserRole.MANAGER] };
+    const profUser: any = { roles: [UserRole.PROFESSIONAL] };
+
+    console.assert(isSystemAdmin(adminUser) === true, 'Admin should be System Admin');
+    console.assert(isSystemAdmin(managerUser) === false, 'Manager should NOT be System Admin');
+    console.assert(isSystemAdmin(null) === false, 'Null user should NOT be System Admin');
+
+    console.assert(hasAdministrativeAccess(adminUser) === true, 'Admin should have admin access');
+    console.assert(hasAdministrativeAccess(managerUser) === true, 'Manager should have admin access');
+    console.assert(hasAdministrativeAccess(profUser) === false, 'Prof should NOT have admin access');
+
+    console.assert(maskIdentification('12345678') === '***5678', 'ID Masking failed');
+    console.assert(maskIdentification('123') === '123', 'ID Masking short ID failed');
+
+    console.log('All RBAC tests passed.');
+};
+
+// Auto-execute if run directly
 if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
     testSanitizeInput();
+    testRBAC();
 }

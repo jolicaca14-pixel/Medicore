@@ -21,6 +21,12 @@ interface Order {
 }
 
 export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }) => {
+  const [statusMessage, setStatusMessage] = useState<{ text: string, type: 'SUCCESS' | 'ERROR' } | null>(null);
+  const showStatus = (text: string, type: 'SUCCESS' | 'ERROR' = 'SUCCESS') => {
+      setStatusMessage({ text, type });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
+
   const isLab = user.roles.includes(UserRole.BACTERIOLOGIST);
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
@@ -60,7 +66,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) return showStatus("No hay plantilla configurada.", 'ERROR');
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +95,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showStatus("Resultado guardado correctamente.");
   };
 
   // --- RENDER FIELD ---
@@ -126,8 +132,29 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head><title>Resultados ${patientName}</title></head>
+              <body style="font-family: sans-serif; padding: 40px;">
+                  <h1 style="text-align: center;">RESULTADOS DE AYUDAS DIAGNÓSTICAS</h1>
+                  <p><strong>Paciente:</strong> ${patientName}</p>
+                  <p><strong>Fecha:</strong> ${date}</p>
+                  <hr/>
+                  <div style="margin-top: 20px; padding: 20px; border: 1px solid #eee;">
+                      <p>Resultados procesados y validados digitalmente.</p>
+                  </div>
+                  <br/><br/>
+                  <p>__________________________</p>
+                  <p>Firma Profesional Responsable</p>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+          printWindow.print();
+      }
   };
 
   // --- RENDER FORM ---
@@ -171,7 +198,15 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- DASHBOARD ---
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-8 max-w-7xl mx-auto relative">
+        {statusMessage && (
+            <div className={`fixed top-24 right-8 z-[60] px-6 py-3 rounded-xl shadow-2xl flex items-center border animate-in slide-in-from-right-4 duration-300 ${
+                statusMessage.type === 'SUCCESS' ? 'bg-green-600 text-white border-green-500' : 'bg-red-600 text-white border-red-500'
+            }`}>
+                {statusMessage.type === 'SUCCESS' ? <CheckCircle size={20} className="mr-2"/> : <AlertCircle size={20} className="mr-2"/>}
+                <span className="font-bold">{statusMessage.text}</span>
+            </div>
+        )}
         <div className="flex justify-between items-center mb-8">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800">{isLab ? 'Laboratorio Clínico' : 'Imagenología y Radiología'}</h2>
