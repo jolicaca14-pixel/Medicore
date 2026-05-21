@@ -21,6 +21,14 @@ interface Order {
 }
 
 export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }) => {
+  // Status Message for Feedback
+  const [statusMessage, setStatusMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+
+  const showStatus = (text: string, type: 'success' | 'error' = 'success') => {
+      setStatusMessage({ text, type });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
+
   const isLab = user.roles.includes(UserRole.BACTERIOLOGIST);
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
@@ -60,7 +68,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) return showStatus("No hay plantilla configurada para este examen.", "error");
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +97,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showStatus("Resultado guardado correctamente.");
   };
 
   // --- RENDER FIELD ---
@@ -126,8 +134,68 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          const content = `
+            <html>
+            <head>
+                <title>Resultados de Diagnóstico - ${patientName}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; }
+                    .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+                    .logo { font-size: 24px; font-weight: bold; color: #2563eb; }
+                    .info { margin-bottom: 20px; display: grid; grid-cols-2 gap: 20px; }
+                    .item { margin-bottom: 10px; }
+                    .label { font-weight: bold; color: #64748b; font-size: 12px; text-transform: uppercase; }
+                    .val { font-size: 16px; font-weight: 500; }
+                    .table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+                    .table th { background: #f8fafc; text-align: left; padding: 12px; border-bottom: 2px solid #e2e8f0; }
+                    .table td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+                    .footer { margin-top: 50px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; pt: 20px; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="logo">MEDICORE IPS SAS</div>
+                    <div style="font-size: 12px; color: #64748b;">Reporte Consolidado de Ayudas Diagnósticas</div>
+                </div>
+                <div class="info">
+                    <div class="item"><span class="label">Paciente:</span><br/><span class="val">${patientName}</span></div>
+                    <div class="item"><span class="label">Fecha de Procesamiento:</span><br/><span class="val">${date}</span></div>
+                </div>
+                <h3>Resultados Registrados</h3>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Estudio / Examen</th>
+                            <th>Estado</th>
+                            <th>Observaciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${completedRecords
+                            .filter(r => MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientName && r.dateCreated.startsWith(date))
+                            .map(r => `
+                                <tr>
+                                    <td style="font-weight: bold;">${r.chiefComplaint}</td>
+                                    <td><span style="color: #059669; font-weight: bold;">FINALIZADO</span></td>
+                                    <td style="font-size: 12px;">Validado por: ${user.name}</td>
+                                </tr>
+                            `).join('')}
+                    </tbody>
+                </table>
+                <div class="footer">
+                    Este documento es una representación impresa de un resultado electrónico. Firma digital validada en servidor.<br/>
+                    MediCore Pro EHR - 2024
+                </div>
+            </body>
+            </html>
+          `;
+          printWindow.document.write(content);
+          printWindow.document.close();
+          showStatus("Generando vista de impresión...");
+      }
   };
 
   // --- RENDER FORM ---
@@ -171,7 +239,13 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- DASHBOARD ---
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-8 max-w-7xl mx-auto relative">
+        {statusMessage && (
+            <div className={`fixed top-6 right-6 z-[200] p-4 rounded-xl shadow-2xl border flex items-center animate-in slide-in-from-top-4 duration-300 ${statusMessage.type === 'success' ? 'bg-emerald-50 border-green-200 text-emerald-800' : 'bg-rose-50 border-red-200 text-rose-800'}`}>
+                {statusMessage.type === 'success' ? <CheckCircle className="mr-3 text-emerald-500" size={20}/> : <AlertCircle className="mr-3 text-rose-500" size={20}/>}
+                <span className="font-bold tracking-tight">{statusMessage.text}</span>
+            </div>
+        )}
         <div className="flex justify-between items-center mb-8">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800">{isLab ? 'Laboratorio Clínico' : 'Imagenología y Radiología'}</h2>
