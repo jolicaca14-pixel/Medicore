@@ -24,6 +24,12 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   const isLab = user.roles.includes(UserRole.BACTERIOLOGIST);
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const showStatus = (text: string, type: 'success' | 'error' = 'success') => {
+      setStatusMessage({ text, type });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
+
   const [activeTab, setActiveTab] = useState<'PENDING' | 'HISTORY'>('PENDING');
   
   // Mock Diagnostic Orders
@@ -60,7 +66,10 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) {
+          showStatus("No hay plantilla configurada para este examen.", 'error');
+          return;
+      }
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +98,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showStatus("Resultado guardado correctamente.");
   };
 
   // --- RENDER FIELD ---
@@ -109,10 +118,13 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'FILE' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50">
+                  <label className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50 block">
                       <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
-                      <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
-                  </div>
+                      <p className="text-xs text-slate-500">
+                          {dynamicData[field.id] ? `Archivo: ${dynamicData[field.id]}` : 'Click para cargar imágenes (DICOM/JPG)'}
+                      </p>
+                      <input type="file" className="hidden" onChange={(e) => setDynamicData({...dynamicData, [field.id]: e.target.files?.[0]?.name || 'imagen_diagnostica.jpg'})} />
+                  </label>
               ) : (
                   <input 
                     type={field.type === 'NUMBER' ? 'number' : 'text'} 
@@ -127,7 +139,23 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- PRINT VIEW ---
   const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head><title>Resultados - ${patientId}</title></head>
+              <body style="font-family: sans-serif; padding: 40px;">
+                  <h1>Reporte Consolidado de Diagnósticos</h1>
+                  <p><strong>Paciente:</strong> ${patientId}</p>
+                  <p><strong>Fecha:</strong> ${date}</p>
+                  <hr/>
+                  <p>Documento generado por MediCore Pro.</p>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+      }
+      showStatus("Generando impresión...");
   };
 
   // --- RENDER FORM ---
@@ -172,6 +200,14 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   // --- DASHBOARD ---
   return (
     <div className="p-8 max-w-7xl mx-auto">
+        {statusMessage && (
+            <div className={`fixed top-6 right-6 z-[100] animate-in fade-in slide-in-from-top-4 duration-300 ${
+                statusMessage.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+            } text-white px-6 py-3 rounded-xl shadow-2xl flex items-center font-bold`}>
+                {statusMessage.type === "success" ? <CheckCircle className="mr-2" size={20}/> : <AlertCircle className="mr-2" size={20}/>}
+                {statusMessage.text}
+            </div>
+        )}
         <div className="flex justify-between items-center mb-8">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800">{isLab ? 'Laboratorio Clínico' : 'Imagenología y Radiología'}</h2>

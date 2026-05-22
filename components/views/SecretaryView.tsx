@@ -53,6 +53,18 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   const [tariffMode, setTariffMode] = useState<'SOAT' | 'PARTICULAR'>('SOAT');
   const [invoices, setInvoices] = useState<Invoice[]>([]); // Cartera
 
+  // Status Message
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const showStatus = (text: string, type: 'success' | 'error' = 'success') => {
+      setStatusMessage({ text, type });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
+
+  // Payment Modal
+  const [isPaymentRegisterModalOpen, setIsPaymentRegisterModalOpen] = useState(false);
+  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<Invoice | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+
   // Manual Item
   const [manualItemName, setManualItemName] = useState('');
   const [manualItemPrice, setManualItemPrice] = useState('');
@@ -86,7 +98,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   const handleSaveAppointment = async () => {
       if(!newAppt.patientId || !newAppt.time || !newAppt.reason || !newAppt.professionalId) {
-          alert("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)");
+          showStatus("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)", 'error');
           return;
       }
       const patient = patients.find(p => p.id === newAppt.patientId);
@@ -111,7 +123,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               } as Appointment;
               setAppointments([...appointments, finalAppt]);
           } catch (e) {
-              alert("Error al guardar en servidor. Se usará modo local.");
+              showStatus("Error al guardar en servidor. Se usará modo local.", 'error');
               finalAppt = {
                   id: `appt-${Date.now()}`,
                   patientId: newAppt.patientId,
@@ -153,9 +165,9 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               status: 'PENDING'
           };
           setInvoices([...invoices, newInvoice]);
-          alert("Cita agendada y Factura creada automáticamente en Cartera.");
+          showStatus("Cita agendada y Factura creada automáticamente en Cartera.");
       } else {
-          alert(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
+          showStatus(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
       }
 
       setIsApptModalOpen(false);
@@ -165,8 +177,8 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       try {
           await appointmentService.updateStatus(id, status);
           setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-          if (status === 'WAITING') alert("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
-          if (status === 'CANCELLED') alert("Cita cancelada.");
+          if (status === 'WAITING') showStatus("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
+          if (status === 'CANCELLED') showStatus("Cita cancelada.");
       } catch (e) {
           console.error("Error updating status in backend, updating locally");
           setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
@@ -263,38 +275,70 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       setSelectedServices([]);
       setBillingPatient(null);
       setPartialPayment('');
-      alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
+      showStatus(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
   };
 
   const printInvoice = (invoice: Invoice) => {
       // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head><title>Factura ${invoice.id}</title></head>
+              <body style="font-family: sans-serif; padding: 40px;">
+                  <h1 style="text-align: center;">FACTURA DE VENTA</h1>
+                  <p style="text-align: center;">N° ${invoice.id}</p>
+                  <hr/>
+                  <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                  <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+                  <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                      <thead>
+                          <tr style="background: #f8fafc;">
+                              <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">Ítem</th>
+                              <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: right;">Total</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          ${invoice.items.map(item => `
+                              <tr>
+                                  <td style="border: 1px solid #e2e8f0; padding: 8px;">${item.name} (x${item.quantity})</td>
+                                  <td style="border: 1px solid #e2e8f0; padding: 8px; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+                              </tr>
+                          `).join('')}
+                      </tbody>
+                  </table>
+                  <div style="margin-top: 20px; text-align: right;">
+                      <p><strong>Subtotal:</strong> ${formatCurrency(invoice.subtotal)}</p>
+                      <p><strong>Descuento:</strong> -${formatCurrency(invoice.discount)}</p>
+                      <p style="font-size: 1.2em;"><strong>Total a Pagar:</strong> ${formatCurrency(invoice.total)}</p>
+                      <p style="color: #dc2626;"><strong>Saldo Pendiente:</strong> ${formatCurrency(invoice.balance)}</p>
+                  </div>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+      }
+      showStatus("Preparando impresión de factura...");
   };
 
   // --- CARTERA HANDLERS ---
-  const registerPayment = (id: string) => {
-      const inv = invoices.find(i => i.id === id);
-      if(!inv) return;
+  const handleOpenPaymentModal = (invoice: Invoice) => {
+      setSelectedInvoiceForPayment(invoice);
+      setPaymentAmount(invoice.balance.toString());
+      setIsPaymentRegisterModalOpen(true);
+  };
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
+  const handleConfirmPayment = () => {
+      if (!selectedInvoiceForPayment || !paymentAmount) return;
+      const amount = parseFloat(paymentAmount);
       
-      if(amount > inv.balance) {
-          alert("El monto ingresado supera el saldo pendiente.");
+      if (amount > selectedInvoiceForPayment.balance) {
+          showStatus("El monto ingresado supera el saldo pendiente.", 'error');
           return;
       }
 
       setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
+          if (invoice.id !== selectedInvoiceForPayment.id) return invoice;
           const newBalance = invoice.balance - amount;
           const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
           return {
@@ -304,11 +348,63 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
-      alert("Pago registrado correctamente.");
+
+      setIsPaymentRegisterModalOpen(false);
+      showStatus("Pago registrado correctamente.");
+  };
+
+  const registerPayment = (id: string) => {
+      const inv = invoices.find(i => i.id === id);
+      if (inv) handleOpenPaymentModal(inv);
   };
 
   return (
     <div className="flex h-screen bg-slate-50">
+        {statusMessage && (
+            <div className={`fixed top-6 right-6 z-[100] animate-in fade-in slide-in-from-top-4 duration-300 ${
+                statusMessage.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+            } text-white px-6 py-3 rounded-xl shadow-2xl flex items-center font-bold`}>
+                <CheckCircle className="mr-2" size={20}/>
+                {statusMessage.text}
+            </div>
+        )}
+
+        {isPaymentRegisterModalOpen && selectedInvoiceForPayment && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+                    <h3 className="text-lg font-bold text-slate-800 mb-2 flex items-center">
+                        <DollarSign className="mr-2 text-green-600"/> Registrar Pago de Factura
+                    </h3>
+                    <p className="text-sm text-slate-500 mb-6">Factura N° {selectedInvoiceForPayment.id}</p>
+
+                    <div className="space-y-4">
+                        <div className="bg-slate-50 p-4 rounded-lg border">
+                            <div className="flex justify-between text-sm mb-1">
+                                <span className="text-slate-500">Saldo Pendiente:</span>
+                                <span className="font-bold text-red-600">{formatCurrency(selectedInvoiceForPayment.balance)}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label htmlFor="payment-amount-input" className="block text-xs font-bold text-slate-500 mb-1">Monto a Pagar</label>
+                            <input
+                                id="payment-amount-input"
+                                type="number"
+                                value={paymentAmount}
+                                onChange={(e) => setPaymentAmount(e.target.value)}
+                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none font-bold text-lg"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 mt-8">
+                        <button onClick={() => setIsPaymentRegisterModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold text-sm">Cancelar</button>
+                        <button onClick={handleConfirmPayment} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm hover:bg-slate-800">
+                            Confirmar Pago
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
       {/* Sidebar simplified for Secretary */}
       <div className="w-64 bg-white border-r border-slate-200 flex flex-col">
           <div className="p-6 border-b border-slate-100">
