@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
 import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
+import { StatusOverlay } from '../StatusOverlay';
 
 interface DiagnosticViewProps {
   user: User;
@@ -23,6 +24,13 @@ interface Order {
 export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }) => {
   const isLab = user.roles.includes(UserRole.BACTERIOLOGIST);
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
+
+  const [statusMessage, setStatusMessage] = useState<{ text: string, type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showStatus = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
+      setStatusMessage({ text, type });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
 
   const [activeTab, setActiveTab] = useState<'PENDING' | 'HISTORY'>('PENDING');
   
@@ -60,7 +68,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) return showStatus("No hay plantilla configurada para este examen.", "error");
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +97,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showStatus("Resultado guardado correctamente.");
   };
 
   // --- RENDER FIELD ---
@@ -127,7 +135,32 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- PRINT VIEW ---
   const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+      showStatus(`Generando PDF consolidado para ${patientId} (${date})...`, "info");
+
+      // Simulate professional print template
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+            <html>
+                <head><title>Resultados Diagnósticos - ${patientId}</title></head>
+                <body style="font-family: sans-serif; padding: 40px;">
+                    <div style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px;">
+                        <h1 style="margin: 0;">MEDICORE PRO</h1>
+                        <p style="margin: 5px 0; color: #666;">Centro de Apoyo Diagnóstico Avanzado</p>
+                    </div>
+                    <p><strong>Paciente:</strong> ${patientId}</p>
+                    <p><strong>Fecha de Emisión:</strong> ${date}</p>
+                    <hr/>
+                    <div style="padding: 20px; background: #f9f9f9; border-radius: 8px;">
+                        <h3 style="color: #2563eb;">INFORME CONSOLIDADO DE RESULTADOS</h3>
+                        <p>Los resultados detallados se encuentran adjuntos en el sistema central de MediCore.</p>
+                        <p style="margin-top: 40px; font-style: italic; color: #999;">Documento firmado electrónicamente por el profesional responsable.</p>
+                    </div>
+                </body>
+            </html>
+          `);
+          printWindow.document.close();
+      }
   };
 
   // --- RENDER FORM ---
@@ -171,7 +204,8 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- DASHBOARD ---
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-8 max-w-7xl mx-auto relative">
+        <StatusOverlay message={statusMessage} />
         <div className="flex justify-between items-center mb-8">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800">{isLab ? 'Laboratorio Clínico' : 'Imagenología y Radiología'}</h2>
