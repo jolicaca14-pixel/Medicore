@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { User, Patient, Appointment, Invoice, InvoiceItem, RecordType, RecordStatus, ClinicalRecord, UserRole, TariffItem } from '../../types';
 import { MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_RECORDS, MOCK_SOAT_TARIFF, SMLDV_2024, formatCurrency, MOCK_USERS } from '../../constants';
 import { appointmentService } from '../../services/appointmentService';
-import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw, Loader2 } from 'lucide-react';
+import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw, Loader2, ShieldCheck } from 'lucide-react';
+import { StatusOverlay } from '../StatusOverlay';
 
 interface SecretaryViewProps {
   user: User;
@@ -11,6 +12,13 @@ interface SecretaryViewProps {
 
 export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState<'PATIENTS' | 'AGENDA' | 'BILLING' | 'CARTERA'>('AGENDA');
+
+  const [statusMessage, setStatusMessage] = useState<{ text: string, type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showStatus = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
+      setStatusMessage({ text, type });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
 
   // --- PATIENTS & AGENDA STATE ---
   const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
@@ -86,7 +94,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   const handleSaveAppointment = async () => {
       if(!newAppt.patientId || !newAppt.time || !newAppt.reason || !newAppt.professionalId) {
-          alert("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)");
+          showStatus("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)", "error");
           return;
       }
       const patient = patients.find(p => p.id === newAppt.patientId);
@@ -111,7 +119,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               } as Appointment;
               setAppointments([...appointments, finalAppt]);
           } catch (e) {
-              alert("Error al guardar en servidor. Se usará modo local.");
+              showStatus("Error al guardar en servidor. Se usará modo local.", "info");
               finalAppt = {
                   id: `appt-${Date.now()}`,
                   patientId: newAppt.patientId,
@@ -153,9 +161,9 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               status: 'PENDING'
           };
           setInvoices([...invoices, newInvoice]);
-          alert("Cita agendada y Factura creada automáticamente en Cartera.");
+          showStatus("Cita agendada y Factura creada automáticamente en Cartera.");
       } else {
-          alert(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
+          showStatus(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
       }
 
       setIsApptModalOpen(false);
@@ -165,8 +173,8 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       try {
           await appointmentService.updateStatus(id, status);
           setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-          if (status === 'WAITING') alert("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
-          if (status === 'CANCELLED') alert("Cita cancelada.");
+          if (status === 'WAITING') showStatus("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
+          if (status === 'CANCELLED') showStatus("Cita cancelada.", "info");
       } catch (e) {
           console.error("Error updating status in backend, updating locally");
           setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
@@ -263,20 +271,65 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       setSelectedServices([]);
       setBillingPatient(null);
       setPartialPayment('');
-      alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
+      showStatus(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      showStatus("Generando previsualización de factura...", "info");
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+            <html>
+                <head><title>Factura MediCore - ${invoice.id}</title></head>
+                <body style="font-family: sans-serif; padding: 40px; color: #333;">
+                    <div style="text-align: right; margin-bottom: 40px;">
+                        <h1 style="color: #1e293b; margin-bottom: 5px;">FACTURA DE VENTA</h1>
+                        <p style="margin: 0; font-weight: bold; color: #64748b;">N° ${invoice.id}</p>
+                    </div>
+
+                    <div style="margin-bottom: 30px;">
+                        <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                        <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+                        <p><strong>Estado:</strong> ${invoice.status}</p>
+                    </div>
+
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid #e2e8f0; text-align: left; background: #f8fafc;">
+                                <th style="padding: 12px;">Servicio</th>
+                                <th style="padding: 12px; text-align: right;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${invoice.items.map(item => `
+                                <tr style="border-bottom: 1px solid #f1f5f9;">
+                                    <td style="padding: 12px;">${item.name} <br/><span style="font-size: 10px; color: #94a3b8;">CUPS: ${item.code}</span></td>
+                                    <td style="padding: 12px; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+
+                    <div style="float: right; width: 250px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span>Subtotal:</span>
+                            <span>${formatCurrency(invoice.subtotal)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px; color: #ef4444;">
+                            <span>Descuentos:</span>
+                            <span>- ${formatCurrency(invoice.discount)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 2px solid #e2e8f0; font-size: 18px; font-weight: bold;">
+                            <span>TOTAL:</span>
+                            <span>${formatCurrency(invoice.total)}</span>
+                        </div>
+                    </div>
+                </body>
+            </html>
+          `);
+          printWindow.document.close();
+      }
   };
 
   // --- CARTERA HANDLERS ---
@@ -289,7 +342,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       const amount = parseFloat(amountStr);
       
       if(amount > inv.balance) {
-          alert("El monto ingresado supera el saldo pendiente.");
+          showStatus("El monto ingresado supera el saldo pendiente.", "error");
           return;
       }
 
@@ -304,7 +357,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
-      alert("Pago registrado correctamente.");
+      showStatus("Pago registrado correctamente.");
   };
 
   return (
@@ -335,12 +388,70 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 overflow-y-auto p-8 relative">
+          <StatusOverlay message={statusMessage} />
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+             <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="flex justify-between items-center mb-2">
+                    <div>
+                        <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+                        <p className="text-sm text-slate-500">Gestión y búsqueda de la base de datos de pacientes.</p>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-6">
+                        <div className="relative w-full md:w-96">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                            <input
+                                type="text"
+                                placeholder="Buscar por nombre, identificación o email..."
+                                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={billingSearchTerm}
+                                onChange={(e) => setBillingSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <button className="w-full md:w-auto px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm flex items-center justify-center hover:bg-slate-800 transition-colors">
+                            <Plus size={18} className="mr-2"/> Registrar Paciente
+                        </button>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
+                                <tr>
+                                    <th className="py-3 px-4">Paciente</th>
+                                    <th className="py-3 px-4">Identificación</th>
+                                    <th className="py-3 px-4">Contacto</th>
+                                    <th className="py-3 px-4">Aseguradora</th>
+                                    <th className="py-3 px-4 text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {patients.filter(p =>
+                                    p.fullName.toLowerCase().includes(billingSearchTerm.toLowerCase()) ||
+                                    p.identification.includes(billingSearchTerm) ||
+                                    p.email.toLowerCase().includes(billingSearchTerm.toLowerCase())
+                                ).map(p => (
+                                    <tr key={p.id} className="hover:bg-blue-50/30 transition-colors">
+                                        <td className="py-4 px-4 font-bold text-slate-700">{p.fullName}</td>
+                                        <td className="py-4 px-4 font-mono text-xs">{p.identification}</td>
+                                        <td className="py-4 px-4">
+                                            <div className="text-slate-600">{p.phone}</div>
+                                            <div className="text-[10px] text-slate-400">{p.email}</div>
+                                        </td>
+                                        <td className="py-4 px-4 text-xs font-medium text-slate-500">{p.insuranceType}</td>
+                                        <td className="py-4 px-4 text-right">
+                                            <button className="p-2 text-slate-400 hover:text-blue-600 transition-colors" title="Editar"><Edit size={16}/></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
              </div>
           )}
           {/* AGENDA TAB (Now Functional) */}
