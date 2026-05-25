@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
 import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
+import { StatusOverlay, StatusMessage, StatusMessageType } from '../StatusOverlay';
 
 interface DiagnosticViewProps {
   user: User;
@@ -21,6 +22,12 @@ interface Order {
 }
 
 export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }) => {
+  const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);
+
+  const showStatus = (text: string, type: StatusMessageType = 'SUCCESS') => {
+      setStatusMessage({ text, type });
+  };
+
   const isLab = user.roles.includes(UserRole.BACTERIOLOGIST);
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
@@ -60,7 +67,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) return showStatus("No hay plantilla configurada para este examen.", "ERROR");
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +96,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showStatus("Resultado guardado correctamente.");
   };
 
   // --- RENDER FIELD ---
@@ -127,7 +134,35 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- PRINT VIEW ---
   const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head><title>Resultados - ${patientId}</title></head>
+              <body style="font-family: sans-serif; padding: 40px;">
+                  <div style="border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px;">
+                      <h1 style="margin: 0;">MEDICORE IPS</h1>
+                      <p style="margin: 5px 0;">Laboratorio Clínico e Imagenología</p>
+                  </div>
+                  <h3>INFORME DE RESULTADOS</h3>
+                  <p><strong>Paciente:</strong> ${patientId}</p>
+                  <p><strong>Fecha:</strong> ${date}</p>
+                  <hr/>
+                  <div style="margin-top: 20px;">
+                      <p><em>Este es un reporte consolidado de los exámenes realizados en la fecha indicada.</em></p>
+                  </div>
+                  <br/><br/>
+                  <div style="margin-top: 50px;">
+                      <div style="width: 200px; border-top: 1px solid #000; text-align: center;">
+                          <p style="margin: 5px 0; font-size: 12px;">Firma del Responsable</p>
+                      </div>
+                  </div>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+          printWindow.print();
+      }
   };
 
   // --- RENDER FORM ---
@@ -172,6 +207,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   // --- DASHBOARD ---
   return (
     <div className="p-8 max-w-7xl mx-auto">
+        <StatusOverlay message={statusMessage} onClose={() => setStatusMessage(null)} />
         <div className="flex justify-between items-center mb-8">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800">{isLab ? 'Laboratorio Clínico' : 'Imagenología y Radiología'}</h2>

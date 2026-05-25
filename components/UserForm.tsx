@@ -24,9 +24,11 @@ interface UserFormProps {
 
 export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEmbedded = false }) => {
   const [currentUser, setCurrentUser] = useState<Partial<User>>(user);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setCurrentUser(user);
+    setError(null);
   }, [user]);
 
   const toggleUserRole = (role: UserRole) => {
@@ -38,12 +40,13 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEm
   };
 
   const handleSave = () => {
+    setError(null);
     if (!currentUser.firstName || !currentUser.lastName || !currentUser.username || !currentUser.documentNumber) {
-      alert('Complete nombres, apellidos, usuario y documento.');
+      setError('Complete nombres, apellidos, usuario y documento.');
       return;
     }
     if (!currentUser.roles || currentUser.roles.length === 0) {
-      alert('El usuario debe tener al menos un rol asignado.');
+      setError('El usuario debe tener al menos un rol asignado.');
       return;
     }
     if (
@@ -55,7 +58,7 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEm
       )
     ) {
       if (!currentUser.professionalLicense) {
-        alert(
+        setError(
           'Para roles asistenciales, el Registro Médico/Profesional es obligatorio.'
         );
         return;
@@ -261,6 +264,14 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEm
             </div>
           )}
         </div>
+
+        {error && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700 text-sm font-bold animate-in fade-in slide-in-from-top-1">
+                <Shield size={16} className="mr-2" />
+                {error}
+            </div>
+        )}
+
         <div className="mt-6 flex justify-end space-x-3">
           <button onClick={onCancel} className="px-4 py-2 text-slate-600">
             Cancelar
