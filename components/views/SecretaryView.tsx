@@ -3,6 +3,7 @@ import { User, Patient, Appointment, Invoice, InvoiceItem, RecordType, RecordSta
 import { MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_RECORDS, MOCK_SOAT_TARIFF, SMLDV_2024, formatCurrency, MOCK_USERS } from '../../constants';
 import { appointmentService } from '../../services/appointmentService';
 import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw, Loader2 } from 'lucide-react';
+import { StatusOverlay, StatusMessage, StatusMessageType } from '../StatusOverlay';
 
 interface SecretaryViewProps {
   user: User;
@@ -10,10 +11,17 @@ interface SecretaryViewProps {
 }
 
 export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) => {
+  const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);
+
+  const showStatus = (text: string, type: StatusMessageType = 'SUCCESS') => {
+      setStatusMessage({ text, type });
+  };
+
   const [activeTab, setActiveTab] = useState<'PATIENTS' | 'AGENDA' | 'BILLING' | 'CARTERA'>('AGENDA');
 
   // --- PATIENTS & AGENDA STATE ---
   const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
+  const [patientSearch, setPatientSearch] = useState('');
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoadingAppts, setIsLoadingAppts] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -86,7 +94,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   const handleSaveAppointment = async () => {
       if(!newAppt.patientId || !newAppt.time || !newAppt.reason || !newAppt.professionalId) {
-          alert("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)");
+          showStatus("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)", "ERROR");
           return;
       }
       const patient = patients.find(p => p.id === newAppt.patientId);
@@ -111,7 +119,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               } as Appointment;
               setAppointments([...appointments, finalAppt]);
           } catch (e) {
-              alert("Error al guardar en servidor. Se usará modo local.");
+              showStatus("Error al guardar en servidor. Se usará modo local.", "INFO");
               finalAppt = {
                   id: `appt-${Date.now()}`,
                   patientId: newAppt.patientId,
@@ -153,9 +161,9 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               status: 'PENDING'
           };
           setInvoices([...invoices, newInvoice]);
-          alert("Cita agendada y Factura creada automáticamente en Cartera.");
+          showStatus("Cita agendada y Factura creada automáticamente en Cartera.");
       } else {
-          alert(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
+          showStatus(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
       }
 
       setIsApptModalOpen(false);
@@ -165,8 +173,8 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       try {
           await appointmentService.updateStatus(id, status);
           setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-          if (status === 'WAITING') alert("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
-          if (status === 'CANCELLED') alert("Cita cancelada.");
+          if (status === 'WAITING') showStatus("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
+          if (status === 'CANCELLED') showStatus("Cita cancelada.");
       } catch (e) {
           console.error("Error updating status in backend, updating locally");
           setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
@@ -263,20 +271,85 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       setSelectedServices([]);
       setBillingPatient(null);
       setPartialPayment('');
-      alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
+      showStatus(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head><title>Factura ${invoice.id}</title></head>
+              <body style="font-family: sans-serif; padding: 40px;">
+                  <div style="text-align: center; border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 20px;">
+                      <h1 style="margin: 0; color: #1e293b;">MEDICORE IPS SAS</h1>
+                      <p style="margin: 5px 0; color: #64748b;">NIT: 900.123.456-1</p>
+                      <p style="margin: 5px 0; color: #64748b;">Calle 100 #15-30, Bogotá</p>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+                      <div>
+                          <h3 style="margin: 0 0 10px 0; color: #1e293b;">DATOS DEL PACIENTE</h3>
+                          <p style="margin: 2px 0;"><strong>Nombre:</strong> ${invoice.patientName}</p>
+                          <p style="margin: 2px 0;"><strong>ID:</strong> ${invoice.patientId}</p>
+                      </div>
+                      <div style="text-align: right;">
+                          <h3 style="margin: 0 0 10px 0; color: #1e293b;">FACTURA</h3>
+                          <p style="margin: 2px 0;"><strong>N°:</strong> ${invoice.id}</p>
+                          <p style="margin: 2px 0;"><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+                      </div>
+                  </div>
+                  <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+                      <thead>
+                          <tr style="background-color: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                              <th style="text-align: left; padding: 12px;">Descripción</th>
+                              <th style="text-align: center; padding: 12px;">Cant.</th>
+                              <th style="text-align: right; padding: 12px;">Valor Unit.</th>
+                              <th style="text-align: right; padding: 12px;">Total</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          ${invoice.items.map(item => `
+                              <tr style="border-bottom: 1px solid #f1f5f9;">
+                                  <td style="padding: 12px;">${item.name}</td>
+                                  <td style="padding: 12px; text-align: center;">${item.quantity}</td>
+                                  <td style="padding: 12px; text-align: right;">${formatCurrency(item.price)}</td>
+                                  <td style="padding: 12px; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+                              </tr>
+                          `).join('')}
+                      </tbody>
+                  </table>
+                  <div style="width: 250px; margin-left: auto;">
+                      <div style="display: flex; justify-content: space-between; padding: 5px 0;">
+                          <span>Subtotal:</span>
+                          <span>${formatCurrency(invoice.subtotal)}</span>
+                      </div>
+                      <div style="display: flex; justify-content: space-between; padding: 5px 0; color: #ef4444;">
+                          <span>Descuento:</span>
+                          <span>- ${formatCurrency(invoice.discount)}</span>
+                      </div>
+                      <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 2px solid #eee; font-weight: bold; font-size: 18px;">
+                          <span>TOTAL:</span>
+                          <span>${formatCurrency(invoice.total)}</span>
+                      </div>
+                      <div style="display: flex; justify-content: space-between; padding: 5px 0; color: #10b981;">
+                          <span>Pagado:</span>
+                          <span>${formatCurrency(invoice.total - invoice.balance)}</span>
+                      </div>
+                      <div style="display: flex; justify-content: space-between; padding: 5px 0; font-weight: bold;">
+                          <span>SALDO:</span>
+                          <span>${formatCurrency(invoice.balance)}</span>
+                      </div>
+                  </div>
+                  <div style="margin-top: 50px; font-size: 12px; color: #94a3b8; text-align: center;">
+                      <p>Esta factura se asimila en sus efectos a una letra de cambio (Art. 774 del Código de Comercio).</p>
+                      <p>Generado por MediCore Pro.</p>
+                  </div>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+          printWindow.print();
+      }
   };
 
   // --- CARTERA HANDLERS ---
@@ -289,7 +362,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       const amount = parseFloat(amountStr);
       
       if(amount > inv.balance) {
-          alert("El monto ingresado supera el saldo pendiente.");
+          showStatus("El monto ingresado supera el saldo pendiente.", "ERROR");
           return;
       }
 
@@ -304,11 +377,12 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
-      alert("Pago registrado correctamente.");
+      showStatus("Pago registrado correctamente.");
   };
 
   return (
     <div className="flex h-screen bg-slate-50">
+        <StatusOverlay message={statusMessage} onClose={() => setStatusMessage(null)} />
       {/* Sidebar simplified for Secretary */}
       <div className="w-64 bg-white border-r border-slate-200 flex flex-col">
           <div className="p-6 border-b border-slate-100">
@@ -339,8 +413,53 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+             <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+                    <div className="relative w-72">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="Nombre o identificación..."
+                            className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm"
+                            value={patientSearch}
+                            onChange={(e) => setPatientSearch(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-medium">
+                            <tr>
+                                <th className="p-4">Paciente</th>
+                                <th className="p-4">Identificación</th>
+                                <th className="p-4">Contacto</th>
+                                <th className="p-4">Aseguradora</th>
+                                <th className="p-4 text-right">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {patients.filter(p =>
+                                p.fullName.toLowerCase().includes(patientSearch.toLowerCase()) ||
+                                p.identification.includes(patientSearch)
+                            ).map(p => (
+                                <tr key={p.id} className="hover:bg-slate-50">
+                                    <td className="p-4 font-bold text-slate-700">{p.fullName}</td>
+                                    <td className="p-4 font-mono">{p.identification}</td>
+                                    <td className="p-4">
+                                        <p>{p.phone}</p>
+                                        <p className="text-xs text-slate-400">{p.email}</p>
+                                    </td>
+                                    <td className="p-4 text-xs font-bold text-blue-600">{p.insuranceType}</td>
+                                    <td className="p-4 text-right">
+                                        <button onClick={() => { setBillingPatient(p); setActiveTab('BILLING'); }} className="text-blue-600 hover:underline font-bold text-xs">Facturar</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
              </div>
           )}
           {/* AGENDA TAB (Now Functional) */}
