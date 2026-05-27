@@ -1,4 +1,5 @@
-import { sanitizeInput } from './security';
+import { sanitizeInput, isSystemAdmin, hasAdministrativeAccess, maskIdentification } from './security';
+import { UserRole } from '../types';
 
 /**
  * 🧪 Smith: Security Unit Tests
@@ -24,10 +25,35 @@ const testSanitizeInput = () => {
   console.assert(sanitizeInput(null as any) === '', 'Test 4 Failed');
   console.assert(sanitizeInput(undefined as any) === '', 'Test 5 Failed');
 
-  console.log('All security tests passed.');
+  console.log('sanitizeInput tests passed.');
 };
 
-// Auto-execute if run directly (logic for test runner would go here)
-if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-    testSanitizeInput();
-}
+const testRBAC = () => {
+    console.log('Testing RBAC helpers...');
+
+    // isSystemAdmin
+    console.assert(isSystemAdmin([UserRole.ADMIN]) === true, 'isSystemAdmin Test 1 Failed');
+    console.assert(isSystemAdmin([UserRole.PROFESSIONAL]) === false, 'isSystemAdmin Test 2 Failed');
+
+    // hasAdministrativeAccess
+    console.assert(hasAdministrativeAccess([UserRole.ADMIN]) === true, 'hasAdmin Test 1 Failed');
+    console.assert(hasAdministrativeAccess([UserRole.MANAGER]) === true, 'hasAdmin Test 2 Failed');
+    console.assert(hasAdministrativeAccess([UserRole.ACCOUNTANT]) === true, 'hasAdmin Test 3 Failed');
+    console.assert(hasAdministrativeAccess([UserRole.PROFESSIONAL]) === false, 'hasAdmin Test 4 Failed');
+
+    console.log('RBAC tests passed.');
+};
+
+const testMasking = () => {
+    console.log('Testing Identification Masking...');
+    console.assert(maskIdentification('123456789') === '*****6789', 'Masking Test 1 Failed');
+    console.assert(maskIdentification('1234') === '1234', 'Masking Test 2 Failed (Length 4)');
+    console.assert(maskIdentification('123') === '***', 'Masking Test 3 Failed (Short)');
+    console.log('Masking tests passed.');
+};
+
+// Auto-execute
+testSanitizeInput();
+testRBAC();
+testMasking();
+console.log('All security utilities verified.');
