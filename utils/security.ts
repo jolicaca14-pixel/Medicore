@@ -25,3 +25,21 @@ export const sanitizeInput = (input: string | undefined | null): string => {
   // For a production environment, a more robust, well-tested library like DOMPurify is strongly recommended.
   return input.replace(/<|>/g, '');
 };
+
+/**
+ * 🛡️ MORPHEUS: Role-Based Access Control (RBAC) helpers
+ */
+import { UserRole } from '../types';
+
+export const isSystemAdmin = (roles: UserRole[]): boolean => {
+  return roles.includes(UserRole.ADMIN);
+};
+
+export const hasAdministrativeAccess = (roles: UserRole[]): boolean => {
+  return roles.some(role => [UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT].includes(role));
+};
+
+export const maskIdentification = (id: string): string => {
+  if (!id || id.length < 4) return '***';
+  return id.substring(0, id.length - 4).replace(/./g, '*') + id.slice(-4);
+};

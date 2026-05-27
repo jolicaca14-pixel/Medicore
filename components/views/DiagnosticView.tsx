@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
 import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
+import { StatusOverlay, StatusMessage } from '../StatusOverlay';
 
 interface DiagnosticViewProps {
   user: User;
@@ -25,6 +26,10 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
   const [activeTab, setActiveTab] = useState<'PENDING' | 'HISTORY'>('PENDING');
+  const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);
+  const showStatus = (text: string, type: 'SUCCESS' | 'ERROR' | 'INFO' = 'SUCCESS') => {
+      setStatusMessage({ text, type });
+  };
   
   // Mock Diagnostic Orders
   const [orders, setOrders] = useState<Order[]>([
@@ -60,7 +65,10 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) {
+          showStatus("No hay plantilla configurada para este examen.", 'ERROR');
+          return;
+      }
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +97,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showStatus("Resultado guardado correctamente.");
   };
 
   // --- RENDER FIELD ---
@@ -126,8 +134,45 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+                  <head>
+                      <title>Resultados - ${patientName}</title>
+                      <style>
+                          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #334155; }
+                          .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+                          .title { font-size: 24px; font-bold; color: #1e293b; }
+                          .patient-info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+                          .result-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 15px; }
+                          .footer { margin-top: 50px; font-size: 12px; color: #64748b; text-align: center; }
+                      </style>
+                  </head>
+                  <body>
+                      <div class="header">
+                          <div class="title">REPORTE DE AYUDAS DIAGNÓSTICAS</div>
+                          <p>MediCore IPS - Sistema de Historia Clínica</p>
+                      </div>
+                      <div class="patient-info">
+                          <p><strong>Paciente:</strong> ${patientName}</p>
+                          <p><strong>Fecha de Estudios:</strong> ${date}</p>
+                      </div>
+                      <div class="result-box">
+                          <p>Este es un documento de previsualización profesional de los resultados capturados en sistema.</p>
+                          <hr/>
+                          <p><em>Los resultados detallados se encuentran anexos en la historia clínica electrónica del paciente.</em></p>
+                      </div>
+                      <div class="footer">
+                          Documento generado electrónicamente. No requiere firma autógrafa.
+                      </div>
+                  </body>
+              </html>
+          `);
+          printWindow.document.close();
+          printWindow.print();
+      }
   };
 
   // --- RENDER FORM ---
@@ -172,6 +217,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   // --- DASHBOARD ---
   return (
     <div className="p-8 max-w-7xl mx-auto">
+        <StatusOverlay message={statusMessage} onClose={() => setStatusMessage(null)} />
         <div className="flex justify-between items-center mb-8">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800">{isLab ? 'Laboratorio Clínico' : 'Imagenología y Radiología'}</h2>
