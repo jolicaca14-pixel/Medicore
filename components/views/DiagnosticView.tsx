@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
 import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
+import { StatusOverlay, StatusType } from '../StatusOverlay';
 
 interface DiagnosticViewProps {
   user: User;
@@ -25,6 +26,8 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
   const [activeTab, setActiveTab] = useState<'PENDING' | 'HISTORY'>('PENDING');
+  const [statusMessage, setStatusMessage] = useState<{message: string, type: StatusType} | null>(null);
+  const showStatus = (message: string, type: StatusType = 'success') => setStatusMessage({ message, type });
   
   // Mock Diagnostic Orders
   const [orders, setOrders] = useState<Order[]>([
@@ -60,7 +63,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) return showStatus("No hay plantilla configurada para este examen.", "error");
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +92,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showStatus("Resultado guardado correctamente.");
   };
 
   // --- RENDER FIELD ---
@@ -126,8 +129,72 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+        const recordsInGroup = completedRecords.filter(r => {
+            const pName = MOCK_PATIENTS.find(pt => pt.id === r.patientId)?.fullName || 'Desconocido';
+            return pName === patientName && r.dateCreated.startsWith(date);
+        });
+
+        printWindow.document.write(`
+            <html>
+            <head>
+                <title>Resultados - ${patientName}</title>
+                <style>
+                    body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; }
+                    .header { text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px; }
+                    .patient-box { background: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+                    .result-item { border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px; page-break-inside: avoid; }
+                    .result-title { font-weight: bold; color: #2563eb; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; }
+                    .data-grid { display: grid; grid-template-cols: 1fr 1fr; gap: 10px; }
+                    .data-label { font-weight: bold; font-size: 0.8rem; color: #64748b; }
+                    .data-value { font-size: 0.9rem; }
+                    .footer { margin-top: 50px; text-align: center; font-size: 0.7rem; color: #94a3b8; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1 style="margin: 0;">Reporte de Ayudas Diagnósticas</h1>
+                    <p>MediCore Pro - IPS Especializada</p>
+                </div>
+                <div class="patient-box">
+                    <h3 style="margin: 0;">Información del Paciente</h3>
+                    <p style="margin: 5px 0;"><strong>Nombre:</strong> ${patientName}</p>
+                    <p style="margin: 0;"><strong>Fecha Reporte:</strong> ${date}</p>
+                </div>
+                ${recordsInGroup.map(r => `
+                    <div class="result-item">
+                        <div class="result-title">
+                            <span>${r.chiefComplaint}</span>
+                            <span style="font-size: 0.8rem;">Ref: ${r.id}</span>
+                        </div>
+                        <div class="data-grid">
+                            ${Object.entries(r.dynamicData).map(([key, val]) => {
+                                const label = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+                                return `
+                                    <div>
+                                        <div class="data-label">${label}</div>
+                                        <div class="data-value">${val}</div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                        <div style="margin-top: 15px; font-size: 0.8rem; border-top: 1px dashed #e2e8f0; padding-top: 10px;">
+                            <strong>Profesional:</strong> ${r.professionalName}
+                        </div>
+                    </div>
+                `).join('')}
+                <div class="footer">
+                    <p>Este documento es una impresión de resultados clínicos digitales.</p>
+                    <p>Firmado digitalmente por MediCore Pro IPS</p>
+                </div>
+                <script>window.onload = () => { window.print(); }</script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    }
   };
 
   // --- RENDER FORM ---
@@ -172,6 +239,13 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   // --- DASHBOARD ---
   return (
     <div className="p-8 max-w-7xl mx-auto">
+      {statusMessage && (
+        <StatusOverlay
+          message={statusMessage.message}
+          type={statusMessage.type}
+          onClose={() => setStatusMessage(null)}
+        />
+      )}
         <div className="flex justify-between items-center mb-8">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800">{isLab ? 'Laboratorio Clínico' : 'Imagenología y Radiología'}</h2>

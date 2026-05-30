@@ -19,10 +19,11 @@ interface UserFormProps {
   user: Partial<User>;
   onSave: (user: Partial<User>) => void;
   onCancel: () => void;
+  onError?: (message: string) => void;
   isEmbedded?: boolean;
 }
 
-export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEmbedded = false }) => {
+export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, onError, isEmbedded = false }) => {
   const [currentUser, setCurrentUser] = useState<Partial<User>>(user);
 
   useEffect(() => {
@@ -39,11 +40,13 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEm
 
   const handleSave = () => {
     if (!currentUser.firstName || !currentUser.lastName || !currentUser.username || !currentUser.documentNumber) {
-      alert('Complete nombres, apellidos, usuario y documento.');
+      if (onError) onError('Complete nombres, apellidos, usuario y documento.');
+      else alert('Complete nombres, apellidos, usuario y documento.');
       return;
     }
     if (!currentUser.roles || currentUser.roles.length === 0) {
-      alert('El usuario debe tener al menos un rol asignado.');
+      if (onError) onError('El usuario debe tener al menos un rol asignado.');
+      else alert('El usuario debe tener al menos un rol asignado.');
       return;
     }
     if (
@@ -55,9 +58,8 @@ export const UserForm: React.FC<UserFormProps> = ({ user, onSave, onCancel, isEm
       )
     ) {
       if (!currentUser.professionalLicense) {
-        alert(
-          'Para roles asistenciales, el Registro Médico/Profesional es obligatorio.'
-        );
+        if (onError) onError('Para roles asistenciales, el Registro Médico/Profesional es obligatorio.');
+        else alert('Para roles asistenciales, el Registro Médico/Profesional es obligatorio.');
         return;
       }
     }
