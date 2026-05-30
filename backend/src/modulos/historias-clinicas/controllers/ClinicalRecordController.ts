@@ -20,15 +20,15 @@ export class ClinicalRecordController {
         }
     }
 
-    static async finalize(req: Request, res: Response) {
+    static async finalize(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
             const { signature } = req.body;
             const record = await ClinicalRecordService.finalize(id, signature);
             if (!record) return res.status(404).json({ message: 'Historia no encontrada' });
-            res.json(record);
+            return res.json(record);
         } catch (error: any) {
-            res.status(500).json({ message: error.message });
+            return res.status(500).json({ message: error.message });
         }
     }
 }

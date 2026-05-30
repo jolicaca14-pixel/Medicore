@@ -11,16 +11,16 @@ export class PatientController {
         }
     }
 
-    async getByIdentification(req: Request, res: Response) {
+    async getByIdentification(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
             const patient = await PatientService.getPatientByIdentification(id);
             if (!patient) {
                 return res.status(404).json({ error: 'Paciente no encontrado' });
             }
-            res.json(patient);
+            return res.json(patient);
         } catch (error: any) {
-            res.status(500).json({ error: error.message });
+            return res.status(500).json({ error: error.message });
         }
     }
 
