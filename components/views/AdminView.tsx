@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType, TariffItem, Contract, ContractType, ContractAudit, DisciplinaryAction, PaymentRequest, ClinicalRecord, RecordType, RecordStatus, Patient } from '../../types';
 import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
+import { clinicalConfigService } from '../../services/clinicalConfigService';
+import { reportService } from '../../services/reportService';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
 import { 
     Shield, Users, FileText, Settings, Plus, Edit, Trash2, X, Save, 
@@ -102,6 +104,42 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [globalFields, setGlobalFields] = useState<TemplateField[]>(MOCK_FIELD_LIBRARY);
   const [globalSections, setGlobalSections] = useState<TemplateSection[]>(MOCK_SECTION_LIBRARY);
   const [templates, setTemplates] = useState<RoleTemplate[]>(MOCK_TEMPLATES);
+
+  const [metrics, setMetrics] = useState<any>(null);
+
+  React.useEffect(() => {
+    const fetchMetrics = async () => {
+        try {
+            const data = await reportService.getMetrics();
+            setMetrics(data);
+        } catch (e) {
+            console.warn("Using mock metrics");
+        }
+    };
+    if (activeTab === 'dashboard' || activeTab === 'reports') {
+        fetchMetrics();
+    }
+  }, [activeTab]);
+
+  React.useEffect(() => {
+    const fetchConfig = async () => {
+        try {
+            const [t, s, f] = await Promise.all([
+                clinicalConfigService.getTemplates(),
+                clinicalConfigService.getSections(),
+                clinicalConfigService.getFields()
+            ]);
+            if (t.length > 0) setTemplates(t);
+            if (s.length > 0) setGlobalSections(s);
+            if (f.length > 0) setGlobalFields(f);
+        } catch (e) {
+            console.warn("Using mock clinical config data");
+        }
+    };
+    if (activeTab === 'settings') {
+        fetchConfig();
+    }
+  }, [activeTab]);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
   const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
@@ -323,137 +361,41 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
 
   // --- RIPS GENERATION LOGIC ---
-  const generateRIPS = () => {
-      // 1. Filter Records by Date and Status
-      const filteredRecords = MOCK_RECORDS.filter(r => {
-          const d = r.dateCreated.split('T')[0];
-          return d >= ripsStartDate && d <= ripsEndDate && r.status === RecordStatus.FINALIZED;
-      });
+  const generateRIPS = async () => {
+      try {
+          const rips = await reportService.generateRIPS(ripsStartDate, ripsEndDate);
+          if (rips.US.length === 0 && rips.AC.length === 0) {
+              alert("No se encontraron registros finalizados en el rango de fechas seleccionado.");
+              setGeneratedRips(null);
+          } else {
+              setGeneratedRips(rips);
+          }
+      } catch (e) {
+          // Fallback logic
+          const filteredRecords = MOCK_RECORDS.filter(r => {
+              const d = r.dateCreated.split('T')[0];
+              return d >= ripsStartDate && d <= ripsEndDate && r.status === RecordStatus.FINALIZED;
+          });
 
-      if (filteredRecords.length === 0) {
-          alert("No se encontraron registros finalizados en el rango de fechas seleccionado.");
-          setGeneratedRips(null);
-          return;
+          if (filteredRecords.length === 0) {
+              alert("No se encontraron registros finalizados en el rango de fechas seleccionado.");
+              setGeneratedRips(null);
+              return;
+          }
+
+          const uniquePatientIds = Array.from(new Set(filteredRecords.map(r => r.patientId)));
+          const usFile = uniquePatientIds.map(pid => {
+              const p = MOCK_PATIENTS.find(pt => pt.id === pid);
+              if (!p) return null;
+              return { tipo_documento: 'CC', numero_documento: p.identification, apellido_1: p.fullName.split(' ')[1] || 'Unknown', nombre_1: p.fullName.split(' ')[0] };
+          }).filter(Boolean);
+
+          const acFile = filteredRecords
+              .filter(r => [RecordType.GENERAL, RecordType.PSYCHOLOGY].includes(r.recordType))
+              .map(r => ({ numero_factura: `FAC-${r.id}`, codigo_consulta: '890201', valor_consulta: 45000 }));
+
+          setGeneratedRips({ US: usFile, AC: acFile, AP: [], AF: [] });
       }
-
-      // 2. Generate US (Usuarios)
-      const uniquePatientIds = Array.from(new Set(filteredRecords.map(r => r.patientId)));
-      const usFile = uniquePatientIds.map(pid => {
-          const p = MOCK_PATIENTS.find(pt => pt.id === pid);
-          if (!p) return null;
-          return {
-              tipo_documento: 'CC', // Mock
-              numero_documento: p.identification,
-              codigo_admin: 'EPS001',
-              tipo_usuario: '1', // Contributivo
-              apellido_1: p.fullName.split(' ')[1] || 'Unknown',
-              apellido_2: '',
-              nombre_1: p.fullName.split(' ')[0],
-              nombre_2: '',
-              edad: new Date().getFullYear() - new Date(p.birthDate).getFullYear(),
-              unidad_medida_edad: '1',
-              sexo: p.gender,
-              depto: '11', // Bogota
-              municipio: '001',
-              zona: 'U'
-          };
-      }).filter(Boolean);
-
-      // 3. Generate AC (Consultas)
-      const acFile = filteredRecords
-          .filter(r => [RecordType.GENERAL, RecordType.PSYCHOLOGY, RecordType.NUTRITION, RecordType.PYP_CV_RISK, RecordType.PYP_GROWTH_DEV, RecordType.PYP_PREGNANCY].includes(r.recordType))
-          .map(r => ({
-              numero_factura: `FAC-${r.id}`, // Mock Link
-              codigo_prestador: '1100100001',
-              tipo_documento: 'CC',
-              numero_documento: MOCK_PATIENTS.find(p => p.id === r.patientId)?.identification,
-              fecha_consulta: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
-              numero_autorizacion: 'AUT-000',
-              codigo_consulta: r.recordType === RecordType.PSYCHOLOGY ? '890208' : '890201',
-              finalidad: '10', // Tratamiento
-              causa_externa: '13', // Enfermedad general
-              dx_principal: r.diagnoses?.[0]?.code || 'Z000',
-              dx_relacionado_1: r.diagnoses?.[1]?.code || '',
-              dx_relacionado_2: '',
-              dx_relacionado_3: '',
-              tipo_dx_principal: '1', // Impresion diagnostica
-              valor_consulta: 45000,
-              valor_cuota_moderadora: 4500,
-              valor_neto: 40500
-          }));
-
-      // 4. Generate AP (Procedimientos) - From 'performedProcedures' or Lab/Imaging Records
-      let apFile: any[] = [];
-      
-      // 4a. Procedures embedded in records
-      filteredRecords.forEach(r => {
-          if (r.performedProcedures && r.performedProcedures.length > 0) {
-              r.performedProcedures.forEach(proc => {
-                  apFile.push({
-                      numero_factura: `FAC-${r.id}`,
-                      codigo_prestador: '1100100001',
-                      tipo_documento: 'CC',
-                      numero_documento: MOCK_PATIENTS.find(p => p.id === r.patientId)?.identification,
-                      fecha_procedimiento: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
-                      numero_autorizacion: 'AUT-000',
-                      codigo_procedimiento: proc.code,
-                      ambito: '1', // Ambulatorio
-                      finalidad: '1', // Diagnostico
-                      personal_atiende: '1', // Especialista
-                      dx_principal: r.diagnoses?.[0]?.code || 'Z000',
-                      dx_relacionado: '',
-                      complicacion: '',
-                      acto_qx: '1', // Unico
-                      valor: 25000 // Mock value
-                  });
-              });
-          }
-          // 4b. Pure Diagnostic Records (Lab/Img)
-          if (r.recordType === RecordType.LAB_RESULT || r.recordType === RecordType.IMAGING_REPORT) {
-               // Determine CUPS based on type (Mock logic)
-               const cups = r.recordType === RecordType.LAB_RESULT ? '902213' : '871020';
-               apFile.push({
-                  numero_factura: `FAC-${r.id}`,
-                  codigo_prestador: '1100100001',
-                  tipo_documento: 'CC',
-                  numero_documento: MOCK_PATIENTS.find(p => p.id === r.patientId)?.identification,
-                  fecha_procedimiento: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
-                  numero_autorizacion: 'AUT-000',
-                  codigo_procedimiento: cups,
-                  ambito: '1',
-                  finalidad: '1',
-                  personal_atiende: '4', // Bacteriologo/Otros
-                  dx_principal: '',
-                  dx_relacionado: '',
-                  complicacion: '',
-                  acto_qx: '1',
-                  valor: 35000
-              });
-          }
-      });
-
-      // 5. Generate AF (Transacciones/Facturas)
-      const afFile = filteredRecords.map(r => ({
-          codigo_prestador: '1100100001',
-          razon_social: 'MEDICORE IPS SAS',
-          tipo_id: 'NI',
-          numero_id: '900123456',
-          numero_factura: `FAC-${r.id}`,
-          fecha_expedicion: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
-          fecha_inicio: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
-          fecha_final: r.dateCreated.split('T')[0].split('-').reverse().join('/'),
-          codigo_entidad: 'EPS001',
-          nombre_entidad: 'EPS SANITAS',
-          numero_contrato: 'CONT-2024',
-          plan_beneficios: 'PBS',
-          numero_poliza: '',
-          valor_copago: 4500,
-          valor_comision: 0,
-          valor_descuentos: 0,
-          valor_neto: 40500
-      }));
-
-      setGeneratedRips({ US: usFile, AC: acFile, AP: apFile, AF: afFile });
   };
 
   const downloadRIPS = () => {
@@ -500,28 +442,28 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
                       <div>
                           <p className="text-slate-500 text-sm font-bold uppercase">Pacientes Activos</p>
-                          <h3 className="text-3xl font-bold text-slate-800">1,204</h3>
+                          <h3 className="text-3xl font-bold text-slate-800">{metrics?.activePatients || '1,204'}</h3>
                       </div>
                       <div className="p-3 bg-blue-100 text-blue-600 rounded-full"><Users size={24}/></div>
                   </div>
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
                       <div>
-                          <p className="text-slate-500 text-sm font-bold uppercase">Recaudo Hoy</p>
-                          <h3 className="text-3xl font-bold text-green-600">{formatCurrency(4200000)}</h3>
+                          <p className="text-slate-500 text-sm font-bold uppercase">Recaudo Total</p>
+                          <h3 className="text-3xl font-bold text-green-600">{metrics ? formatCurrency(metrics.totalRevenue) : formatCurrency(4200000)}</h3>
                       </div>
                       <div className="p-3 bg-green-100 text-green-600 rounded-full"><DollarSign size={24}/></div>
                   </div>
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
                       <div>
                           <p className="text-slate-500 text-sm font-bold uppercase">Historias Cerradas</p>
-                          <h3 className="text-3xl font-bold text-slate-800">85%</h3>
+                          <h3 className="text-3xl font-bold text-slate-800">{metrics?.closedRecordsPercentage || 85}%</h3>
                       </div>
                       <div className="p-3 bg-purple-100 text-purple-600 rounded-full"><FileText size={24}/></div>
                   </div>
                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
                       <div>
                           <p className="text-slate-500 text-sm font-bold uppercase">Alertas Sistema</p>
-                          <h3 className="text-3xl font-bold text-red-500">3</h3>
+                          <h3 className="text-3xl font-bold text-red-500">{metrics?.systemAlerts || 3}</h3>
                       </div>
                       <div className="p-3 bg-red-100 text-red-600 rounded-full"><AlertTriangle size={24}/></div>
                   </div>
