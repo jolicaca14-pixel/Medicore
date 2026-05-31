@@ -7,6 +7,7 @@ export class ClinicalRecordController {
             const records = await ClinicalRecordService.getByPatientId(req.params.patientId);
             res.json(records);
         } catch (error: any) {
+            console.error('[ClinicalRecordController.getByPatientId]', error);
             res.status(500).json({ message: error.message });
         }
     }
@@ -16,6 +17,7 @@ export class ClinicalRecordController {
             const record = await ClinicalRecordService.createOrUpdate(req.body);
             res.status(201).json(record);
         } catch (error: any) {
+            console.error('[ClinicalRecordController.create]', error);
             res.status(500).json({ message: error.message });
         }
     }

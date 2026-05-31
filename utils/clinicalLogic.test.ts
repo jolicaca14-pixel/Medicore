@@ -1,25 +1,25 @@
-import { test } from 'node:test';
-import assert from 'node:assert';
-import { calculateTFG, calculateFramingham, calculateBMI } from './clinicalLogic';
+import { validateDosage, getVitalWarning } from './clinicalLogic';
 
-test('calculateBMI', () => {
-  assert.strictEqual(calculateBMI(70, 1.75), "22.86");
-  assert.strictEqual(calculateBMI(0, 1.75), "0.00");
-});
+describe('Clinical Logic Utilities', () => {
+  describe('validateDosage', () => {
+    it('should allow normal dosages', () => {
+      expect(validateDosage('Acetaminofen', '500')).toBeNull();
+      expect(validateDosage('Ibuprofeno', '400')).toBeNull();
+    });
 
-test('calculateTFG', () => {
-  // Male, 40 years, 70kg, 1.0 creatinine
-  assert.strictEqual(Math.round(calculateTFG(40, 70, 1.0, 'M')), 97);
-  // Female, 40 years, 70kg, 1.0 creatinine
-  assert.strictEqual(Math.round(calculateTFG(40, 70, 1.0, 'F')), 83);
-});
+    it('should return warning for high dosages', () => {
+      expect(validateDosage('Acetaminofen', '1500')).toContain('Dosis máxima');
+      expect(validateDosage('Ibuprofeno', '1000')).toContain('Dosis máxima');
+    });
+  });
 
-test('calculateFramingham', () => {
-  // Healthy young person
-  const risk1 = calculateFramingham(25, 'F', 110, 180, 50, false);
-  assert.ok(risk1 < 5);
+  describe('getVitalWarning', () => {
+    it('should alert on high heart rate', () => {
+      expect(getVitalWarning('global_heart_rate', '120')).toContain('Taquicardia');
+    });
 
-  // High risk person
-  const risk2 = calculateFramingham(65, 'M', 165, 250, 35, true);
-  assert.ok(risk2 > 15);
+    it('should alert on low SpO2', () => {
+      expect(getVitalWarning('v_sat', '88')).toContain('Crítica');
+    });
+  });
 });

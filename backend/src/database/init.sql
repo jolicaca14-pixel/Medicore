@@ -106,3 +106,77 @@ COMMENT ON TABLE usuarios IS 'Tabla de usuarios del sistema con control de acces
 COMMENT ON TABLE sesiones IS 'Tabla de sesiones activas con refresh tokens para autenticación JWT';
 COMMENT ON COLUMN usuarios.password_hash IS 'Hash de contraseña generado con bcrypt (salt rounds >= 12)';
 COMMENT ON COLUMN sesiones.refresh_token IS 'Refresh token JWT con vida de 7 días';
+
+-- Tabla de Historias Clínicas
+CREATE TABLE IF NOT EXISTS historias_clinicas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    tipo_registro VARCHAR(50) NOT NULL,
+    estado VARCHAR(20) DEFAULT 'DRAFT' CHECK (estado IN ('DRAFT', 'FINALIZED', 'VOID')),
+    motivo_consulta TEXT,
+    antecedentes TEXT,
+    examen_fisico JSONB,
+    diagnosticos JSONB DEFAULT '[]',
+    plan_tratamiento TEXT,
+    datos_dinamicos JSONB DEFAULT '{}',
+    firma_digital VARCHAR(255),
+    fecha_finalizada TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para historias clínicas
+CREATE INDEX IF NOT EXISTS idx_hce_paciente ON historias_clinicas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_hce_profesional ON historias_clinicas(profesional_id);
+CREATE INDEX IF NOT EXISTS idx_hce_estado ON historias_clinicas(estado);
+
+COMMENT ON TABLE historias_clinicas IS 'Almacén central de registros clínicos electrónicos (HCE)';
+
+-- Tabla de Recetas / Prescripciones
+CREATE TABLE IF NOT EXISTS recetas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    historia_id UUID REFERENCES historias_clinicas(id) ON DELETE CASCADE,
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    medicamento VARCHAR(255) NOT NULL,
+    dosis VARCHAR(100),
+    frecuencia VARCHAR(100),
+    via VARCHAR(50),
+    duracion VARCHAR(100),
+    cantidad_total INTEGER DEFAULT 1,
+    observaciones TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para recetas
+CREATE INDEX IF NOT EXISTS idx_recetas_paciente ON recetas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_recetas_historia ON recetas(historia_id);
+
+-- Tabla de Facturas
+CREATE TABLE IF NOT EXISTS facturas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    historia_id UUID REFERENCES historias_clinicas(id) ON DELETE SET NULL,
+    numero_factura VARCHAR(50) UNIQUE NOT NULL,
+    fecha_emision TIMESTAMP DEFAULT NOW(),
+    valor_total DECIMAL(12, 2) DEFAULT 0,
+    estado VARCHAR(20) DEFAULT 'DRAFT' CHECK (estado IN ('DRAFT', 'ISSUED', 'PAID', 'VOID')),
+    entidad_pagadora VARCHAR(100),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Detalle de Factura
+CREATE TABLE IF NOT EXISTS detalles_factura (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    factura_id UUID REFERENCES facturas(id) ON DELETE CASCADE,
+    codigo_servicio VARCHAR(20),
+    descripcion TEXT,
+    cantidad INTEGER DEFAULT 1,
+    valor_unitario DECIMAL(12, 2),
+    valor_total DECIMAL(12, 2)
+);
+
+-- Índices para facturación
+CREATE INDEX IF NOT EXISTS idx_facturas_paciente ON facturas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_facturas_numero ON facturas(numero_factura);
