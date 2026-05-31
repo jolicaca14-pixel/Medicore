@@ -126,8 +126,64 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const html = `
+        <html>
+          <head>
+            <title>Resultados - ${patientName}</title>
+            <style>
+              body { font-family: sans-serif; padding: 40px; color: #334155; }
+              .header { display: flex; justify-content: space-between; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px; }
+              .logo { font-weight: bold; font-size: 24px; color: #1e3a8a; }
+              .details { margin-bottom: 30px; display: grid; grid-template-cols: 1fr 1fr; gap: 20px; }
+              .result-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px; page-break-inside: avoid; }
+              .result-title { font-weight: bold; color: #1e40af; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 15px; }
+              .field-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted #f1f5f9; font-size: 14px; }
+              .footer { margin-top: 50px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+              .signature { margin-top: 40px; width: 200px; border-top: 1px solid #334155; text-align: center; font-size: 12px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="logo">MediCore Pro - Laboratorio</div>
+              <div>Reporte de Resultados</div>
+            </div>
+            <div class="details">
+              <div>
+                <p><strong>Paciente:</strong> ${patientName}</p>
+                <p><strong>Fecha:</strong> ${date}</p>
+              </div>
+              <div style="text-align: right;">
+                <p><strong>Institución:</strong> MediCore IPS SAS</p>
+                <p><strong>Sede:</strong> Principal</p>
+              </div>
+            </div>
+
+            <div class="result-card">
+              <div class="result-title">Resultados de Laboratorio / Imagenología</div>
+              <p style="font-size: 12px; color: #64748b;">A continuación se detallan los hallazgos registrados para la fecha seleccionada.</p>
+              <div style="margin-top: 20px;">
+                <p><strong>Observación General:</strong> Estudio realizado según protocolo institucional. Hallazgos compatibles con la clínica reportada.</p>
+              </div>
+            </div>
+
+            <div class="signature">
+              Firma del Profesional Responsable
+            </div>
+
+            <div class="footer">
+              Este documento es un reporte oficial generado por MediCore Pro.<br/>
+              La interpretación de estos resultados debe ser realizada por su médico tratante.
+            </div>
+            <script>window.print();</script>
+          </body>
+        </html>
+      `;
+      printWindow.document.write(html);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---

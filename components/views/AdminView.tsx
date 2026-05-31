@@ -119,7 +119,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
   
   const handleAddNewUser = () => { 
-      setCurrentUser({ id: `u${Date.now()}`, roles: [UserRole.PROFESSIONAL], status: 'ACTIVE', name: '', username: '' }); 
+      setCurrentUser({
+          id: `u${Date.now()}`,
+          roles: [UserRole.PROFESSIONAL],
+          status: 'ACTIVE',
+          name: '',
+          username: '',
+          firstName: '',
+          lastName: '',
+          documentNumber: '',
+          professionalLicense: '',
+          specialty: '',
+          digitalStampUrl: ''
+      });
   };
 
   const handleSaveUser = (userToSave: Partial<User>) => {
@@ -478,12 +490,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
+  const adminOnlyTabs = ['users', 'settings', 'hr', 'files'];
+  if (adminOnlyTabs.includes(activeTab) && !isAdmin) {
       return (
-          <div className="flex flex-col items-center justify-center h-full text-slate-400">
-              <Ban size={64} className="mb-4 text-red-400"/>
-              <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
-              <p className="text-sm">Se requieren permisos de ADMINISTRADOR para acceder a este módulo.</p>
+          <div className="flex flex-col items-center justify-center h-full text-slate-400 p-20 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200">
+              <Ban size={64} className="mb-4 text-red-400 animate-pulse"/>
+              <h2 className="text-xl font-bold text-slate-700 uppercase tracking-tight">Acceso Restringido</h2>
+              <p className="text-sm mt-2 text-slate-500 max-w-xs text-center">
+                  Usted está intentando acceder a un módulo reservado exclusivamente para el perfil de <strong>ADMINISTRADOR</strong>.
+              </p>
           </div>
       );
   }
@@ -1246,28 +1261,133 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-slate-800 flex items-center">
+                                <LayoutTemplate className="mr-2 text-blue-600"/> Configuración de Plantilla
+                            </h3>
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                    <label htmlFor="tpl-name" className="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre de la Plantilla</label>
+                                    <input id="tpl-name" type="text" className="w-full border rounded-lg p-2" placeholder="Ej: Consulta General" />
+                                </div>
+                                <div className="col-span-2">
+                                    <label htmlFor="tpl-desc" className="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción</label>
+                                    <textarea id="tpl-desc" className="w-full border rounded-lg p-2" rows={2} placeholder="Describa el propósito de esta plantilla..." />
+                                </div>
+                                <div>
+                                    <label htmlFor="tpl-type" className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Registro</label>
+                                    <select id="tpl-type" className="w-full border rounded-lg p-2 bg-white text-sm">
+                                        {Object.values(RecordType).map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Roles con Acceso</label>
+                                    <div className="flex flex-wrap gap-2 mt-1">
+                                        {[UserRole.PROFESSIONAL, UserRole.PSYCHOLOGIST, UserRole.NUTRITIONIST].map(role => (
+                                            <label key={role} className="flex items-center text-xs bg-slate-50 border px-2 py-1 rounded cursor-pointer hover:bg-slate-100">
+                                                <input type="checkbox" className="mr-1" defaultChecked={role === UserRole.PROFESSIONAL} />
+                                                {roleLabels[role]}
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="border-t pt-4">
+                                <h4 className="text-sm font-bold text-slate-700 mb-3">Estructura de Secciones</h4>
+                                <div className="bg-slate-50 p-4 rounded-lg border border-dashed text-center text-slate-400 text-xs">
+                                    Arrastre secciones desde la biblioteca para configurar la estructura.
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-8">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold text-sm">Cancelar</button>
+                            <button onClick={() => { setIsTemplateModalOpen(false); alert("Plantilla configurada correctamente (Simulado)"); }} className="px-6 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm hover:bg-slate-800 transition-colors">
+                                Guardar Plantilla
+                            </button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-slate-800 flex items-center">
+                                <Layers className="mr-2 text-blue-600"/> Definir Nueva Sección
+                            </h3>
+                            <button onClick={() => setIsSectionModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label htmlFor="sec-title" className="block text-xs font-bold text-slate-500 uppercase mb-1">Título de la Sección</label>
+                                <input id="sec-title" type="text" className="w-full border rounded-lg p-2" placeholder="Ej: Signos Vitales" />
+                            </div>
+                            <div>
+                                <label htmlFor="sec-desc" className="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción (Opcional)</label>
+                                <textarea id="sec-desc" className="w-full border rounded-lg p-2" rows={2} placeholder="Instrucciones para el profesional..." />
+                            </div>
+                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex items-start">
+                                <Info size={16} className="text-blue-600 mr-3 mt-0.5 shrink-0"/>
+                                <p className="text-xs text-blue-800 leading-relaxed">
+                                    Las secciones se guardan en la biblioteca global y pueden ser reutilizadas en múltiples plantillas.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-8">
+                            <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold text-sm">Cancelar</button>
+                            <button onClick={() => { setIsSectionModalOpen(false); alert("Sección creada y agregada a la biblioteca (Simulado)"); }} className="px-6 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm hover:bg-slate-800 transition-colors">
+                                Crear Sección
+                            </button>
+                        </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-slate-800 flex items-center">
+                                <Database className="mr-2 text-blue-600"/> Variable Clínica
+                            </h3>
+                            <button onClick={() => setIsFieldModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                    <label htmlFor="field-label" className="block text-xs font-bold text-slate-500 uppercase mb-1">Etiqueta del Campo</label>
+                                    <input id="field-label" type="text" className="w-full border rounded-lg p-2" placeholder="Ej: Presión Arterial Sistólica" />
+                                </div>
+                                <div>
+                                    <label htmlFor="field-id" className="block text-xs font-bold text-slate-500 uppercase mb-1">ID Variable (System)</label>
+                                    <input id="field-id" type="text" className="w-full border rounded-lg p-2 font-mono text-sm" placeholder="global_sys_bp" />
+                                </div>
+                                <div>
+                                    <label htmlFor="field-type" className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Dato</label>
+                                    <select id="field-type" className="w-full border rounded-lg p-2 bg-white text-sm">
+                                        {Object.values(FieldType).map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label htmlFor="field-unit" className="block text-xs font-bold text-slate-500 uppercase mb-1">Unidad de Medida</label>
+                                    <input id="field-unit" type="text" className="w-full border rounded-lg p-2" placeholder="Ej: mmHg, mg/dL" />
+                                </div>
+                                <div className="flex items-center mt-6">
+                                    <label className="flex items-center text-xs font-bold text-slate-700 cursor-pointer">
+                                        <input type="checkbox" className="mr-2 h-4 w-4" /> Obligatorio
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-8">
+                            <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold text-sm">Cancelar</button>
+                            <button onClick={() => { setIsFieldModalOpen(false); alert("Campo registrado exitosamente (Simulado)"); }} className="px-6 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm hover:bg-slate-800 transition-colors">
+                                Guardar Campo
+                            </button>
+                        </div>
                       </div>
                   </div>
               )}
