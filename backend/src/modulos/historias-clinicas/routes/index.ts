@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { ClinicalRecordController } from '../controllers/ClinicalRecordController';
-import { authenticateToken } from '../../auth/middlewares/authMiddleware';
+import { authenticateToken, requireRole } from '../../auth/middlewares/authMiddleware';
 
 const router = Router();
 
 router.use(authenticateToken);
 
 router.get('/paciente/:patientId', ClinicalRecordController.getByPatientId);
-router.post('/', ClinicalRecordController.create);
-router.post('/:id/finalizar', ClinicalRecordController.finalize);
+router.post('/', requireRole('admin', 'professional'), ClinicalRecordController.create);
+router.post('/:id/finalizar', requireRole('admin', 'professional'), ClinicalRecordController.finalize);
 
 export default router;

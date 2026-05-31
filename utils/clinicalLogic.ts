@@ -123,3 +123,24 @@ export const calculateFramingham = (age: number, gender: 'M' | 'F', sysBp: numbe
   const risk = Math.max(0, points * 1.5);
   return risk;
 };
+
+/**
+ * Validates medication dosages based on standard therapeutic ranges.
+ */
+export const validateDosage = (medication: string, dose: string): string | null => {
+    const med = medication.toLowerCase();
+    const d = parseFloat(dose);
+
+    if (isNaN(d)) return null;
+
+    if (med.includes('acetaminofen') || med.includes('paracetamol')) {
+        if (d > 1000) return 'Dosis máxima por toma recomendada: 1000mg';
+    }
+    if (med.includes('ibuprofeno')) {
+        if (d > 800) return 'Dosis máxima por toma recomendada: 800mg';
+    }
+    if (med.includes('tramadol')) {
+        if (d > 100) return 'Precaución: Dosis de tramadol > 100mg aumenta riesgo de convulsiones';
+    }
+    return null;
+};

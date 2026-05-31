@@ -90,6 +90,21 @@ All notable changes to this project will be documented in this file.
 - **ProfessionalView.tsx**: Integrated `clinicalRecordService` and fixed redundant declarations.
 - **Security**: Applied `requireRole` middleware to all agenda routes.
 
+## [2026-05-31] - 10-Cycle Persistence & Clinical Safety (Protocol Jules x10)
+
+### Added
+- **Persistence**: Full PostgreSQL integration for Clinical Records, Prescriptions, and Invoicing.
+- **Modules**: New backend modules for `recetas`, `facturacion`, and `rips`.
+- **Security**: RBAC enforcement at the route level for clinical operations.
+- **Safety**: Medication dosage validation in the frontend.
+- **Interoperability**: Automated RIPS US/AC generation from database records.
+- **Testing**: `tests/full_flow.spec.ts` covering the end-to-end clinical cycle.
+
+### Changed
+- `ClinicalRecordService.ts`: Refactored from in-memory to PostgreSQL pool.
+- `ProfessionalView.tsx`: Integrated real-time prescription persistence and safety alerts.
+- `init.sql`: Added tables for `historias_clinicas`, `recetas`, `facturas`, and `detalles_factura`.
+
 ### Fixed
 - **Bug**: Resolved duplicate `handleSaveDraft` declaration in `ProfessionalView.tsx`.
 - **UX**: Added `Loader2` spinners for better feedback during data fetching.
