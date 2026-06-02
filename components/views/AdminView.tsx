@@ -106,6 +106,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
   const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
 
+  const [newTemplate, setNewTemplate] = useState<Partial<RoleTemplate>>({ allowedRoles: [], sections: [], active: true });
+  const [newSection, setNewSection] = useState<Partial<TemplateSection>>({ fields: [] });
+  const [newField, setNewField] = useState<Partial<TemplateField>>({ type: 'TEXT', required: false });
+
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
   const [ripsEndDate, setRipsEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -119,7 +123,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
   
   const handleAddNewUser = () => { 
-      setCurrentUser({ id: `u${Date.now()}`, roles: [UserRole.PROFESSIONAL], status: 'ACTIVE', name: '', username: '' }); 
+      setCurrentUser({
+          id: `u${Date.now()}`,
+          roles: [UserRole.PROFESSIONAL],
+          status: 'ACTIVE',
+          name: '',
+          username: '',
+          firstName: '',
+          lastName: '',
+          documentNumber: '',
+          professionalLicense: '',
+          specialty: '',
+          digitalStampUrl: ''
+      });
   };
 
   const handleSaveUser = (userToSave: Partial<User>) => {
@@ -317,7 +333,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               }))
           );
       } else { // PAYMENT
-          setPaymentRequests(prev => prev.filter(p => p.id !== fileId));
+          setPaymentRequests(prev => {
+              const updated = prev.map(p => {
+                  if (p.id === fileId) {
+                      return { ...p, paymentReceiptUrl: undefined };
+                  }
+                  return p;
+              });
+              // If it was a mock added payment request that only exists for the receipt, we might want to filter it,
+              // but usually we just want to remove the file from the request.
+              // For consistency with handleConfirmUpload, let's just clear the receipt.
+              return updated;
+          });
       }
       alert("Archivo eliminado.");
   };
@@ -471,9 +498,36 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       alert("Paquete de RIPS generado y descargado exitosamente.");
   };
 
-  const handleNewTemplate = () => setIsTemplateModalOpen(true);
-  const handleNewSection = () => setIsSectionModalOpen(true);
-  const handleNewField = () => setIsFieldModalOpen(true);
+  const handleNewTemplate = () => {
+      setNewTemplate({ id: `t${Date.now()}`, allowedRoles: [], sections: [], active: true, name: '', description: '', recordType: RecordType.GENERAL });
+      setIsTemplateModalOpen(true);
+  };
+  const handleNewSection = () => {
+      setNewSection({ id: `sec${Date.now()}`, title: '', description: '', fields: [] });
+      setIsSectionModalOpen(true);
+  };
+  const handleNewField = () => {
+      setNewField({ id: `f${Date.now()}`, label: '', type: 'TEXT', required: false, placeholder: '', unit: '' });
+      setIsFieldModalOpen(true);
+  };
+
+  const handleSaveNewTemplate = () => {
+      if (!newTemplate.name || !newTemplate.recordType) return alert("Nombre y Tipo de Registro son obligatorios");
+      setTemplates([...templates, newTemplate as RoleTemplate]);
+      setIsTemplateModalOpen(false);
+  };
+
+  const handleSaveNewSection = () => {
+      if (!newSection.title) return alert("El título es obligatorio");
+      setGlobalSections([...globalSections, newSection as TemplateSection]);
+      setIsSectionModalOpen(false);
+  };
+
+  const handleSaveNewField = () => {
+      if (!newField.label || !newField.id) return alert("Etiqueta e ID son obligatorios");
+      setGlobalFields([...globalFields, newField as TemplateField]);
+      setIsFieldModalOpen(false);
+  };
 
   // --- RENDER LOGIC ---
 
@@ -1165,20 +1219,28 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'users' && isAdmin) {
       return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* User Form Space (Top) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6 border-b pb-4">
+            {/* User Form Space (Top) - Centro de Gestión de Identidades */}
+            <div className="bg-slate-50 p-6 rounded-xl shadow-sm border border-slate-200">
+                 <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
                     <div>
-                        <h3 className="text-lg font-bold text-slate-800">
-                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
+                        <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center">
+                            <Shield className="mr-2 text-blue-600" size={24}/>
+                            CENTRO DE GESTIÓN DE IDENTIDADES
                         </h3>
-                        <p className="text-sm text-slate-500">Espacio dedicado para la gestión y creación de cuentas del sistema.</p>
+                        <p className="text-sm text-slate-500 font-medium">
+                            {currentUser.id && users.some(u => u.id === currentUser.id)
+                                ? `Editando Colaborador: ${currentUser.name}`
+                                : 'Registrar Nuevo Colaborador'}
+                        </p>
                     </div>
-                    <button onClick={handleAddNewUser} className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg flex items-center hover:bg-slate-800 transition-colors shadow-lg">
-                        <Plus size={18} className="mr-2"/> Crear Nuevo Usuario
+                    <button
+                        onClick={handleAddNewUser}
+                        className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg flex items-center hover:bg-blue-700 transition-all shadow-lg active:scale-95"
+                    >
+                        <Plus size={18} className="mr-2"/> Nuevo Registro
                     </button>
                  </div>
-                 <div className="mt-6">
+                 <div className="mt-6 bg-white p-6 rounded-xl border border-slate-200 shadow-inner">
                     <UserForm
                         user={currentUser}
                         onSave={handleSaveUser}
@@ -1247,27 +1309,149 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><LayoutTemplate className="mr-2 text-blue-600"/> Nueva Plantilla Clínica</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Nombre de la Plantilla</label>
+                                <input className="w-full border p-2 rounded text-sm" value={newTemplate.name} onChange={e => setNewTemplate({...newTemplate, name: e.target.value})} placeholder="Ej: Control de Hipertensión"/>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Descripción</label>
+                                <textarea className="w-full border p-2 rounded text-sm" value={newTemplate.description} onChange={e => setNewTemplate({...newTemplate, description: e.target.value})} rows={2}/>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Tipo de Registro</label>
+                                    <select className="w-full border p-2 rounded text-sm" value={newTemplate.recordType} onChange={e => setNewTemplate({...newTemplate, recordType: e.target.value as RecordType})}>
+                                        {Object.values(RecordType).map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Estado</label>
+                                    <select className="w-full border p-2 rounded text-sm" value={newTemplate.active ? 'YES' : 'NO'} onChange={e => setNewTemplate({...newTemplate, active: e.target.value === 'YES'})}>
+                                        <option value="YES">Activa</option>
+                                        <option value="NO">Inactiva</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Roles con Acceso</label>
+                                <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border rounded bg-slate-50">
+                                    {Object.values(UserRole).map(role => (
+                                        <label key={role} className="flex items-center text-xs">
+                                            <input
+                                                type="checkbox"
+                                                className="mr-2"
+                                                checked={newTemplate.allowedRoles?.includes(role)}
+                                                onChange={() => {
+                                                    const roles = newTemplate.allowedRoles || [];
+                                                    setNewTemplate({...newTemplate, allowedRoles: roles.includes(role) ? roles.filter(r => r !== role) : [...roles, role]});
+                                                }}
+                                            /> {roleLabels[role]}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                            <button onClick={handleSaveNewTemplate} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700">Guardar Plantilla</button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><Layers className="mr-2 text-blue-600"/> Nueva Sección Clínica</h3>
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Título de la Sección</label>
+                                  <input className="w-full border p-2 rounded text-sm" value={newSection.title} onChange={e => setNewSection({...newSection, title: e.target.value})} placeholder="Ej: Exploración Física"/>
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Descripción (Opcional)</label>
+                                  <input className="w-full border p-2 rounded text-sm" value={newSection.description} onChange={e => setNewSection({...newSection, description: e.target.value})}/>
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Campos Disponibles</label>
+                                  <div className="max-h-48 overflow-y-auto border rounded p-2 bg-slate-50 space-y-1">
+                                      {globalFields.map(field => (
+                                          <label key={field.id} className="flex items-center text-xs p-1 hover:bg-white rounded cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                className="mr-2"
+                                                checked={newSection.fields?.some(f => f.id === field.id)}
+                                                onChange={() => {
+                                                    const fields = newSection.fields || [];
+                                                    setNewSection({...newSection, fields: fields.some(f => f.id === field.id) ? fields.filter(f => f.id !== field.id) : [...fields, field]});
+                                                }}
+                                              /> {field.label} <span className="ml-auto text-slate-400 italic">[{field.type}]</span>
+                                          </label>
+                                      ))}
+                                  </div>
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                              <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                              <button onClick={handleSaveNewSection} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700">Guardar Sección</button>
+                          </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><Calculator className="mr-2 text-blue-600"/> Nuevo Campo / Variable</h3>
+                          <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">ID Único (Variable)</label>
+                                        <input className="w-full border p-2 rounded text-sm font-mono" value={newField.id} onChange={e => setNewField({...newField, id: e.target.value})} placeholder="f_glucosa"/>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Etiqueta (Label)</label>
+                                        <input className="w-full border p-2 rounded text-sm" value={newField.label} onChange={e => setNewField({...newField, label: e.target.value})} placeholder="Glucosa en Ayunas"/>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Tipo de Dato</label>
+                                        <select className="w-full border p-2 rounded text-sm" value={newField.type} onChange={e => setNewField({...newField, type: e.target.value as FieldType})}>
+                                            <option value="TEXT">Texto Corto</option>
+                                            <option value="TEXTAREA">Párrafo (Largo)</option>
+                                            <option value="NUMBER">Numérico</option>
+                                            <option value="DATE">Fecha</option>
+                                            <option value="SELECT">Selección (Menú)</option>
+                                            <option value="CALCULATED">Calculado (Fórmula)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Unidad (Opcional)</label>
+                                        <input className="w-full border p-2 rounded text-sm" value={newField.unit} onChange={e => setNewField({...newField, unit: e.target.value})} placeholder="mg/dL, kg, etc."/>
+                                    </div>
+                                </div>
+                                {newField.type === 'SELECT' && (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Opciones (Separadas por Coma)</label>
+                                        <input className="w-full border p-2 rounded text-sm" value={newField.options?.join(',')} onChange={e => setNewField({...newField, options: e.target.value.split(',')})}/>
+                                    </div>
+                                )}
+                                {newField.type === 'CALCULATED' && (
+                                    <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
+                                        <label className="block text-xs font-bold text-purple-700 mb-1">Fórmula Matemática</label>
+                                        <input className="w-full border p-2 rounded text-sm font-mono border-purple-200" value={newField.formula} onChange={e => setNewField({...newField, formula: e.target.value})} placeholder="global_weight / (global_height * global_height)"/>
+                                        <p className="text-[10px] text-purple-500 mt-1 italic">Use los ID de otras variables para el cálculo.</p>
+                                    </div>
+                                )}
+                                <label className="flex items-center text-xs font-bold text-slate-600">
+                                    <input type="checkbox" className="mr-2" checked={newField.required} onChange={e => setNewField({...newField, required: e.target.checked})}/> Campo Obligatorio
+                                </label>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                              <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                              <button onClick={handleSaveNewField} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700">Guardar Campo</button>
+                          </div>
                       </div>
                   </div>
               )}

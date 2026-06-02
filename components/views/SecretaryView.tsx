@@ -267,16 +267,80 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head>
+                  <title>Factura de Venta - ${invoice.id}</title>
+                  <style>
+                      body { font-family: 'Helvetica', 'Arial', sans-serif; padding: 40px; color: #1e293b; }
+                      .invoice-box { max-width: 800px; margin: auto; padding: 30px; border: 1px solid #eee; box-shadow: 0 0 10px rgba(0, 0, 0, 0.15); font-size: 16px; line-height: 24px; color: #555; }
+                      .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+                      .logo { font-size: 28px; font-weight: bold; color: #0f172a; }
+                      .invoice-title { font-size: 24px; color: #334155; }
+                      table { width: 100%; line-height: inherit; text-align: left; border-collapse: collapse; }
+                      table th { background: #f8fafc; padding: 12px; border-bottom: 2px solid #e2e8f0; }
+                      table td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+                      .total { font-weight: bold; font-size: 18px; border-top: 2px solid #e2e8f0; }
+                      .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #94a3b8; }
+                  </style>
+              </head>
+              <body>
+                  <div class="invoice-box">
+                      <div class="header">
+                          <div class="logo">MediCore IPS</div>
+                          <div class="invoice-title">Factura: ${invoice.id}</div>
+                      </div>
+                      <div style="margin-bottom: 40px;">
+                          <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                          <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+                          <p><strong>Estado:</strong> ${invoice.status}</p>
+                      </div>
+                      <table>
+                          <thead>
+                              <tr>
+                                  <th>Descripción</th>
+                                  <th>Cant.</th>
+                                  <th>Precio Unit.</th>
+                                  <th style="text-align: right">Total</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              ${invoice.items.map(item => `
+                                  <tr>
+                                      <td>${item.name}</td>
+                                      <td>${item.quantity}</td>
+                                      <td>${formatCurrency(item.price)}</td>
+                                      <td style="text-align: right">${formatCurrency(item.price * item.quantity)}</td>
+                                  </tr>
+                              `).join('')}
+                          </tbody>
+                          <tfoot>
+                              <tr>
+                                  <td colspan="3" style="text-align: right; padding-top: 20px;">Subtotal:</td>
+                                  <td style="text-align: right; padding-top: 20px;">${formatCurrency(invoice.subtotal)}</td>
+                              </tr>
+                              <tr>
+                                  <td colspan="3" style="text-align: right">Descuento:</td>
+                                  <td style="text-align: right">- ${formatCurrency(invoice.discount)}</td>
+                              </tr>
+                              <tr class="total">
+                                  <td colspan="3" style="text-align: right">TOTAL:</td>
+                                  <td style="text-align: right">${formatCurrency(invoice.total)}</td>
+                              </tr>
+                          </tfoot>
+                      </table>
+                      <div class="footer">
+                          Resolución de Facturación N° 18764000001 - Gracias por confiar en nosotros.
+                      </div>
+                  </div>
+                  <script>window.print();</script>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+      }
   };
 
   // --- CARTERA HANDLERS ---

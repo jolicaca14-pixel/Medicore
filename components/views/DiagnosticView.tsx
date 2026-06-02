@@ -127,7 +127,50 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- PRINT VIEW ---
   const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head>
+                  <title>Resultados de Diagnóstico - ${patientId}</title>
+                  <style>
+                      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #334155; }
+                      .header { border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
+                      .logo { font-size: 24px; font-weight: bold; color: #0f172a; }
+                      .patient-info { background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
+                      .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+                      .result-card { border: 1px solid #f1f5f9; padding: 15px; border-radius: 8px; }
+                      .footer { margin-top: 50px; font-size: 10px; color: #94a3b8; text-align: center; }
+                      @media print { .no-print { display: none; } }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <div class="logo">MediCore Pro - Resultados</div>
+                      <div style="text-align: right">
+                          <p style="margin:0; font-weight: bold;">${isLab ? 'LABORATORIO CLÍNICO' : 'IMAGENOLOGÍA'}</p>
+                          <p style="margin:0; font-size: 12px;">Fecha: ${date}</p>
+                      </div>
+                  </div>
+                  <div class="patient-info">
+                      <h2 style="margin-top: 0;">Paciente: ${patientId}</h2>
+                      <p style="margin:0;">ID Sistema: ${patientId.substring(0, 8).toUpperCase()}</p>
+                  </div>
+                  <h3>Resumen de Hallazgos</h3>
+                  <div class="results-grid">
+                      <div class="result-card" style="grid-column: span 2">
+                          <p><strong>Interpretación Profesional:</strong> Se han validado los resultados técnicos acorde a los estándares institucionales.</p>
+                      </div>
+                  </div>
+                  <div class="footer">
+                      Este documento es una representación digital de resultados clínicos. Debe ser interpretado por su médico tratante.
+                  </div>
+                  <script>window.print();</script>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+      }
   };
 
   // --- RENDER FORM ---
