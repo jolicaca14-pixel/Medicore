@@ -53,6 +53,27 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Helper for status notifications
+  const showStatus = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setStatusMessage({ text, type });
+    setTimeout(() => setStatusMessage(null), 5000);
+  };
+
+  const renderStatus = () => {
+    if (!statusMessage) return null;
+    return (
+      <div className={`fixed top-4 right-4 z-[100] flex items-center p-4 rounded-lg shadow-lg border animate-in slide-in-from-top-4 duration-300 ${
+        statusMessage.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
+        statusMessage.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'
+      }`}>
+        {statusMessage.type === 'success' ? <FileCheck className="mr-2 h-5 w-5" /> : <AlertCircle className="mr-2 h-5 w-5" />}
+        <span className="font-bold text-sm">{statusMessage.text}</span>
+        <button onClick={() => setStatusMessage(null)} className="ml-4 hover:opacity-70"><X size={14} /></button>
+      </div>
+    );
+  };
 
   // ⚡ TRINITY: Fetch Patients from API
   useEffect(() => {
@@ -304,7 +325,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       setHrUser(updatedUser); // Update local view state
       
       // In a real app, this would call an API.
-      alert("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
+      showStatus("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
       setShowDescargosModal(false);
   };
 
@@ -333,7 +354,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   const handleOpenPaymentModal = () => {
       const activeContract = hrUser.contracts?.find(c => c.isActive && c.type === ContractType.OPS);
-      if (!activeContract) return alert("Solo disponible para contratos OPS Activos.");
+      if (!activeContract) return showStatus("Solo disponible para contratos OPS Activos.", 'error');
       
       setNewPayment({
           period: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
@@ -393,7 +414,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           pdfWindow.document.close();
       }
 
-      alert("Cuenta de cobro generada y notificada a Administración.");
+      showStatus("Cuenta de cobro generada y notificada a Administración.");
   };
 
 
@@ -522,7 +543,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     if (action === 'FINALIZE') {
         // 🩺 DOC HOUSE: Gender-based clinical validation
         if (selectedPatient.gender === 'M' && (selectedTemplate?.recordType === RecordType.PYP_PREGNANCY || selectedTemplate?.recordType === RecordType.PYP_PUERPERIUM)) {
-            alert("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.");
+            showStatus("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.", 'error');
             return;
         }
 
@@ -539,14 +560,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         }
 
         if ((!currentRecord.diagnoses || currentRecord.diagnoses.length === 0) && selectedTemplate?.recordType !== RecordType.PROCEDURE) {
-            alert("Es obligatorio seleccionar al menos un diagnóstico CIE-11.");
+            showStatus("Es obligatorio seleccionar al menos un diagnóstico CIE-11.", 'error');
             setActiveFormTab('orders_tab');
             return;
         }
         // VALIDATE BARTHEL IF REQUIRED
         if (isFirstTimeRCV && selectedTemplate?.recordType === RecordType.PYP_CV_RISK) {
             if(!dynamicData['global_barthel']) {
-                alert("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.");
+                showStatus("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.", 'error');
                 return;
             }
         }
@@ -615,7 +636,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           setShowAuthModal(false);
           setViewMode('LIST');
           setSelectedPatient(null);
-          alert(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`);
+          showStatus(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`);
         }, 2500);
       } else {
         setShowAuthModal(false);
@@ -627,7 +648,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   
   const handleAddDiagnosis = (code: string, name: string) => {
       if (!validateCIE11Code(code)) {
-          alert("Código CIE-11 no válido para este paciente.");
+          showStatus("Código CIE-11 no válido para este paciente.", 'error');
           return;
       }
       if (currentRecord.diagnoses?.some(d => d.code === code)) return;
@@ -679,7 +700,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       const currentAnalysis = dynamicData['d_analisis'] || '';
       const newAnalysis = currentAnalysis + importText;
       setDynamicData({ ...dynamicData, d_analisis: newAnalysis });
-      alert(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
+      showStatus(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
   };
 
   const renderField = (field: any, isReadOnly: boolean) => {
@@ -796,7 +817,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
       return (
           <div className="p-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-2 space-y-8">
-              
+              {renderStatus()}
               {/* MODAL CUENTA DE COBRO */}
               {showPaymentModal && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -831,14 +852,20 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <label className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100 cursor-pointer">
+                                              Seleccionar...
+                                              <input type="file" className="hidden" onChange={(e) => { if(e.target.files?.[0]) showStatus(`Archivo ${e.target.files[0].name} seleccionado.`); }} />
+                                          </label>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Informe de Actividades</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <label className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100 cursor-pointer">
+                                              Seleccionar...
+                                              <input type="file" className="hidden" onChange={(e) => { if(e.target.files?.[0]) showStatus(`Archivo ${e.target.files[0].name} seleccionado.`); }} />
+                                          </label>
                                       </div>
                                   </div>
                               </div>
@@ -1076,6 +1103,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
       return (
           <div className="p-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-2">
+              {renderStatus()}
               <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center">
                   <TrendingUp className="mr-3 text-green-600"/> Mi Producción & Finanzas
               </h2>
@@ -1118,7 +1146,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     
     return (
       <div className="flex flex-col h-[calc(100vh-100px)] relative">
-         
+         {renderStatus()}
          {showRDAModal && <RDAViewerModal />}
 
          {selectedPatient.allergies && (
@@ -1526,6 +1554,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // --- LIST VIEW ---
   return (
     <div className="p-6">
+        {renderStatus()}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
             <h2 className="text-2xl font-bold text-slate-800">Mis Pacientes</h2>
             <div className="relative w-full md:w-72">

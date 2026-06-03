@@ -25,6 +25,30 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
   const [activeTab, setActiveTab] = useState<'PENDING' | 'HISTORY'>('PENDING');
+
+  // --- STATE MANAGEMENT ---
+  const [statusMessage, setStatusMessage] = useState<{text: string, type: 'SUCCESS' | 'ERROR' | 'INFO'} | null>(null);
+
+  const showStatus = (text: string, type: 'SUCCESS' | 'ERROR' | 'INFO' = 'SUCCESS') => {
+      setStatusMessage({ text, type });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
+
+  const renderStatus = () => (
+      statusMessage && (
+          <div className="fixed top-4 right-4 z-[100] animate-in slide-in-from-top-2 duration-300">
+              <div className={`flex items-center p-4 rounded-xl shadow-2xl border ${
+                  statusMessage.type === 'SUCCESS' ? 'bg-green-600 border-green-500 text-white' :
+                  statusMessage.type === 'ERROR' ? 'bg-red-600 border-red-500 text-white' :
+                  'bg-blue-600 border-blue-500 text-white'
+              }`}>
+                  {statusMessage.type === 'SUCCESS' ? <CheckCircle className="mr-3" size={20}/> : <AlertCircle className="mr-3" size={20}/>}
+                  <p className="text-sm font-bold mr-4">{statusMessage.text}</p>
+                  <button onClick={() => setStatusMessage(null)} className="p-1 hover:bg-white/20 rounded-full"><X size={16}/></button>
+              </div>
+          </div>
+      )
+  );
   
   // Mock Diagnostic Orders
   const [orders, setOrders] = useState<Order[]>([
@@ -60,7 +84,10 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) {
+          showStatus("No hay plantilla configurada para este examen.", 'ERROR');
+          return;
+      }
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +116,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showStatus("Resultado guardado correctamente.");
   };
 
   // --- RENDER FIELD ---
@@ -127,7 +154,56 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- PRINT VIEW ---
   const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          const recordsInGroup = completedRecords.filter(r =>
+            MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientId &&
+            r.dateCreated.startsWith(date)
+          );
+
+          printWindow.document.write(`
+            <html>
+              <head><title>Resultados - ${patientId}</title></head>
+              <body style="font-family: sans-serif; padding: 40px; color: #334155;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                  <h1 style="color: #0f172a; margin-bottom: 5px;">MEDICORE PRO - LABORATORIO</h1>
+                  <p style="font-size: 14px; color: #64748b;">Resultados de Ayudas Diagnósticas</p>
+                </div>
+                <div style="margin-bottom: 20px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
+                  <p><strong>Paciente:</strong> ${patientId}</p>
+                  <p><strong>Fecha:</strong> ${date}</p>
+                </div>
+                ${recordsInGroup.map(r => `
+                  <div style="margin-bottom: 30px; border: 1px solid #e2e8f0; padding: 20px; rounded: 8px;">
+                    <h3 style="background: #f8fafc; margin: -20px -20px 15px -20px; padding: 10px 20px; border-bottom: 1px solid #e2e8f0; color: #1e293b;">
+                      ${r.chiefComplaint}
+                    </h3>
+                    <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 10px;">
+                      ${Object.entries(r.dynamicData).map(([key, val]) => `
+                        <div style="padding: 5px; border-bottom: 1px solid #f1f5f9;">
+                          <span style="font-size: 12px; color: #64748b; display: block;">${key.toUpperCase()}</span>
+                          <span style="font-weight: bold;">${val}</span>
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                `).join('')}
+                <div style="margin-top: 50px; display: flex; justify-content: space-between;">
+                  <div style="text-align: center; width: 200px;">
+                    <div style="border-bottom: 1px solid #000; margin-bottom: 5px;"></div>
+                    <p style="font-size: 12px;">Firma Profesional</p>
+                  </div>
+                  <div style="text-align: center; width: 200px;">
+                    <div style="border-bottom: 1px solid #000; margin-bottom: 5px;"></div>
+                    <p style="font-size: 12px;">Sello Institucional</p>
+                  </div>
+                </div>
+              </body>
+            </html>
+          `);
+          printWindow.document.close();
+          showStatus("Generando reporte de resultados...");
+      }
   };
 
   // --- RENDER FORM ---
@@ -172,6 +248,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   // --- DASHBOARD ---
   return (
     <div className="p-8 max-w-7xl mx-auto">
+        {renderStatus()}
         <div className="flex justify-between items-center mb-8">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800">{isLab ? 'Laboratorio Clínico' : 'Imagenología y Radiología'}</h2>
