@@ -61,6 +61,28 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
 
   // --- STATE MANAGEMENT ---
+  const [statusMessage, setStatusMessage] = useState<{text: string, type: 'success' | 'error' | 'info'} | null>(null);
+
+  const showStatus = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
+      setStatusMessage({ text, type });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
+
+  const renderStatus = () => (
+      statusMessage && (
+          <div className="fixed top-4 right-4 z-[100] animate-in slide-in-from-top-2 duration-300">
+              <div className={`flex items-center p-4 rounded-xl shadow-2xl border ${
+                  statusMessage.type === 'success' ? 'bg-green-600 border-green-500 text-white' :
+                  statusMessage.type === 'error' ? 'bg-red-600 border-red-500 text-white' :
+                  'bg-blue-600 border-blue-500 text-white'
+              }`}>
+                  {statusMessage.type === 'success' ? <CheckCircle className="mr-3" size={20}/> : <AlertCircle className="mr-3" size={20}/>}
+                  <p className="text-sm font-bold mr-4">{statusMessage.text}</p>
+                  <button onClick={() => setStatusMessage(null)} className="p-1 hover:bg-white/20 rounded-full"><X size={16}/></button>
+              </div>
+          </div>
+      )
+  );
   
   // Users
   const [users, setUsers] = useState<User[]>(MOCK_USERS);
@@ -119,7 +141,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
   
   const handleAddNewUser = () => { 
-      setCurrentUser({ id: `u${Date.now()}`, roles: [UserRole.PROFESSIONAL], status: 'ACTIVE', name: '', username: '' }); 
+      setCurrentUser({
+          id: `u${Date.now()}`,
+          roles: [UserRole.PROFESSIONAL],
+          status: 'ACTIVE',
+          firstName: '',
+          lastName: '',
+          name: '',
+          username: '',
+          documentNumber: '',
+          professionalLicense: '',
+          specialty: '',
+          digitalStampUrl: ''
+      });
   };
 
   const handleSaveUser = (userToSave: Partial<User>) => {
@@ -188,12 +222,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       setSelectedHRUser(updatedUser); // Update local ref
       
       setNewContract({ type: ContractType.NOMINA, isActive: true, userId: selectedHRUser.id, status: 'ACTIVE', auditTrail: [] }); // Reset
-      alert("Contrato guardado con historial de auditoría.");
+      showStatus("Contrato guardado con historial de auditoría.");
   };
 
   const handleSaveDisciplinary = () => {
       if(!selectedHRUser) return;
-      if(!newDisciplinary.title || !newDisciplinary.description) return alert("Complete título y descripción");
+      if(!newDisciplinary.title || !newDisciplinary.description) {
+          showStatus("Complete título y descripción", 'error');
+          return;
+      }
 
       const action: DisciplinaryAction = {
           id: `disc-${Date.now()}`,
@@ -211,7 +248,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       setSelectedHRUser(updatedUser);
       
       setNewDisciplinary({ type: 'COMPLAINT', status: 'OPEN' });
-      alert("Caso registrado. El empleado podrá ver esto y responder.");
+      showStatus("Caso registrado. El empleado podrá ver esto y responder.");
   };
 
   const handleOpenPaymentModal = (req: PaymentRequest) => {
@@ -222,11 +259,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   const handleConfirmPayment = () => {
       if(!selectedPaymentReq) return;
-      if(!paymentReceiptFile) return alert("Debe cargar el desprendible de pago.");
+      if(!paymentReceiptFile) {
+          showStatus("Debe cargar el desprendible de pago.", 'error');
+          return;
+      }
 
       setPaymentRequests(prev => prev.map(req => req.id === selectedPaymentReq.id ? { ...req, status: 'PAID', paymentReceiptUrl: paymentReceiptFile } : req));
       setIsPaymentModalOpen(false);
-      alert(`Pago registrado exitosamente para ${selectedPaymentReq.userName}.`);
+      showStatus(`Pago registrado exitosamente para ${selectedPaymentReq.userName}.`);
   };
 
   const handleRejectPayment = (reqId: string) => {
@@ -243,7 +283,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   const handleConfirmUpload = () => {
     if (!newFileName) {
-        alert("Por favor, ingrese un nombre de archivo.");
+        showStatus("Por favor, ingrese un nombre de archivo.", 'error');
         return;
     }
 
@@ -274,7 +314,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         newUsers[userIndex].contracts = [...(newUsers[userIndex].contracts || []), newContract];
                         return newUsers;
                     });
-                    alert(`Contrato "${newFileName}" agregado al usuario seleccionado.`);
+                    showStatus(`Contrato "${newFileName}" agregado al usuario seleccionado.`);
                 } else { // PAYMENTS
                     const user = users.find(u => u.id === selectedUserIdForUpload);
                     if (!user) return;
@@ -292,7 +332,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         paymentReceiptUrl: newFileName,
                     };
                     setPaymentRequests(prev => [...prev, newPaymentRequest]);
-                    alert(`Soporte de pago "${newFileName}" agregado.`);
+                    showStatus(`Soporte de pago "${newFileName}" agregado.`);
                 }
                 // --- END OF LOGIC ---
 
@@ -319,7 +359,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       } else { // PAYMENT
           setPaymentRequests(prev => prev.filter(p => p.id !== fileId));
       }
-      alert("Archivo eliminado.");
+      showStatus("Archivo eliminado.");
   };
 
   // --- RIPS GENERATION LOGIC ---
@@ -331,7 +371,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       });
 
       if (filteredRecords.length === 0) {
-          alert("No se encontraron registros finalizados en el rango de fechas seleccionado.");
+          showStatus("No se encontraron registros finalizados en el rango de fechas seleccionado.", 'INFO');
           setGeneratedRips(null);
           return;
       }
@@ -468,7 +508,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      alert("Paquete de RIPS generado y descargado exitosamente.");
+      showStatus("Paquete de RIPS generado y descargado exitosamente.");
   };
 
   const handleNewTemplate = () => setIsTemplateModalOpen(true);
@@ -480,21 +520,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // 0. ACCESS CONTROL CHECK
   if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
       return (
+          <>
+          {renderStatus()}
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
               <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
               <p className="text-sm">Se requieren permisos de ADMINISTRADOR para acceder a este módulo.</p>
           </div>
+          </>
       );
   }
 
   // 1. DASHBOARD (Dynamic & Actionable) - Only for Admins
-  if (activeTab === 'dashboard' && isAdmin) {
+  if (activeTab === 'dashboard' && (isAdmin || currentUserSession?.roles.includes(UserRole.MANAGER) || currentUserSession?.roles.includes(UserRole.ACCOUNTANT))) {
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
       return (
           <div className="space-y-6 animate-in fade-in duration-500">
+              {renderStatus()}
               {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
@@ -577,28 +621,30 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                    </div>
               </div>
               
-              {/* Quick Actions */}
-              <div className="bg-slate-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden flex flex-wrap gap-4 items-center justify-between">
-                   <div className="relative z-10">
-                       <h3 className="text-xl font-bold">Acciones Directas</h3>
-                       <p className="text-slate-400 text-sm">Accesos rápidos a módulos frecuentes.</p>
+              {/* Quick Actions - Restricted to Admin only */}
+              {isAdmin && (
+                  <div className="bg-slate-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden flex flex-wrap gap-4 items-center justify-between">
+                       <div className="relative z-10">
+                           <h3 className="text-xl font-bold">Acciones Directas</h3>
+                           <p className="text-slate-400 text-sm">Accesos rápidos a módulos frecuentes.</p>
+                       </div>
+                       <div className="flex gap-4 relative z-10 flex-wrap">
+                           <button onClick={() => setActiveTab('users')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
+                               <Plus size={18} className="mr-2 text-blue-400"/> Crear Usuario
+                           </button>
+                           <button onClick={() => setActiveTab('reports')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
+                               <TrendingUp size={18} className="mr-2 text-green-400"/> Ver Finanzas
+                           </button>
+                           <button onClick={() => setActiveTab('hr')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
+                               <Briefcase size={18} className="mr-2 text-orange-400"/> Contratos
+                           </button>
+                           <button onClick={() => setActiveTab('files')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
+                               <File size={18} className="mr-2 text-yellow-400"/> Archivos
+                           </button>
+                       </div>
+                       <div className="absolute right-0 top-0 opacity-10"><Zap size={150}/></div>
                    </div>
-                   <div className="flex gap-4 relative z-10 flex-wrap">
-                       <button onClick={() => setActiveTab('users')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
-                           <Plus size={18} className="mr-2 text-blue-400"/> Crear Usuario
-                       </button>
-                       <button onClick={() => setActiveTab('reports')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
-                           <TrendingUp size={18} className="mr-2 text-green-400"/> Ver Finanzas
-                       </button>
-                       <button onClick={() => setActiveTab('hr')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
-                           <Briefcase size={18} className="mr-2 text-orange-400"/> Contratos
-                       </button>
-                       <button onClick={() => setActiveTab('files')} className="bg-slate-800 hover:bg-slate-700 p-3 rounded-lg flex items-center transition-colors">
-                           <File size={18} className="mr-2 text-yellow-400"/> Archivos
-                       </button>
-                   </div>
-                   <div className="absolute right-0 top-0 opacity-10"><Zap size={150}/></div>
-               </div>
+              )}
           </div>
       );
   }
@@ -607,6 +653,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'files' && isAdmin) {
     return (
         <div className="space-y-6">
+            {renderStatus()}
             {/* File Upload Modal */}
             {isFileUploadModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -733,6 +780,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'hr' && isAdmin) {
       return (
           <div className="space-y-6">
+              {renderStatus()}
               {/* MODALS */}
               {isPaymentModalOpen && selectedPaymentReq && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -1078,6 +1126,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'reports' && isAdmin) {
       return (
           <div className="space-y-8 animate-in fade-in duration-500">
+              {renderStatus()}
               <h2 className="text-2xl font-bold text-slate-800 mb-2">Reportes y Analítica</h2>
               
               {/* RIPS GENERATOR SECTION */}
@@ -1165,8 +1214,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'users' && isAdmin) {
       return (
         <div className="space-y-6 animate-in fade-in duration-500">
+            {renderStatus()}
             {/* User Form Space (Top) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <div className="bg-slate-50 p-6 rounded-xl shadow-sm border border-slate-200">
                  <div className="flex justify-between items-center mb-6 border-b pb-4">
                     <div>
                         <h3 className="text-lg font-bold text-slate-800">
@@ -1240,6 +1290,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'settings' && isAdmin) {
       return (
           <div className="space-y-6 animate-in fade-in duration-500">
+              {renderStatus()}
               <div className="flex justify-between items-center mb-4">
                   <h2 className="text-2xl font-bold text-slate-800">Configuración del Sistema</h2>
               </div>
@@ -1247,27 +1298,104 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">Configurar Plantilla</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Nombre de la Plantilla</label>
+                                <input type="text" className="w-full p-2 border rounded" placeholder="Ej. Consulta Especializada" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Descripción</label>
+                                <textarea className="w-full p-2 border rounded" rows={2} placeholder="Descripción de uso..."></textarea>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Roles Permitidos</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {Object.values(UserRole).map(role => (
+                                        <label key={role} className="flex items-center text-xs">
+                                            <input type="checkbox" className="mr-2" /> {roleLabels[role]}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
+                            <button onClick={() => { setIsTemplateModalOpen(false); showStatus("Plantilla guardada correctamente."); }} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar Plantilla</button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">Configurar Sección Clínica</h3>
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Título de la Sección</label>
+                                  <input type="text" className="w-full p-2 border rounded" placeholder="Ej. Examen Físico" />
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">ID Único (Variable)</label>
+                                  <input type="text" className="w-full p-2 border rounded font-mono text-sm" placeholder="ej_examen_fisico" />
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Campos Disponibles</label>
+                                  <div className="max-h-40 overflow-y-auto border rounded p-2 bg-slate-50">
+                                      {globalFields.map(f => (
+                                          <label key={f.id} className="flex items-center text-xs p-1 hover:bg-white rounded">
+                                              <input type="checkbox" className="mr-2" /> {f.label} ({f.id})
+                                          </label>
+                                      ))}
+                                  </div>
+                              </div>
+                          </div>
+                          <div className="mt-6 flex justify-end gap-2">
+                              <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
+                              <button onClick={() => { setIsSectionModalOpen(false); showStatus("Sección clínica actualizada."); }} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar Sección</button>
+                          </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">Configurar Campo Clínico</h3>
+                          <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">Etiqueta (Label)</label>
+                                      <input type="text" className="w-full p-2 border rounded" placeholder="Ej. Frecuencia Cardiaca" />
+                                  </div>
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">ID Variable</label>
+                                      <input type="text" className="w-full p-2 border rounded font-mono text-sm" placeholder="v_fc" />
+                                  </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">Tipo de Dato</label>
+                                      <select className="w-full p-2 border rounded text-sm">
+                                          <option value="TEXT">Texto Corto</option>
+                                          <option value="NUMBER">Numérico</option>
+                                          <option value="DATE">Fecha</option>
+                                          <option value="SELECT">Selección (Lista)</option>
+                                          <option value="CALCULATED">Calculado (Fórmula)</option>
+                                      </select>
+                                  </div>
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">Unidad (Opcional)</label>
+                                      <input type="text" className="w-full p-2 border rounded" placeholder="Ej. mmHg, bpm, kg" />
+                                  </div>
+                              </div>
+                              <label className="flex items-center text-xs font-bold text-slate-700">
+                                  <input type="checkbox" className="mr-2" /> Campo Obligatorio
+                              </label>
+                          </div>
+                          <div className="mt-6 flex justify-end gap-2">
+                              <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
+                              <button onClick={() => { setIsFieldModalOpen(false); showStatus("Campo global configurado."); }} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar Campo</button>
+                          </div>
                       </div>
                   </div>
               )}
@@ -1309,7 +1437,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                           <button onClick={() => setIsTemplateModalOpen(true)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button onClick={() => window.confirm('¿Eliminar esta plantilla?') && alert('Plantilla eliminada')} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                                          <button onClick={() => window.confirm('¿Eliminar esta plantilla?') && showStatus('Plantilla eliminada')} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
                                       </div>
                                   </div>
                                   <h4 className="font-bold text-slate-800">{t.name}</h4>
