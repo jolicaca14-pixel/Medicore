@@ -66,6 +66,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [users, setUsers] = useState<User[]>(MOCK_USERS);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<Partial<User>>({});
+  const [statusMessage, setStatusMessage] = useState<{ text: string, type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showStatus = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
+      setStatusMessage({ text, type });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
 
   // Financial / Tariffs
   const [tariffs, setTariffs] = useState<TariffItem[]>(MOCK_SOAT_TARIFF);
@@ -123,16 +129,23 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
 
   const handleSaveUser = (userToSave: Partial<User>) => {
+    if (!userToSave.firstName || !userToSave.lastName || !userToSave.username) {
+        showStatus("Por favor complete los campos obligatorios.", "error");
+        return;
+    }
+
     // Auto-compute Full Name
     const fullName = `${userToSave.firstName} ${userToSave.lastName}`;
     const finalUser = { ...userToSave, name: fullName } as User;
 
     if (users.some(u => u.id === finalUser.id)) {
         setUsers(prev => prev.map(u => u.id === finalUser.id ? finalUser : u));
+        showStatus(`Usuario ${finalUser.name} actualizado correctamente.`);
     } else {
         setUsers(prev => [...prev, finalUser]);
+        showStatus(`Nuevo colaborador ${finalUser.name} registrado con éxito.`);
     }
-    setCurrentUser({}); // Reset form
+    setCurrentUser({}); // Reset form (deep reset as per memory)
   };
 
   // --- HR HANDLERS ---
@@ -222,11 +235,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   const handleConfirmPayment = () => {
       if(!selectedPaymentReq) return;
-      if(!paymentReceiptFile) return alert("Debe cargar el desprendible de pago.");
+      if(!paymentReceiptFile) {
+          showStatus("Debe cargar el desprendible de pago.", "error");
+          return;
+      }
 
       setPaymentRequests(prev => prev.map(req => req.id === selectedPaymentReq.id ? { ...req, status: 'PAID', paymentReceiptUrl: paymentReceiptFile } : req));
       setIsPaymentModalOpen(false);
-      alert(`Pago registrado exitosamente para ${selectedPaymentReq.userName}.`);
+      showStatus(`Pago registrado exitosamente para ${selectedPaymentReq.userName}.`);
   };
 
   const handleRejectPayment = (reqId: string) => {
@@ -243,7 +259,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   const handleConfirmUpload = () => {
     if (!newFileName) {
-        alert("Por favor, ingrese un nombre de archivo.");
+        showStatus("Por favor, ingrese un nombre de archivo.", "error");
         return;
     }
 
@@ -261,23 +277,30 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         if (userIndex === -1) return prevUsers;
 
                         const newUsers = [...prevUsers];
+                        const newUser = { ...newUsers[userIndex] };
                         const newContract: Contract = {
                             id: `c${Date.now()}`,
                             userId: selectedUserIdForUpload!,
                             type: ContractType.OPS,
                             startDate: new Date().toISOString().split('T')[0],
-                                isActive: true,
-                                status: 'ACTIVE',
-                                fileUrl: newFileName,
-                                auditTrail: [{ date: new Date().toISOString(), action: 'CREATED', changedBy: 'Admin', details: 'Archivo subido' }]
-                            };
-                        newUsers[userIndex].contracts = [...(newUsers[userIndex].contracts || []), newContract];
+                            isActive: true,
+                            status: 'ACTIVE' as const,
+                            fileUrl: newFileName,
+                            auditTrail: [{ date: new Date().toISOString(), action: 'CREATED' as const, changedBy: 'Admin', details: 'Archivo subido' }]
+                        };
+                        newUser.contracts = [...(newUser.contracts || []), newContract];
+                        newUsers[userIndex] = newUser;
                         return newUsers;
                     });
-                    alert(`Contrato "${newFileName}" agregado al usuario seleccionado.`);
+                    showStatus(`Contrato "${newFileName}" agregado al usuario seleccionado.`);
                 } else { // PAYMENTS
                     const user = users.find(u => u.id === selectedUserIdForUpload);
-                    if (!user) return;
+                    if (!user) {
+                        setIsFileUploadModalOpen(false);
+                        setNewFileName('');
+                        setUploadProgress(0);
+                        return 100;
+                    }
 
                     const newPaymentRequest: PaymentRequest = {
                         id: `pr${Date.now()}`,
@@ -291,8 +314,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                         attachments: [],
                         paymentReceiptUrl: newFileName,
                     };
-                    setPaymentRequests(prev => [...prev, newPaymentRequest]);
-                    alert(`Soporte de pago "${newFileName}" agregado.`);
+                    setPaymentRequests(prevReqs => [...prevReqs, newPaymentRequest]);
+                    showStatus(`Soporte de pago "${newFileName}" agregado.`);
                 }
                 // --- END OF LOGIC ---
 
@@ -319,7 +342,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       } else { // PAYMENT
           setPaymentRequests(prev => prev.filter(p => p.id !== fileId));
       }
-      alert("Archivo eliminado.");
+      showStatus("Archivo eliminado correctamente.", "info");
   };
 
   // --- RIPS GENERATION LOGIC ---
@@ -477,6 +500,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
   // --- RENDER LOGIC ---
 
+  const renderStatus = () => {
+    if (!statusMessage) return null;
+    return (
+        <div className={`fixed top-4 right-4 z-[100] animate-in slide-in-from-top-2 duration-300 shadow-lg rounded-lg p-4 flex items-center ${
+            statusMessage.type === 'success' ? 'bg-green-600 text-white' :
+            statusMessage.type === 'error' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
+        }`}>
+            {statusMessage.type === 'success' ? <CheckCircle className="mr-2" size={20}/> : <AlertCircle className="mr-2" size={20}/>}
+            <span className="font-bold text-sm">{statusMessage.text}</span>
+        </div>
+    );
+  };
+
   // 0. ACCESS CONTROL CHECK
   if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
       return (
@@ -495,6 +531,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
 
       return (
           <div className="space-y-6 animate-in fade-in duration-500">
+              {renderStatus()}
               {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
@@ -606,7 +643,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // FILE MANAGEMENT MODULE - ADMIN VIEW
   if (activeTab === 'files' && isAdmin) {
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in duration-500">
+            {renderStatus()}
             {/* File Upload Modal */}
             {isFileUploadModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -732,7 +770,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // HR MODULE - ADMIN VIEW
   if (activeTab === 'hr' && isAdmin) {
       return (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-in fade-in duration-500">
+              {renderStatus()}
               {/* MODALS */}
               {isPaymentModalOpen && selectedPaymentReq && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -1078,6 +1117,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'reports' && isAdmin) {
       return (
           <div className="space-y-8 animate-in fade-in duration-500">
+              {renderStatus()}
               <h2 className="text-2xl font-bold text-slate-800 mb-2">Reportes y Analítica</h2>
               
               {/* RIPS GENERATOR SECTION */}
@@ -1165,12 +1205,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'users' && isAdmin) {
       return (
         <div className="space-y-6 animate-in fade-in duration-500">
+            {renderStatus()}
             {/* User Form Space (Top) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <div className="bg-slate-50 p-6 rounded-xl shadow-sm border border-slate-100">
+                 <div className="flex justify-between items-center mb-6 border-b pb-4 border-slate-200">
                     <div>
                         <h3 className="text-lg font-bold text-slate-800">
-                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
+                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Modificar Colaborador' : 'Centro de Gestión de Identidades'}
                         </h3>
                         <p className="text-sm text-slate-500">Espacio dedicado para la gestión y creación de cuentas del sistema.</p>
                     </div>
@@ -1240,35 +1281,155 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'settings' && isAdmin) {
       return (
           <div className="space-y-6 animate-in fade-in duration-500">
+              {renderStatus()}
               <div className="flex justify-between items-center mb-4">
                   <h2 className="text-2xl font-bold text-slate-800">Configuración del Sistema</h2>
               </div>
               
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
-                    </div>
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = new FormData(e.currentTarget);
+                            const name = formData.get('tpl-name') as string;
+                            const desc = formData.get('tpl-desc') as string;
+                            const type = formData.get('tpl-type') as RecordType;
+
+                            if (!name) return showStatus("Nombre obligatorio", "error");
+
+                            const newTpl: RoleTemplate = {
+                                id: `tpl-${Date.now()}`,
+                                name,
+                                description: desc,
+                                active: true,
+                                allowedRoles: [UserRole.PROFESSIONAL],
+                                sections: [],
+                                recordType: type
+                            };
+                            setTemplates([...templates, newTpl]);
+                            setIsTemplateModalOpen(false);
+                            showStatus("Plantilla creada exitosamente.");
+                        }}
+                        className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6"
+                    >
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><LayoutTemplate className="mr-2 text-blue-600"/> Nueva Plantilla Clínica</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label htmlFor="tpl-name" className="block text-sm font-bold text-slate-700 mb-1">Nombre de la Plantilla</label>
+                                <input id="tpl-name" name="tpl-name" type="text" required className="w-full border p-2 rounded text-sm" placeholder="Ej: Consulta Especializada" />
+                            </div>
+                            <div>
+                                <label htmlFor="tpl-desc" className="block text-sm font-bold text-slate-700 mb-1">Descripción</label>
+                                <textarea id="tpl-desc" name="tpl-desc" className="w-full border p-2 rounded text-sm" rows={2} placeholder="Describa el propósito..." />
+                            </div>
+                            <div>
+                                <label htmlFor="tpl-type" className="block text-sm font-bold text-slate-700 mb-1">Tipo de Registro</label>
+                                <select id="tpl-type" name="tpl-type" className="w-full border p-2 rounded text-sm">
+                                    {Object.values(RecordType).map(v => <option key={v} value={v}>{v}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button type="button" onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm">Crear Plantilla</button>
+                        </div>
+                    </form>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
-                      </div>
+                      <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = new FormData(e.currentTarget);
+                            const title = formData.get('sec-title') as string;
+                            if (!title) return showStatus("Título obligatorio", "error");
+
+                            const newSec: TemplateSection = {
+                                id: `sec-${Date.now()}`,
+                                title,
+                                description: formData.get('sec-desc') as string,
+                                fields: []
+                            };
+                            setGlobalSections([...globalSections, newSec]);
+                            setIsSectionModalOpen(false);
+                            showStatus("Sección agregada a la biblioteca.");
+                        }}
+                        className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6"
+                      >
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><Layers className="mr-2 text-blue-600"/> Nueva Sección Reutilizable</h3>
+                          <div className="space-y-4">
+                              <div>
+                                  <label htmlFor="sec-title" className="block text-sm font-bold text-slate-700 mb-1">Título de la Sección</label>
+                                  <input id="sec-title" name="sec-title" type="text" required className="w-full border p-2 rounded text-sm" placeholder="Ej: Antecedentes Familiares" />
+                              </div>
+                              <div>
+                                  <label htmlFor="sec-desc" className="block text-sm font-bold text-slate-700 mb-1">Descripción (Opcional)</label>
+                                  <textarea id="sec-desc" name="sec-desc" className="w-full border p-2 rounded text-sm" rows={2} />
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                              <button type="button" onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                              <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm">Guardar Sección</button>
+                          </div>
+                      </form>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
-                      </div>
+                      <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = new FormData(e.currentTarget);
+                            const label = formData.get('f-label') as string;
+                            if (!label) return showStatus("Etiqueta obligatoria", "error");
+
+                            const newF: TemplateField = {
+                                id: `f-${Date.now()}`,
+                                label,
+                                type: formData.get('f-type') as FieldType,
+                                required: formData.get('f-req') === 'on',
+                                unit: formData.get('f-unit') as string,
+                                isGlobal: true
+                            };
+                            setGlobalFields([...globalFields, newF]);
+                            setIsFieldModalOpen(false);
+                            showStatus("Campo global definido correctamente.");
+                        }}
+                        className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6"
+                      >
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center"><Type className="mr-2 text-blue-600"/> Nuevo Campo Global</h3>
+                          <div className="space-y-4">
+                              <div>
+                                  <label htmlFor="f-label" className="block text-sm font-bold text-slate-700 mb-1">Etiqueta del Campo</label>
+                                  <input id="f-label" name="f-label" type="text" required className="w-full border p-2 rounded text-sm" placeholder="Ej: Frecuencia Cardiaca" />
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label htmlFor="f-type" className="block text-sm font-bold text-slate-700 mb-1">Tipo de Dato</label>
+                                      <select id="f-type" name="f-type" className="w-full border p-2 rounded text-sm">
+                                          <option value="TEXT">Texto</option>
+                                          <option value="NUMBER">Número</option>
+                                          <option value="TEXTAREA">Área de Texto</option>
+                                          <option value="SELECT">Selección</option>
+                                      </select>
+                                  </div>
+                                  <div>
+                                      <label htmlFor="f-unit" className="block text-sm font-bold text-slate-700 mb-1">Unidad (Opcional)</label>
+                                      <input id="f-unit" name="f-unit" type="text" className="w-full border p-2 rounded text-sm" placeholder="Ej: mmHg, kg" />
+                                  </div>
+                              </div>
+                              <div className="flex items-center">
+                                  <input id="f-req" name="f-req" type="checkbox" className="mr-2" />
+                                  <label htmlFor="f-req" className="text-sm font-bold text-slate-700">Campo Obligatorio</label>
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                              <button type="button" onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                              <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm">Definir Campo</button>
+                          </div>
+                      </form>
                   </div>
               )}
               {/* Settings Nav */}
@@ -1445,5 +1606,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // Fallback for other tabs not yet implemented in full details (like HR/Reports placeholders)
-  return null;
+  return (
+    <>
+        {renderStatus()}
+    </>
+  );
 };

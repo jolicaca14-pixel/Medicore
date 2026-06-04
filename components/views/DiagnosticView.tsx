@@ -25,7 +25,13 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
   const [activeTab, setActiveTab] = useState<'PENDING' | 'HISTORY'>('PENDING');
-  
+  const [statusMessage, setStatusMessage] = useState<{ text: string, type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showStatus = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
+      setStatusMessage({ text, type });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
+
   // Mock Diagnostic Orders
   const [orders, setOrders] = useState<Order[]>([
       { id: 'ord-1', patientId: 'p1', patientName: 'Juan Pérez', examName: 'Hemograma IV [Automatizado]', date: '2023-10-25', priority: 'HIGH', status: 'PENDING', type: 'LAB' },
@@ -60,7 +66,10 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) {
+          showStatus("No hay plantilla configurada para este examen.", "error");
+          return;
+      }
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +98,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showStatus("Resultado guardado correctamente.");
   };
 
   // --- RENDER FIELD ---
@@ -127,7 +136,40 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- PRINT VIEW ---
   const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head><title>Resultados de Diagnóstico - MediCore Pro</title></head>
+              <body style="font-family: sans-serif; padding: 40px; color: #1e293b;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; mb-20px;">
+                      <div>
+                          <h1 style="color: #0f172a; margin: 0;">REPORTES DE APOYO DIAGNÓSTICO</h1>
+                          <p style="color: #64748b; margin: 5px 0 0 0;">MediCore Pro - IPS Especializada</p>
+                      </div>
+                      <div style="text-align: right;">
+                          <p><strong>Fecha:</strong> ${date}</p>
+                          <p><strong>Paciente:</strong> ${patientId}</p>
+                      </div>
+                  </div>
+                  <div style="margin-top: 40px;">
+                      <p style="background: #f1f5f9; padding: 10px; font-weight: bold; border-radius: 4px;">RESUMEN DE RESULTADOS</p>
+                      <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                          <tr style="border-bottom: 1px solid #f1f5f9;">
+                              <td style="padding: 10px 0;">Se adjuntan los resultados validados electrónicamente por el área de ${isLab ? 'Bacteriología' : 'Radiología'}.</td>
+                          </tr>
+                      </table>
+                  </div>
+                  <div style="margin-top: 80px; text-align: center;">
+                      <div style="width: 200px; border-bottom: 1px solid #000; margin: 0 auto;"></div>
+                      <p style="margin-top: 10px;"><strong>${user.name}</strong><br/>Firma Digital Autorizada</p>
+                  </div>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+          showStatus("Generando vista de impresión...");
+      }
   };
 
   // --- RENDER FORM ---
@@ -172,6 +214,15 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   // --- DASHBOARD ---
   return (
     <div className="p-8 max-w-7xl mx-auto">
+        {statusMessage && (
+            <div className={`fixed top-4 right-4 z-[100] animate-in slide-in-from-top-2 duration-300 shadow-lg rounded-lg p-4 flex items-center ${
+                statusMessage.type === 'success' ? 'bg-green-600 text-white' :
+                statusMessage.type === 'error' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
+            }`}>
+                {statusMessage.type === 'success' ? <CheckCircle className="mr-2" size={20}/> : <AlertCircle className="mr-2" size={20}/>}
+                <span className="font-bold text-sm">{statusMessage.text}</span>
+            </div>
+        )}
         <div className="flex justify-between items-center mb-8">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800">{isLab ? 'Laboratorio Clínico' : 'Imagenología y Radiología'}</h2>
