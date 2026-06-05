@@ -123,3 +123,32 @@ export const calculateFramingham = (age: number, gender: 'M' | 'F', sysBp: numbe
   const risk = Math.max(0, points * 1.5);
   return risk;
 };
+
+/**
+ * 🩺 DOC HOUSE: Dosage Validations
+ * Validates if the dosage of a medication exceeds standard safe limits.
+ */
+export const validateMedicationDosage = (medication: string, dose: string): string | null => {
+  const med = medication.toLowerCase();
+  const doseValue = parseFloat(dose);
+
+  if (isNaN(doseValue)) return null;
+
+  if (med.includes('acetaminofen') || med.includes('paracetamol')) {
+    if (doseValue > 1000) return 'Dosis de Acetaminofén excede 1000mg por toma (Riesgo Hepatotoxicidad)';
+  }
+
+  if (med.includes('ibuprofeno')) {
+    if (doseValue > 800) return 'Dosis de Ibuprofeno excede 800mg por toma (Riesgo Gastritis/Falla Renal)';
+  }
+
+  if (med.includes('diclofenaco')) {
+    if (doseValue > 75) return 'Dosis de Diclofenaco excede 75mg por toma';
+  }
+
+  if (med.includes('tramadol')) {
+    if (doseValue > 100) return 'Dosis de Tramadol excede 100mg por toma';
+  }
+
+  return null;
+};

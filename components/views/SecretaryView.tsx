@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Patient, Appointment, Invoice, InvoiceItem, RecordType, RecordStatus, ClinicalRecord, UserRole, TariffItem } from '../../types';
 import { MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_RECORDS, MOCK_SOAT_TARIFF, SMLDV_2024, formatCurrency, MOCK_USERS } from '../../constants';
 import { appointmentService } from '../../services/appointmentService';
+import { billingService } from '../../services/billingService';
 import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw, Loader2 } from 'lucide-react';
 
 interface SecretaryViewProps {
@@ -18,7 +19,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   const [isLoadingAppts, setIsLoadingAppts] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
-  // ⚡ TRINITY: Fetch appointments from API
+  // ⚡ TRINITY: Fetch appointments and invoices from API
   React.useEffect(() => {
     const fetchAppts = async () => {
         setIsLoadingAppts(true);
@@ -34,6 +35,40 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
     };
     fetchAppts();
   }, [selectedDate]);
+
+  React.useEffect(() => {
+    const fetchInvoices = async () => {
+        try {
+            const data = await billingService.getAllInvoices();
+            if (data && data.length > 0) {
+                // Map backend Invoice to frontend Invoice
+                const mapped: Invoice[] = data.map(inv => ({
+                    id: inv.id,
+                    patientId: inv.paciente_id,
+                    patientName: patients.find(p => p.id === inv.paciente_id)?.fullName || 'Paciente',
+                    date: inv.fecha_emision,
+                    items: inv.detalles?.map(d => ({
+                        code: d.codigo_servicio,
+                        name: d.descripcion,
+                        price: Number(d.valor_unitario),
+                        quantity: d.cantidad
+                    })) || [],
+                    subtotal: Number(inv.total),
+                    discount: 0,
+                    total: Number(inv.total),
+                    balance: inv.estado === 'PAGADA' ? 0 : Number(inv.total),
+                    payments: [],
+                    payerType: 'INSURER',
+                    status: inv.estado === 'PAGADA' ? 'PAID' : (inv.estado === 'ANULADA' ? 'CANCELLED' : 'PENDING')
+                }));
+                setInvoices(mapped);
+            }
+        } catch (err) {
+            console.warn("Error cargando facturas desde el backend");
+        }
+    };
+    if (activeTab === 'CARTERA') fetchInvoices();
+  }, [activeTab, patients]);
   
   // Agenda Modal
   const [isApptModalOpen, setIsApptModalOpen] = useState(false);

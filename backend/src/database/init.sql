@@ -106,3 +106,69 @@ COMMENT ON TABLE usuarios IS 'Tabla de usuarios del sistema con control de acces
 COMMENT ON TABLE sesiones IS 'Tabla de sesiones activas con refresh tokens para autenticación JWT';
 COMMENT ON COLUMN usuarios.password_hash IS 'Hash de contraseña generado con bcrypt (salt rounds >= 12)';
 COMMENT ON COLUMN sesiones.refresh_token IS 'Refresh token JWT con vida de 7 días';
+
+-- Tabla de historias clínicas
+CREATE TABLE IF NOT EXISTS historias_clinicas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    fecha_creacion TIMESTAMP DEFAULT NOW(),
+    fecha_finalizacion TIMESTAMP, -- NULL si es borrador
+    estado VARCHAR(20) DEFAULT 'BORRADOR' CHECK (estado IN ('BORRADOR', 'FINALIZADA')),
+    tipo_plantilla VARCHAR(50) NOT NULL,
+    datos JSONB NOT NULL,
+    codigos_diagnostico JSONB DEFAULT '[]',
+    hash_bloqueo VARCHAR(255),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Tabla de recetas
+CREATE TABLE IF NOT EXISTS recetas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    historia_id UUID REFERENCES historias_clinicas(id) ON DELETE CASCADE,
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    profesional_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    medicamentos JSONB NOT NULL DEFAULT '[]',
+    diagnostico_cie11 VARCHAR(20),
+    ruta_pdf_generado VARCHAR(255),
+    hash_seguridad VARCHAR(255),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para recetas e historias
+CREATE INDEX IF NOT EXISTS idx_historias_paciente ON historias_clinicas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_historias_profesional ON historias_clinicas(profesional_id);
+CREATE INDEX IF NOT EXISTS idx_recetas_historia ON recetas(historia_id);
+CREATE INDEX IF NOT EXISTS idx_recetas_paciente ON recetas(paciente_id);
+
+-- Tabla de facturas
+CREATE TABLE IF NOT EXISTS facturas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paciente_id UUID REFERENCES pacientes(id) ON DELETE CASCADE,
+    cita_id UUID REFERENCES citas(id) ON DELETE SET NULL,
+    historia_id UUID REFERENCES historias_clinicas(id) ON DELETE SET NULL,
+    fecha_emision TIMESTAMP DEFAULT NOW(),
+    total DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    estado VARCHAR(20) DEFAULT 'PENDIENTE' CHECK (estado IN ('PENDIENTE', 'PAGADA', 'ANULADA')),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Tabla de detalles de factura
+CREATE TABLE IF NOT EXISTS detalles_factura (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    factura_id UUID REFERENCES facturas(id) ON DELETE CASCADE,
+    codigo_servicio VARCHAR(20) NOT NULL,
+    descripcion VARCHAR(255) NOT NULL,
+    cantidad INT NOT NULL DEFAULT 1,
+    valor_unitario DECIMAL(12, 2) NOT NULL,
+    valor_total DECIMAL(12, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices para facturación
+CREATE INDEX IF NOT EXISTS idx_facturas_paciente ON facturas(paciente_id);
+CREATE INDEX IF NOT EXISTS idx_facturas_estado ON facturas(estado);
+CREATE INDEX IF NOT EXISTS idx_detalles_factura ON detalles_factura(factura_id);
