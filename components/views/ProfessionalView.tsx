@@ -52,6 +52,12 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [patientSearch, setPatientSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isSaved, setIsSaved] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
+
+  const showStatus = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
+      setStatusMessage({ text, type });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // ⚡ TRINITY: Fetch Patients from API
@@ -304,7 +310,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       setHrUser(updatedUser); // Update local view state
       
       // In a real app, this would call an API.
-      alert("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
+      showStatus("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
       setShowDescargosModal(false);
   };
 
@@ -333,7 +339,10 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   const handleOpenPaymentModal = () => {
       const activeContract = hrUser.contracts?.find(c => c.isActive && c.type === ContractType.OPS);
-      if (!activeContract) return alert("Solo disponible para contratos OPS Activos.");
+      if (!activeContract) {
+          showStatus("Solo disponible para contratos OPS Activos.", 'error');
+          return;
+      }
       
       setNewPayment({
           period: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
@@ -393,7 +402,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           pdfWindow.document.close();
       }
 
-      alert("Cuenta de cobro generada y notificada a Administración.");
+      showStatus("Cuenta de cobro generada y notificada a Administración.");
   };
 
 
@@ -522,7 +531,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     if (action === 'FINALIZE') {
         // 🩺 DOC HOUSE: Gender-based clinical validation
         if (selectedPatient.gender === 'M' && (selectedTemplate?.recordType === RecordType.PYP_PREGNANCY || selectedTemplate?.recordType === RecordType.PYP_PUERPERIUM)) {
-            alert("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.");
+            showStatus("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.", 'error');
             return;
         }
 
@@ -539,14 +548,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         }
 
         if ((!currentRecord.diagnoses || currentRecord.diagnoses.length === 0) && selectedTemplate?.recordType !== RecordType.PROCEDURE) {
-            alert("Es obligatorio seleccionar al menos un diagnóstico CIE-11.");
+            showStatus("Es obligatorio seleccionar al menos un diagnóstico CIE-11.", 'error');
             setActiveFormTab('orders_tab');
             return;
         }
         // VALIDATE BARTHEL IF REQUIRED
         if (isFirstTimeRCV && selectedTemplate?.recordType === RecordType.PYP_CV_RISK) {
             if(!dynamicData['global_barthel']) {
-                alert("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.");
+                showStatus("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.", 'error');
                 return;
             }
         }
@@ -615,7 +624,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           setShowAuthModal(false);
           setViewMode('LIST');
           setSelectedPatient(null);
-          alert(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`);
+          showStatus(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`);
         }, 2500);
       } else {
         setShowAuthModal(false);
@@ -627,7 +636,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   
   const handleAddDiagnosis = (code: string, name: string) => {
       if (!validateCIE11Code(code)) {
-          alert("Código CIE-11 no válido para este paciente.");
+          showStatus("Código CIE-11 no válido para este paciente.", 'error');
           return;
       }
       if (currentRecord.diagnoses?.some(d => d.code === code)) return;
@@ -679,8 +688,18 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       const currentAnalysis = dynamicData['d_analisis'] || '';
       const newAnalysis = currentAnalysis + importText;
       setDynamicData({ ...dynamicData, d_analisis: newAnalysis });
-      alert(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
+      showStatus(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
   };
+
+  const renderStatus = () => statusMessage && (
+      <div className={`fixed top-20 right-8 z-[100] p-4 rounded-xl shadow-2xl flex items-center animate-in slide-in-from-right duration-300 border ${
+          statusMessage.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
+          statusMessage.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'
+      }`}>
+          {statusMessage.type === 'success' ? <CheckCircle className="mr-2" size={20}/> : <AlertCircle className="mr-2" size={20}/>}
+          <span className="font-bold">{statusMessage.text}</span>
+      </div>
+  );
 
   const renderField = (field: any, isReadOnly: boolean) => {
       if (field.type === 'HEADER') return <h4 className="text-sm font-bold text-slate-700 mt-4 border-b pb-1 col-span-2">{field.label}</h4>;
@@ -831,14 +850,20 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Planilla Seguridad Social</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <label className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100 cursor-pointer">
+                                              Seleccionar...
+                                              <input type="file" className="hidden" onChange={() => showStatus("Archivo seleccionado")} />
+                                          </label>
                                       </div>
                                       <div className="flex items-center justify-between p-2 bg-slate-50 rounded border border-dashed border-slate-300">
                                           <div className="flex items-center">
                                               <FileText size={16} className="text-slate-400 mr-2"/>
                                               <span className="text-xs text-slate-600">Informe de Actividades</span>
                                           </div>
-                                          <button onClick={() => alert('Archivo seleccionado')} className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100">Seleccionar...</button>
+                                          <label className="text-xs bg-white border px-2 py-1 rounded hover:bg-slate-100 cursor-pointer">
+                                              Seleccionar...
+                                              <input type="file" className="hidden" onChange={() => showStatus("Archivo seleccionado")} />
+                                          </label>
                                       </div>
                                   </div>
                               </div>
@@ -1111,6 +1136,111 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       );
   }
 
+  // --- APPOINTMENTS VIEW ---
+  if (activeTab === 'appointments') {
+      const today = new Date().toISOString().split('T')[0];
+      const myAppts = MOCK_APPOINTMENTS.filter(a => a.professionalId === user.id && a.date === today);
+
+      return (
+          <div className="p-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-2">
+              <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center">
+                  <Calendar className="mr-3 text-blue-600"/> Mi Agenda de Hoy
+              </h2>
+              <div className="space-y-4">
+                  {myAppts.map(app => (
+                      <div key={app.id} className={`bg-white p-6 rounded-xl border border-l-4 shadow-sm flex justify-between items-center ${app.status === 'WAITING' ? 'border-l-green-500 bg-green-50/30' : 'border-l-blue-500'}`}>
+                          <div>
+                              <p className="font-bold text-xl text-slate-800">{app.time}</p>
+                              <p className="font-medium text-slate-700">{app.patientName}</p>
+                              <p className="text-sm text-slate-500">{app.reason}</p>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                  app.status === 'COMPLETED' ? 'bg-slate-100 text-slate-700' :
+                                  app.status === 'WAITING' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                              }`}>
+                                  {app.status === 'WAITING' ? 'EN SALA' : app.status}
+                              </span>
+                              {app.status === 'WAITING' && (
+                                  <button
+                                    onClick={() => {
+                                        const p = patients.find(pat => pat.id === app.patientId);
+                                        if(p) handleCreateRecord(p);
+                                    }}
+                                    className="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800"
+                                  >
+                                      Atender Ahora
+                                  </button>
+                              )}
+                          </div>
+                      </div>
+                  ))}
+                  {myAppts.length === 0 && (
+                      <div className="bg-white p-12 rounded-2xl border border-dashed border-slate-300 text-center">
+                          <p className="text-slate-500 italic">No tiene citas programadas para hoy.</p>
+                      </div>
+                  )}
+              </div>
+          </div>
+      );
+  }
+
+  // --- RECORDS HISTORY VIEW ---
+  if (activeTab === 'records') {
+      const myRecords = records.filter(r => r.professionalId === user.id);
+
+      return (
+          <div className="p-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-2">
+              <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center">
+                  <FileText className="mr-3 text-purple-600"/> Mis Historias Clínicas
+              </h2>
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <table className="w-full text-sm text-left">
+                      <thead className="bg-slate-50 text-slate-500 font-medium">
+                          <tr>
+                              <th className="p-4">Fecha</th>
+                              <th className="p-4">Paciente</th>
+                              <th className="p-4">Tipo</th>
+                              <th className="p-4">Estado</th>
+                              <th className="p-4 text-right">Acción</th>
+                          </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                          {myRecords.sort((a,b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime()).map(r => {
+                              const p = patients.find(pat => pat.id === r.patientId);
+                              return (
+                                  <tr key={r.id} className="hover:bg-slate-50">
+                                      <td className="p-4">{new Date(r.dateCreated).toLocaleDateString()}</td>
+                                      <td className="p-4 font-bold text-slate-700">{p?.fullName || 'Paciente'}</td>
+                                      <td className="p-4 text-xs font-medium">{r.recordType}</td>
+                                      <td className="p-4">
+                                          <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${r.status === 'FINALIZED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                              {r.status === 'FINALIZED' ? 'FINALIZADA' : 'BORRADOR'}
+                                          </span>
+                                      </td>
+                                      <td className="p-4 text-right">
+                                          <button
+                                            onClick={() => {
+                                                setSelectedPatient(p || null);
+                                                setCurrentRecord(r);
+                                                setDynamicData(r.dynamicData || {});
+                                                setViewMode(r.status === 'FINALIZED' ? 'VIEW' : 'CREATE');
+                                            }}
+                                            className="text-blue-600 font-bold hover:underline"
+                                          >
+                                              {r.status === 'FINALIZED' ? 'Ver' : 'Editar'}
+                                          </button>
+                                      </td>
+                                  </tr>
+                              );
+                          })}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      );
+  }
+
   // --- MAIN PROFESSIONAL WORKSPACE ---
   if ((viewMode === 'CREATE' || viewMode === 'VIEW') && selectedPatient) {
     const isReadOnly = viewMode === 'VIEW';
@@ -1118,7 +1248,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     
     return (
       <div className="flex flex-col h-[calc(100vh-100px)] relative">
-         
+         {renderStatus()}
          {showRDAModal && <RDAViewerModal />}
 
          {selectedPatient.allergies && (
@@ -1526,6 +1656,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // --- LIST VIEW ---
   return (
     <div className="p-6">
+        {renderStatus()}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
             <h2 className="text-2xl font-bold text-slate-800">Mis Pacientes</h2>
             <div className="relative w-full md:w-72">
