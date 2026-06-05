@@ -3,12 +3,13 @@ import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
 import { clinicalRecordService } from '../../services/clinicalRecordService';
+import { prescriptionService } from '../../services/prescriptionService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
 import { calculateTotalWithSurcharge } from '../../utils/finance';
 import { sanitizeInput } from '../../utils/security';
-import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calculateTFG, calculateFramingham } from '../../utils/clinicalLogic';
+import { getVitalWarning, calculateBMI, classifyCKD, getFraminghamColor, calculateTFG, calculateFramingham, validateMedicationDosage } from '../../utils/clinicalLogic';
 import { logAuditEvent } from '../../utils/auditLogger';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import RecentResultsWidget from '../RecentResultsWidget';
@@ -557,6 +558,29 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const confirmAuth = async () => {
     setAuthError('');
 
+    // ⚡ TRINITY: Register prescription in backend if present
+    if (authAction === 'FINALIZE' && currentRecord.prescriptions && currentRecord.prescriptions.length > 0) {
+        try {
+            await prescriptionService.create({
+                historia_id: currentRecord.id!,
+                paciente_id: selectedPatient!.id,
+                profesional_id: user.id,
+                medicamentos: currentRecord.prescriptions.map(p => ({
+                    farmaco: p.medicationName,
+                    dosis: p.dose,
+                    frecuencia: p.frequency,
+                    via: p.route,
+                    duracion: p.duration,
+                    cantidad: p.totalQuantity,
+                    recomendaciones: p.observations
+                })),
+                diagnostico_cie11: currentRecord.diagnoses?.[0]?.code || 'Z00.0'
+            });
+        } catch (e) {
+            console.error("Error al persistir prescripción:", e);
+        }
+    }
+
     // 🛡️ MORPHEUS: Digital signature image verification (mock check)
     if (authAction === 'FINALIZE' && !user.digitalStampUrl) {
         setAuthError('Error: No se encontró firma digital configurada para su usuario.');
@@ -642,6 +666,13 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   const handleAddPrescription = () => {
       if(!newRx.medicationName || !newRx.dose) return;
+
+      const dosageWarning = validateMedicationDosage(newRx.medicationName, newRx.dose);
+      if (dosageWarning) {
+          const proceed = window.confirm(`⚠️ ALERTA DE SEGURIDAD CLÍNICA:\n\n${dosageWarning}\n\n¿Desea continuar con esta dosis bajo su responsabilidad profesional?`);
+          if (!proceed) return;
+      }
+
       const item: PrescriptionItem = {
           id: `rx-${Date.now()}`,
           medicationName: newRx.medicationName,

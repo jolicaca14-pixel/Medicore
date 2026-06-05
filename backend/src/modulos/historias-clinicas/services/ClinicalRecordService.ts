@@ -1,5 +1,6 @@
 import { ClinicalRecord, RecordStatus } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import FacturacionService from '../../facturacion/services/FacturacionService';
 
 let records: ClinicalRecord[] = [];
 
@@ -53,6 +54,28 @@ export class ClinicalRecordService {
             status: RecordStatus.FINALIZED,
             dateFinalized: new Date().toISOString()
         };
+
+        // 💰 LEDGER: Generate draft invoice automatically if there are procedures
+        if (records[index].performedProcedures && records[index].performedProcedures!.length > 0) {
+            try {
+                const detalles = records[index].performedProcedures!.map(p => ({
+                    codigo_servicio: p.code,
+                    descripcion: p.name,
+                    cantidad: p.amount || 1,
+                    valor_unitario: FacturacionService.calculateSOATRate(1.0), // Default factor 1.0 for demo
+                    valor_total: FacturacionService.calculateSOATRate(1.0) * (p.amount || 1)
+                }));
+
+                await FacturacionService.createInvoice({
+                    paciente_id: records[index].patientId,
+                    historia_id: records[index].id,
+                    detalles
+                });
+                console.log(`[LEDGER] Factura automática generada para HCE: ${id}`);
+            } catch (err) {
+                console.error("[LEDGER] Error generando factura automática:", err);
+            }
+        }
 
         console.log(`[SIGNATURE] Record ${id} finalized by professional with signature hash: ${signature.slice(0, 10)}...`);
 
