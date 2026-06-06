@@ -12,6 +12,14 @@ interface SecretaryViewProps {
 export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState<'PATIENTS' | 'AGENDA' | 'BILLING' | 'CARTERA'>('AGENDA');
 
+  // UX States
+  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
+
+  const showStatus = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
+      setStatusMessage({ text, type });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
+
   // --- PATIENTS & AGENDA STATE ---
   const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -53,6 +61,11 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   const [tariffMode, setTariffMode] = useState<'SOAT' | 'PARTICULAR'>('SOAT');
   const [invoices, setInvoices] = useState<Invoice[]>([]); // Cartera
 
+  // Cartera Payment Modal State
+  const [isPaymentRegisterModalOpen, setIsPaymentRegisterModalOpen] = useState(false);
+  const [paymentInvoiceId, setPaymentRegisterInvoiceId] = useState<string | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+
   // Manual Item
   const [manualItemName, setManualItemName] = useState('');
   const [manualItemPrice, setManualItemPrice] = useState('');
@@ -86,7 +99,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
   const handleSaveAppointment = async () => {
       if(!newAppt.patientId || !newAppt.time || !newAppt.reason || !newAppt.professionalId) {
-          alert("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)");
+          showStatus("Complete los campos requeridos (Paciente, Profesional, Hora, Motivo)", 'error');
           return;
       }
       const patient = patients.find(p => p.id === newAppt.patientId);
@@ -111,7 +124,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               } as Appointment;
               setAppointments([...appointments, finalAppt]);
           } catch (e) {
-              alert("Error al guardar en servidor. Se usará modo local.");
+              showStatus("Error al guardar en servidor. Se usará modo local.", 'error');
               finalAppt = {
                   id: `appt-${Date.now()}`,
                   patientId: newAppt.patientId,
@@ -153,9 +166,9 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               status: 'PENDING'
           };
           setInvoices([...invoices, newInvoice]);
-          alert("Cita agendada y Factura creada automáticamente en Cartera.");
+          showStatus("Cita agendada y Factura creada automáticamente en Cartera.");
       } else {
-          alert(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
+          showStatus(isEdit ? "Cita reprogramada/actualizada." : "Cita agendada exitosamente.");
       }
 
       setIsApptModalOpen(false);
@@ -165,8 +178,8 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       try {
           await appointmentService.updateStatus(id, status);
           setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-          if (status === 'WAITING') alert("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
-          if (status === 'CANCELLED') alert("Cita cancelada.");
+          if (status === 'WAITING') showStatus("Paciente marcado como ASISTIÓ. El profesional verá el estado 'En Sala'.");
+          if (status === 'CANCELLED') showStatus("Cita cancelada.", 'info');
       } catch (e) {
           console.error("Error updating status in backend, updating locally");
           setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
@@ -263,33 +276,101 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       setSelectedServices([]);
       setBillingPatient(null);
       setPartialPayment('');
-      alert(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
+      showStatus(`Factura generada. Saldo pendiente: ${formatCurrency(balance)}`);
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const itemsHtml = invoice.items.map(item => `
+          <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${item.quantity}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price)}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+          </tr>
+      `).join('');
+
+      printWindow.document.write(`
+          <html>
+          <head>
+              <title>Factura ${invoice.id}</title>
+              <style>
+                  body { font-family: sans-serif; color: #333; padding: 40px; }
+                  .header { display: flex; justify-content: space-between; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
+                  .info { margin-bottom: 30px; }
+                  table { width: 100%; border-collapse: collapse; }
+                  th { background: #f9fafb; text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
+                  .totals { margin-top: 30px; text-align: right; }
+                  .paid { color: green; font-weight: bold; }
+                  .pending { color: red; font-weight: bold; }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <div>
+                      <h1 style="margin: 0; color: #1e293b;">MEDICORE IPS</h1>
+                      <p>NIT: 900.123.456-7</p>
+                  </div>
+                  <div style="text-align: right;">
+                      <h2 style="margin: 0;">FACTURA DE VENTA</h2>
+                      <p style="font-weight: bold;">N° ${invoice.id}</p>
+                      <p>Fecha: ${new Date(invoice.date).toLocaleDateString()}</p>
+                  </div>
+              </div>
+              <div class="info">
+                  <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                  <p><strong>ID:</strong> ${invoice.patientId}</p>
+                  <p><strong>Estado:</strong> <span class="${invoice.status === 'PAID' ? 'paid' : 'pending'}">${invoice.status}</span></p>
+              </div>
+              <table>
+                  <thead>
+                      <tr>
+                          <th>Descripción</th>
+                          <th style="text-align: right;">Cant.</th>
+                          <th style="text-align: right;">V. Unitario</th>
+                          <th style="text-align: right;">Total</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      ${itemsHtml}
+                  </tbody>
+              </table>
+              <div class="totals">
+                  <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+                  <p>Descuento: ${formatCurrency(invoice.discount)}</p>
+                  <h2 style="margin-top: 10px;">Total: ${formatCurrency(invoice.total)}</h2>
+                  <p>Pagado: ${formatCurrency(invoice.total - invoice.balance)}</p>
+                  <p style="font-size: 1.2em;"><strong>Saldo Pendiente: ${formatCurrency(invoice.balance)}</strong></p>
+              </div>
+              <div style="margin-top: 50px; border-top: 1px solid #ddd; pt-10 text-align: center; color: #666; font-size: 0.8em;">
+                  <p>Gracias por confiar en nuestros servicios de salud.</p>
+                  <p>Software MediCore Pro - HCE Segura</p>
+              </div>
+              <script>window.print();</script>
+          </body>
+          </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
-  const registerPayment = (id: string) => {
-      const inv = invoices.find(i => i.id === id);
-      if(!inv) return;
+  const handleOpenPaymentRegister = (id: string) => {
+      setPaymentRegisterInvoiceId(id);
+      setPaymentAmount('');
+      setIsPaymentRegisterModalOpen(true);
+  };
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
+  const confirmPaymentRegistration = () => {
+      const id = paymentInvoiceId;
+      const amount = parseFloat(paymentAmount);
+
+      const inv = invoices.find(i => i.id === id);
+      if(!inv || isNaN(amount) || amount <= 0) return;
       
       if(amount > inv.balance) {
-          alert("El monto ingresado supera el saldo pendiente.");
+          showStatus("El monto ingresado supera el saldo pendiente.", 'error');
           return;
       }
 
@@ -304,7 +385,21 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
-      alert("Pago registrado correctamente.");
+      setIsPaymentRegisterModalOpen(false);
+      showStatus("Pago registrado correctamente.");
+  };
+
+  const renderStatus = () => {
+    if (!statusMessage) return null;
+    return (
+        <div className={`fixed top-4 right-4 z-[100] flex items-center p-4 rounded-xl shadow-2xl animate-in slide-in-from-right duration-300 border ${
+            statusMessage.type === 'success' ? 'bg-green-600 border-green-500 text-white' :
+            statusMessage.type === 'error' ? 'bg-red-600 border-red-500 text-white' : 'bg-blue-600 border-blue-500 text-white'
+        }`}>
+            {statusMessage.type === 'success' ? <CheckCircle className="mr-3" size={20}/> : <AlertCircle className="mr-3" size={20}/>}
+            <p className="font-bold text-sm">{statusMessage.text}</p>
+        </div>
+    );
   };
 
   return (
@@ -336,7 +431,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-8">
-          
+          {renderStatus()}
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
              <div className="flex justify-between items-center mb-6">
@@ -355,26 +450,26 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                               <div className="space-y-3">
                                   <div className="grid grid-cols-2 gap-3">
                                       <div className="col-span-2">
-                                          <label className="text-xs font-bold text-slate-500">Paciente</label>
-                                          <select disabled={!!newAppt.id} className="w-full border p-2 rounded text-sm disabled:bg-slate-100" value={newAppt.patientId || ''} onChange={e => setNewAppt({...newAppt, patientId: e.target.value})}>
+                                          <label htmlFor="appt-patient-select" className="text-xs font-bold text-slate-500">Paciente</label>
+                                          <select id="appt-patient-select" disabled={!!newAppt.id} className="w-full border p-2 rounded text-sm disabled:bg-slate-100" value={newAppt.patientId || ''} onChange={e => setNewAppt({...newAppt, patientId: e.target.value})}>
                                               <option value="">Seleccione...</option>
                                               {patients.map(p => <option key={p.id} value={p.id}>{p.fullName}</option>)}
                                           </select>
                                       </div>
                                       <div className="col-span-2">
-                                          <label className="text-xs font-bold text-slate-500">Profesional</label>
-                                          <select className="w-full border p-2 rounded text-sm" value={newAppt.professionalId || ''} onChange={e => setNewAppt({...newAppt, professionalId: e.target.value})}>
+                                          <label htmlFor="appt-prof-select" className="text-xs font-bold text-slate-500">Profesional</label>
+                                          <select id="appt-prof-select" className="w-full border p-2 rounded text-sm" value={newAppt.professionalId || ''} onChange={e => setNewAppt({...newAppt, professionalId: e.target.value})}>
                                               <option value="">Seleccione Médico/a...</option>
                                               {professionals.map(p => <option key={p.id} value={p.id}>{p.name} - {p.specialty}</option>)}
                                           </select>
                                       </div>
                                       <div>
-                                          <label className="text-xs font-bold text-slate-500">Hora</label>
-                                          <input type="time" className="w-full border p-2 rounded text-sm" value={newAppt.time} onChange={e => setNewAppt({...newAppt, time: e.target.value})} />
+                                          <label htmlFor="appt-time-input" className="text-xs font-bold text-slate-500">Hora</label>
+                                          <input id="appt-time-input" type="time" className="w-full border p-2 rounded text-sm" value={newAppt.time} onChange={e => setNewAppt({...newAppt, time: e.target.value})} />
                                       </div>
                                       <div>
-                                          <label className="text-xs font-bold text-slate-500">Motivo</label>
-                                          <input type="text" className="w-full border p-2 rounded text-sm" value={newAppt.reason} onChange={e => setNewAppt({...newAppt, reason: e.target.value})} placeholder="Ej. Control"/>
+                                          <label htmlFor="appt-reason-input" className="text-xs font-bold text-slate-500">Motivo</label>
+                                          <input id="appt-reason-input" type="text" className="w-full border p-2 rounded text-sm" value={newAppt.reason} onChange={e => setNewAppt({...newAppt, reason: e.target.value})} placeholder="Ej. Control"/>
                                       </div>
                                   </div>
 
@@ -649,6 +744,38 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           {/* CARTERA TAB (Enhanced) */}
           {activeTab === 'CARTERA' && (
               <div>
+                  {isPaymentRegisterModalOpen && (
+                      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
+                              <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                                  <DollarSign className="mr-2 text-green-600"/> Registrar Abono a Cartera
+                              </h3>
+                              <div className="space-y-4">
+                                  <div>
+                                      <p className="text-xs font-bold text-slate-500 uppercase">Saldo Pendiente</p>
+                                      <p className="text-xl font-bold text-slate-800">{formatCurrency(invoices.find(i => i.id === paymentInvoiceId)?.balance || 0)}</p>
+                                  </div>
+                                  <div>
+                                      <label htmlFor="payment-amount-input" className="block text-sm font-bold text-slate-700 mb-1">Monto a Pagar</label>
+                                      <input
+                                          id="payment-amount-input"
+                                          type="number"
+                                          value={paymentAmount}
+                                          onChange={(e) => setPaymentAmount(e.target.value)}
+                                          placeholder="0.00"
+                                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 font-mono text-lg"
+                                      />
+                                  </div>
+                              </div>
+                              <div className="flex justify-end gap-2 mt-8">
+                                  <button onClick={() => setIsPaymentRegisterModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                                  <button onClick={confirmPaymentRegistration} className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold text-sm hover:bg-green-700 shadow-lg">
+                                      Confirmar Pago
+                                  </button>
+                              </div>
+                          </div>
+                      </div>
+                  )}
                    <h2 className="text-2xl font-bold text-slate-800 mb-6">Cartera (Cuentas por Cobrar)</h2>
                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                        <table className="w-full text-sm text-left">
@@ -679,7 +806,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                       <td className="p-4 text-right flex justify-end space-x-2">
                                           <button onClick={() => printInvoice(inv)} className="bg-slate-200 text-slate-700 p-2 rounded hover:bg-slate-300" title="Imprimir"><Printer size={16}/></button>
                                           {inv.status !== 'PAID' && (
-                                              <button onClick={() => registerPayment(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
+                                              <button onClick={() => handleOpenPaymentRegister(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
                                                   Abonar
                                               </button>
                                           )}
