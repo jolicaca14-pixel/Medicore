@@ -5,6 +5,10 @@ import dotenv from 'dotenv';
 import authRoutes from './modulos/auth/routes';
 import patientRoutes from './modulos/pacientes/routes';
 import agendaRoutes from './modulos/agenda/routes';
+import clinicalRecordRoutes from './modulos/historias-clinicas/routes';
+import prescriptionRoutes from './modulos/recetas/routes';
+import facturacionRoutes from './modulos/facturacion/routes';
+import ripsRoutes from './modulos/rips/routes';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -25,6 +29,10 @@ app.use(cookieParser());
 app.use('/api/auth', authRoutes);
 app.use('/api/pacientes', patientRoutes);
 app.use('/api/agenda', agendaRoutes);
+app.use('/api/historias-clinicas', clinicalRecordRoutes);
+app.use('/api/recetas', prescriptionRoutes);
+app.use('/api/facturacion', facturacionRoutes);
+app.use('/api/rips', ripsRoutes);
 
 // Ruta de health check
 app.get('/health', (req: Request, res: Response) => {
