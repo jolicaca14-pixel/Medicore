@@ -3,6 +3,7 @@ import { User, Patient, ClinicalRecord, RecordStatus, RecordType, ClarifyingNote
 import { generateClinicalSummary, suggestICDCodes } from '../../services/geminiService';
 import { patientService } from '../../services/patientService';
 import { clinicalRecordService } from '../../services/clinicalRecordService';
+import { prescriptionService } from '../../services/prescriptionService';
 import { Plus, Search, FileText, Save, Lock, Bot, Clock, AlertCircle, FilePlus, ChevronRight, Activity, Calculator, Pill, Trash2, Printer, X, Mail, Stethoscope, DollarSign, FileCheck, AlertTriangle, ShieldCheck, Database, Send, ListPlus, Syringe, TestTube, Image, ChevronDown, Layout, ArrowLeftCircle, ArrowRightCircle, History, TrendingUp, Calendar, Briefcase, FileSignature, AlertOctagon, Upload, Paperclip, Copy, Loader2 } from 'lucide-react';
 import { MOCK_PATIENTS, MOCK_RECORDS, MOCK_CIE11, MOCK_MEDICATIONS, MOCK_SOAT_TARIFF, MOCK_SHIFTS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_APPOINTMENTS, formatCurrency, MOCK_PAYMENT_REQUESTS } from '../../constants';
 import { validateCIE11Code } from '../../utils/dataValidation';
@@ -578,8 +579,26 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         // ⚡ TRINITY: Call real backend to finalize
         try {
             await clinicalRecordService.finalize(currentRecord.id!, passwordInput);
+
+            // ⚡ TRINITY: Also persist prescriptions to backend if any
+            if (currentRecord.prescriptions && currentRecord.prescriptions.length > 0) {
+                await prescriptionService.create({
+                    patientId: currentRecord.patientId!,
+                    professionalId: user.id,
+                    clinicalRecordId: currentRecord.id,
+                    medications: currentRecord.prescriptions.map(p => ({
+                        name: p.medicationName,
+                        dosage: p.dose,
+                        frequency: p.frequency,
+                        route: p.route,
+                        duration: p.duration,
+                        quantity: p.totalQuantity,
+                        observations: p.observations
+                    }))
+                });
+            }
         } catch (e) {
-            console.error("Finalización en backend falló");
+            console.error("Finalización en backend falló", e);
         }
 
         // Simulate API call

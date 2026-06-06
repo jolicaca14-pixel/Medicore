@@ -5,9 +5,9 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 export const clinicalRecordService = {
   async getByPatientId(patientId: string): Promise<ClinicalRecord[]> {
     try {
-      const response = await fetch(`${API_URL}/historias/paciente/${patientId}`, {
+      const response = await fetch(`${API_URL}/historias-clinicas/paciente/${patientId}`, {
         headers: {
-          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('token')}`
         }
       });
       if (!response.ok) throw new Error('Error al obtener historias clínicas');
@@ -20,11 +20,11 @@ export const clinicalRecordService = {
 
   async create(record: Partial<ClinicalRecord>): Promise<ClinicalRecord> {
     try {
-      const response = await fetch(`${API_URL}/historias`, {
+      const response = await fetch(`${API_URL}/historias-clinicas`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('token')}`
         },
         body: JSON.stringify(record)
       });
@@ -36,15 +36,16 @@ export const clinicalRecordService = {
     }
   },
 
-  async finalize(id: string, signature: string): Promise<ClinicalRecord> {
+  async finalize(id: string, password?: string): Promise<ClinicalRecord> {
     try {
-      const response = await fetch(`${API_URL}/historias/${id}/finalizar`, {
+      const signature = `SIG-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      const response = await fetch(`${API_URL}/historias-clinicas/${id}/finalizar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('token')}`
         },
-        body: JSON.stringify({ signature })
+        body: JSON.stringify({ signature, password })
       });
       if (!response.ok) throw new Error('Error al finalizar historia');
       return await response.json();
