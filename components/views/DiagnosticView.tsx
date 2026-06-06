@@ -25,6 +25,14 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   const isRad = user.roles.includes(UserRole.RADIOLOGIST);
 
   const [activeTab, setActiveTab] = useState<'PENDING' | 'HISTORY'>('PENDING');
+
+  // UX States
+  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
+
+  const showStatus = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
+      setStatusMessage({ text, type });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
   
   // Mock Diagnostic Orders
   const [orders, setOrders] = useState<Order[]>([
@@ -60,7 +68,10 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) {
+          showStatus("No hay plantilla configurada para este examen.", 'error');
+          return;
+      }
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +100,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showStatus("Resultado guardado correctamente.");
   };
 
   // --- RENDER FIELD ---
@@ -126,8 +137,75 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const patientRecords = completedRecords.filter(r =>
+          (MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName || 'Desconocido') === patientName &&
+          r.dateCreated.startsWith(date)
+      );
+
+      const resultsHtml = patientRecords.map(r => `
+          <div style="margin-bottom: 30px; border: 1px solid #eee; padding: 20px; rounded: 10px;">
+              <h3 style="color: #2563eb; margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">${r.chiefComplaint}</h3>
+              <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 10px;">
+                  ${Object.entries(r.dynamicData).map(([key, val]) => `
+                      <div style="margin-bottom: 5px;">
+                          <span style="font-weight: bold; font-size: 0.9em; color: #666;">${key.replace('global_', '').replace('v_', '').toUpperCase()}:</span>
+                          <span style="font-family: monospace;">${val}</span>
+                      </div>
+                  `).join('')}
+              </div>
+          </div>
+      `).join('');
+
+      printWindow.document.write(`
+          <html>
+          <head>
+              <title>Resultados ${patientName} - ${date}</title>
+              <style>
+                  body { font-family: sans-serif; padding: 40px; color: #333; }
+                  .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
+                  .patient-info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 30px; }
+                  h1 { color: #1e293b; margin: 0; }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <h1>MEDICORE IPS</h1>
+                  <p>Laboratorio Clínico y Ayudas Diagnósticas</p>
+                  <p>Reporte Oficial de Resultados</p>
+              </div>
+              <div class="patient-info">
+                  <p><strong>Paciente:</strong> ${patientName}</p>
+                  <p><strong>Fecha de Toma:</strong> ${date}</p>
+              </div>
+              <div>
+                  ${resultsHtml}
+              </div>
+              <div style="margin-top: 50px; border-top: 1px solid #ddd; padding-top: 20px; text-align: center; font-size: 0.8em; color: #666;">
+                  <p>Este documento es una representación impresa de un registro electrónico.</p>
+                  <p>MediCore Pro - Sistema de Gestión Hospitalaria</p>
+              </div>
+              <script>window.print();</script>
+          </body>
+          </html>
+      `);
+      printWindow.document.close();
+  };
+
+  const renderStatus = () => {
+    if (!statusMessage) return null;
+    return (
+        <div className={`fixed top-4 right-4 z-[100] flex items-center p-4 rounded-xl shadow-2xl animate-in slide-in-from-right duration-300 border ${
+            statusMessage.type === 'success' ? 'bg-green-600 border-green-500 text-white' :
+            statusMessage.type === 'error' ? 'bg-red-600 border-red-500 text-white' : 'bg-blue-600 border-blue-500 text-white'
+        }`}>
+            {statusMessage.type === 'success' ? <CheckCircle className="mr-3" size={20}/> : <AlertCircle className="mr-3" size={20}/>}
+            <p className="font-bold text-sm">{statusMessage.text}</p>
+        </div>
+    );
   };
 
   // --- RENDER FORM ---
@@ -136,6 +214,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
       return (
           <div className="bg-white rounded-xl shadow-lg border border-slate-200 h-full flex flex-col">
+              {renderStatus()}
               <div className="p-4 border-b flex justify-between items-center bg-slate-50">
                   <div>
                       <h3 className="font-bold text-slate-800 text-lg">{selectedOrder.examName}</h3>
@@ -172,6 +251,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   // --- DASHBOARD ---
   return (
     <div className="p-8 max-w-7xl mx-auto">
+        {renderStatus()}
         <div className="flex justify-between items-center mb-8">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800">{isLab ? 'Laboratorio Clínico' : 'Imagenología y Radiología'}</h2>
