@@ -46,6 +46,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   // --- BILLING STATE ---
   const [billingPatient, setBillingPatient] = useState<Patient | null>(null);
   const [billingSearchTerm, setBillingSearchTerm] = useState(''); // Search state
+  const [patientSearchTerm, setPatientSearchTerm] = useState(''); // Search state for directory
 
   const [selectedServices, setSelectedServices] = useState<InvoiceItem[]>([]);
   const [globalDiscount, setGlobalDiscount] = useState<number>(0);
@@ -267,16 +268,79 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+    // 🎨 Palette: Professional Print Preview using a new window
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return alert("Por favor permita las ventanas emergentes para ver la factura.");
+
+    const itemsHtml = invoice.items.map(item => `
+        <tr>
+            <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price)}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+        </tr>
+    `).join('');
+
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>Factura ${invoice.id}</title>
+                <style>
+                    body { font-family: sans-serif; color: #333; line-height: 1.6; padding: 40px; }
+                    .header { display: flex; justify-content: space-between; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px; }
+                    .logo { font-size: 24px; font-weight: bold; color: #1e293b; }
+                    .info { margin-bottom: 30px; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                    th { background: #f8fafc; padding: 10px; text-align: left; border-bottom: 2px solid #e2e8f0; }
+                    .totals { text-align: right; }
+                    .totals p { margin: 5px 0; }
+                    .grand-total { font-size: 18px; font-weight: bold; color: #0f172a; border-top: 1px solid #333; padding-top: 10px; }
+                    .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #64748b; }
+                    @media print { .no-print { display: none; } }
+                </style>
+            </head>
+            <body>
+                <div class="no-print" style="margin-bottom: 20px;">
+                    <button onclick="window.print()" style="padding: 10px 20px; background: #0f172a; color: white; border: none; border-radius: 6px; cursor: pointer;">Imprimir Factura</button>
+                </div>
+                <div class="header">
+                    <div class="logo">MEDICORE IPS</div>
+                    <div style="text-align: right;">
+                        <h2 style="margin: 0;">FACTURA DE VENTA</h2>
+                        <p style="margin: 0; color: #64748b;">N° ${invoice.id}</p>
+                    </div>
+                </div>
+                <div class="info">
+                    <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleString()}</p>
+                    <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                    <p><strong>Estado:</strong> ${invoice.status === 'PAID' ? 'PAGADA' : 'PENDIENTE'}</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Descripción</th>
+                            <th style="text-align: center;">Cant.</th>
+                            <th style="text-align: right;">V. Unitario</th>
+                            <th style="text-align: right;">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHtml}
+                    </tbody>
+                </table>
+                <div class="totals">
+                    <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+                    <p>Descuentos: -${formatCurrency(invoice.discount)}</p>
+                    <p class="grand-total">Total a Pagar: ${formatCurrency(invoice.total)}</p>
+                    <p>Saldo Pendiente: ${formatCurrency(invoice.balance)}</p>
+                </div>
+                <div class="footer">
+                    <p>Gracias por confiar en MediCore Pro. Esta es una representación digital de su factura.</p>
+                </div>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
@@ -339,8 +403,56 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+             <div className="space-y-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+                    <div className="relative w-72">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                        <input
+                            className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                            placeholder="Buscar paciente..."
+                            value={patientSearchTerm}
+                            onChange={e => setPatientSearchTerm(e.target.value)}
+                        />
+                    </div>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-medium">
+                            <tr>
+                                <th className="p-4">Paciente</th>
+                                <th className="p-4">Identificación</th>
+                                <th className="p-4">Contacto</th>
+                                <th className="p-4">Aseguradora</th>
+                                <th className="p-4 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {patients.filter(p =>
+                                p.fullName.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+                                p.identification.includes(patientSearchTerm)
+                            ).map(p => (
+                                <tr key={p.id} className="hover:bg-slate-50">
+                                    <td className="p-4 font-bold text-slate-700">{p.fullName}</td>
+                                    <td className="p-4 font-mono text-xs">{p.identification}</td>
+                                    <td className="p-4">
+                                        <p>{p.phone}</p>
+                                        <p className="text-xs text-slate-400">{p.email}</p>
+                                    </td>
+                                    <td className="p-4">
+                                        <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-bold border border-blue-100">
+                                            {p.insuranceType}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <button className="text-blue-600 hover:bg-blue-50 p-2 rounded transition-colors"><Edit size={16}/></button>
+                                        <button className="text-red-600 hover:bg-red-50 p-2 rounded transition-colors ml-2"><Trash2 size={16}/></button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
              </div>
           )}
           {/* AGENDA TAB (Now Functional) */}
