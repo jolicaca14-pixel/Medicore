@@ -37,6 +37,8 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [dynamicData, setDynamicData] = useState<Record<string, any>>({});
   const [completedRecords, setCompletedRecords] = useState<ClinicalRecord[]>([]);
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Filter orders based on user role
   const myOrders = orders.filter(o => 
@@ -109,9 +111,44 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                       {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
               ) : field.type === 'FILE' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50">
-                      <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
-                      <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                  <div
+                    className="border-2 border-dashed border-slate-300 rounded p-4 text-center cursor-pointer hover:bg-slate-50 transition-colors"
+                    onClick={() => {
+                        if (uploadingField) return;
+                        setUploadingField(field.id);
+                        setUploadProgress(0);
+                        const interval = setInterval(() => {
+                            setUploadProgress(prev => {
+                                if (prev >= 100) {
+                                    clearInterval(interval);
+                                    setDynamicData(current => ({...current, [field.id]: `archivo_diagnostico_${Date.now()}.dicom`}));
+                                    setUploadingField(null);
+                                    return 100;
+                                }
+                                return prev + 20;
+                            });
+                        }, 200);
+                    }}
+                  >
+                      {uploadingField === field.id ? (
+                          <div>
+                              <div className="w-full bg-slate-200 rounded-full h-1.5 mb-2">
+                                  <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
+                              </div>
+                              <p className="text-[10px] font-bold text-slate-500 animate-pulse">Cargando... {uploadProgress}%</p>
+                          </div>
+                      ) : val ? (
+                          <div className="text-green-600">
+                              <CheckCircle size={20} className="mx-auto mb-1"/>
+                              <p className="text-[10px] font-bold">{val}</p>
+                              <p className="text-[9px] text-slate-400">Click para cambiar</p>
+                          </div>
+                      ) : (
+                          <>
+                              <Upload size={20} className="mx-auto text-slate-400 mb-2"/>
+                              <p className="text-xs text-slate-500">Click para cargar imágenes (DICOM/JPG)</p>
+                          </>
+                      )}
                   </div>
               ) : (
                   <input 
