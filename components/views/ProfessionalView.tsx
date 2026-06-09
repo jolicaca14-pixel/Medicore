@@ -188,11 +188,22 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           logAuditEvent(user.id, 'PATIENT_SEARCH', 'PatientList', `Searched for term: ${cleanSearch}`);
       }
 
-      return patients.filter(p =>
+      let result = patients.filter(p =>
           p.fullName.toLowerCase().includes(cleanSearch) ||
           p.identification.toLowerCase().includes(cleanSearch)
       );
-  }, [patients, debouncedSearch, user.id]);
+
+      // Filter by appointment if on appointments tab
+      if (activeTab === 'appointments') {
+          const today = new Date().toISOString().split('T')[0];
+          const patientsWithAppts = MOCK_APPOINTMENTS
+              .filter(a => a.date === today && a.professionalId === user.id)
+              .map(a => a.patientId);
+          result = result.filter(p => patientsWithAppts.includes(p.id));
+      }
+
+      return result;
+  }, [patients, debouncedSearch, user.id, activeTab]);
 
   // RCV Logic State
   const [isFirstTimeRCV, setIsFirstTimeRCV] = useState(false);
@@ -1526,8 +1537,47 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   // --- LIST VIEW ---
   return (
     <div className="p-6">
+        {activeTab === 'records' ? (
+            <div className="animate-in fade-in duration-500">
+                <h2 className="text-2xl font-bold text-slate-800 mb-6">Mis Historias Finalizadas</h2>
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-medium">
+                            <tr>
+                                <th className="p-4">Fecha</th>
+                                <th className="p-4">Paciente</th>
+                                <th className="p-4">Tipo</th>
+                                <th className="p-4">Diagnóstico</th>
+                                <th className="p-4 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {records.filter(r => r.professionalId === user.id && r.status === RecordStatus.FINALIZED).map(r => (
+                                <tr key={r.id} className="hover:bg-slate-50">
+                                    <td className="p-4 text-slate-600">{new Date(r.dateFinalized || r.dateCreated).toLocaleDateString()}</td>
+                                    <td className="p-4 font-bold text-slate-800">
+                                        {patients.find(p => p.id === r.patientId)?.fullName || 'Paciente Desconocido'}
+                                    </td>
+                                    <td className="p-4"><span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold">{r.recordType}</span></td>
+                                    <td className="p-4 text-xs text-slate-500">{r.diagnoses?.[0]?.name || 'N/A'}</td>
+                                    <td className="p-4 text-right">
+                                        <button onClick={() => { setSelectedPatient(patients.find(p => p.id === r.patientId) || null); setCurrentRecord(r); setViewMode('VIEW'); }} className="text-blue-600 font-bold hover:underline">Ver Detalle</button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {records.filter(r => r.professionalId === user.id && r.status === RecordStatus.FINALIZED).length === 0 && (
+                                <tr><td colSpan={5} className="p-8 text-center text-slate-400 italic">No hay historias finalizadas registradas.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        ) : (
+        <>
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-            <h2 className="text-2xl font-bold text-slate-800">Mis Pacientes</h2>
+            <h2 className="text-2xl font-bold text-slate-800">
+                {activeTab === 'appointments' ? 'Agenda de Hoy' : 'Mis Pacientes'}
+            </h2>
             <div className="relative w-full md:w-72">
                 <Search size={18} className="absolute left-3 top-[50%] translate-y-[-50%] text-slate-400" />
                 <label htmlFor="patient-search" className="sr-only">Buscar pacientes</label>
@@ -1625,6 +1675,8 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
                 );
             })}
             </div>
+        )}
+        </>
         )}
     </div>
   );

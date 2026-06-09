@@ -1165,17 +1165,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'users' && isAdmin) {
       return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* User Form Space (Top) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6 border-b pb-4">
+            {/* User Form Space (Top) - Centro de Gestión de Identidades */}
+            <div className="bg-slate-50 p-6 rounded-xl shadow-sm border border-slate-200">
+                 <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
                     <div>
                         <h3 className="text-lg font-bold text-slate-800">
-                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
+                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Colaborador' : 'Registrar Nuevo Colaborador'}
                         </h3>
-                        <p className="text-sm text-slate-500">Espacio dedicado para la gestión y creación de cuentas del sistema.</p>
+                        <p className="text-sm text-slate-500">Centro de Gestión de Identidades: Espacio dedicado para la creación de cuentas del sistema.</p>
                     </div>
                     <button onClick={handleAddNewUser} className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg flex items-center hover:bg-slate-800 transition-colors shadow-lg">
-                        <Plus size={18} className="mr-2"/> Crear Nuevo Usuario
+                        <Plus size={18} className="mr-2"/> Nuevo Colaborador
                     </button>
                  </div>
                  <div className="mt-6">
@@ -1246,28 +1246,113 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-slate-800">Nueva Plantilla de HCE</h3>
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Nombre de la Plantilla</label>
+                                <input type="text" className="w-full border p-2 rounded-lg" placeholder="Ej: Consulta General Adultos" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Descripción</label>
+                                <textarea className="w-full border p-2 rounded-lg" rows={2} placeholder="Propósito de esta plantilla..."></textarea>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">Tipo de Registro</label>
+                                    <select className="w-full border p-2 rounded-lg">
+                                        {Object.values(RecordType).map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">Roles Permitidos</label>
+                                    <div className="flex flex-wrap gap-2 mt-1">
+                                        {Object.values(UserRole).slice(0, 5).map(r => (
+                                            <label key={r} className="flex items-center text-xs font-medium text-slate-600 bg-slate-50 px-2 py-1 rounded border">
+                                                <input type="checkbox" className="mr-1" /> {roleLabels[r] || r}
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 mt-8 pt-4 border-t">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold">Cancelar</button>
+                            <button onClick={() => { setIsTemplateModalOpen(false); alert("Plantilla creada (Simulación)"); }} className="px-6 py-2 bg-slate-900 text-white rounded-lg font-bold">Crear Plantilla</button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <div className="flex justify-between items-center mb-6">
+                              <h3 className="text-xl font-bold text-slate-800">Nueva Sección Clínica</h3>
+                              <button onClick={() => setIsSectionModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                          </div>
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="block text-sm font-bold text-slate-700 mb-1">Título de la Sección</label>
+                                  <input type="text" className="w-full border p-2 rounded-lg" placeholder="Ej: Antecedentes Familiares" />
+                              </div>
+                              <div>
+                                  <label className="block text-sm font-bold text-slate-700 mb-1">Descripción (Opcional)</label>
+                                  <input type="text" className="w-full border p-2 rounded-lg" placeholder="Guía para el profesional..." />
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-3 mt-8 pt-4 border-t">
+                              <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold">Cancelar</button>
+                              <button onClick={() => { setIsSectionModalOpen(false); alert("Sección creada (Simulación)"); }} className="px-6 py-2 bg-slate-900 text-white rounded-lg font-bold">Crear Sección</button>
+                          </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <div className="flex justify-between items-center mb-6">
+                              <h3 className="text-xl font-bold text-slate-800">Nuevo Campo / Variable</h3>
+                              <button onClick={() => setIsFieldModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                          </div>
+                          <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="block text-sm font-bold text-slate-700 mb-1">ID Único</label>
+                                      <input type="text" className="w-full border p-2 rounded-lg font-mono text-xs" placeholder="ej: v_tension_art" />
+                                  </div>
+                                  <div>
+                                      <label className="block text-sm font-bold text-slate-700 mb-1">Tipo de Dato</label>
+                                      <select className="w-full border p-2 rounded-lg text-sm">
+                                          <option value="TEXT">Texto Corto</option>
+                                          <option value="TEXTAREA">Texto Largo</option>
+                                          <option value="NUMBER">Numérico</option>
+                                          <option value="SELECT">Selección (Lista)</option>
+                                          <option value="CALCULATED">Calculado (Fórmula)</option>
+                                      </select>
+                                  </div>
+                              </div>
+                              <div>
+                                  <label className="block text-sm font-bold text-slate-700 mb-1">Etiqueta (Label)</label>
+                                  <input type="text" className="w-full border p-2 rounded-lg" placeholder="Ej: Tensión Arterial Sistólica" />
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="block text-sm font-bold text-slate-700 mb-1">Unidad</label>
+                                      <input type="text" className="w-full border p-2 rounded-lg" placeholder="Ej: mmHg" />
+                                  </div>
+                                  <div className="flex items-center pt-6">
+                                      <input type="checkbox" id="req-check" className="mr-2" />
+                                      <label htmlFor="req-check" className="text-sm font-bold text-slate-700">Obligatorio</label>
+                                  </div>
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-3 mt-8 pt-4 border-t">
+                              <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold">Cancelar</button>
+                              <button onClick={() => { setIsFieldModalOpen(false); alert("Variable creada (Simulación)"); }} className="px-6 py-2 bg-slate-900 text-white rounded-lg font-bold">Crear Campo</button>
+                          </div>
                       </div>
                   </div>
               )}
