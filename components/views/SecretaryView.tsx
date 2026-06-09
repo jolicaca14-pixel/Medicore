@@ -339,8 +339,65 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+             <div className="animate-in fade-in duration-500">
+                <div className="flex justify-between items-center mb-6">
+                   <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+                   <div className="flex gap-4">
+                        <div className="relative">
+                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                            <input
+                                type="text"
+                                placeholder="Buscar paciente..."
+                                className="pl-10 pr-4 py-2 border rounded-lg text-sm w-64 focus:ring-2 focus:ring-blue-500 outline-none"
+                                onChange={(e) => setBillingSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <button className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center">
+                            <Plus size={18} className="mr-2"/> Nuevo Paciente
+                        </button>
+                   </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-medium">
+                            <tr>
+                                <th className="p-4">Paciente</th>
+                                <th className="p-4">Identificación</th>
+                                <th className="p-4">Entidad / Seguro</th>
+                                <th className="p-4">Contacto</th>
+                                <th className="p-4 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {patients.filter(p =>
+                                p.fullName.toLowerCase().includes(billingSearchTerm.toLowerCase()) ||
+                                p.identification.includes(billingSearchTerm)
+                            ).map(p => (
+                                <tr key={p.id} className="hover:bg-slate-50">
+                                    <td className="p-4">
+                                        <div className="font-bold text-slate-800">{p.fullName}</div>
+                                        <div className="text-xs text-slate-400">{p.gender === 'M' ? 'Masculino' : 'Femenino'}</div>
+                                    </td>
+                                    <td className="p-4">{p.identification}</td>
+                                    <td className="p-4">
+                                        <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium border border-blue-100">
+                                            {p.insuranceType}
+                                        </span>
+                                    </td>
+                                    <td className="p-4">
+                                        <div className="text-slate-600">{p.phone}</div>
+                                        <div className="text-xs text-slate-400">{p.email}</div>
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <button className="p-2 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
+                                        <button onClick={() => { setBillingPatient(p); setActiveTab('BILLING'); }} className="p-2 text-slate-400 hover:text-green-600" title="Facturar"><DollarSign size={16}/></button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
              </div>
           )}
           {/* AGENDA TAB (Now Functional) */}
