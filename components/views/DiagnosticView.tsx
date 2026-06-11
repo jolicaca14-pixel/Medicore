@@ -38,6 +38,13 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   const [dynamicData, setDynamicData] = useState<Record<string, any>>({});
   const [completedRecords, setCompletedRecords] = useState<ClinicalRecord[]>([]);
 
+  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
+
+  const showStatus = (type: 'success' | 'error' | 'info', text: string) => {
+      setStatusMessage({ type, text });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
+
   // Filter orders based on user role
   const myOrders = orders.filter(o => 
       (isLab && o.type === 'LAB') || (isRad && o.type === 'IMAGING')
@@ -60,7 +67,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       if (!selectedOrder) return;
       
       const template = getTemplateForExam(selectedOrder.examName);
-      if(!template) return alert("No hay plantilla configurada para este examen.");
+      if(!template) return showStatus('error', "No hay plantilla configurada para este examen.");
 
       // Create a "Clinical Record" for this result
       const newRecord: ClinicalRecord = {
@@ -89,7 +96,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       // Update Order Status
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'COMPLETED' } : o));
       setSelectedOrder(null);
-      alert("Resultado guardado correctamente.");
+      showStatus('success', "Resultado guardado correctamente.");
   };
 
   // --- RENDER FIELD ---
@@ -126,8 +133,63 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const recordsInGroup = completedRecords.filter(r => {
+          const patient = MOCK_PATIENTS.find(p => p.id === r.patientId);
+          return patient?.fullName === patientName && r.dateCreated.startsWith(date);
+      });
+
+      const resultsHtml = recordsInGroup.map(r => {
+          const fieldsHtml = Object.entries(r.dynamicData).map(([key, val]) => {
+              const label = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+              return `<p><strong>${label}:</strong> ${val}</p>`;
+          }).join('');
+
+          return `
+            <div style="margin-bottom: 30px; border-bottom: 1px solid #eee; padding-bottom: 20px;">
+                <h3 style="color: #2563eb;">${r.chiefComplaint}</h3>
+                ${fieldsHtml}
+            </div>
+          `;
+      }).join('');
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Resultados - ${patientName}</title>
+            <style>
+              body { font-family: sans-serif; color: #333; padding: 40px; line-height: 1.5; }
+              .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+              .info { margin-bottom: 30px; background: #f8fafc; padding: 20px; rounded: 8px; border: 1px solid #e2e8f0; }
+              .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #777; border-top: 1px solid #eee; padding-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1 style="margin: 0;">MEDICORE IPS</h1>
+              <p>Departamento de Apoyo Diagnóstico</p>
+              <h2>REPORTE DE RESULTADOS</h2>
+            </div>
+            <div class="info">
+              <p><strong>Paciente:</strong> ${patientName}</p>
+              <p><strong>Fecha de Atención:</strong> ${date}</p>
+              <p><strong>Profesional:</strong> ${user.name}</p>
+            </div>
+            <div class="results">
+              ${resultsHtml}
+            </div>
+            <div class="footer">
+              <p>Este documento es una representación digital de los resultados almacenados en la HCE.</p>
+              <p>Generado por: MediCore Pro System</p>
+            </div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- RENDER FORM ---
@@ -169,9 +231,29 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
       );
   }
 
+  // --- RENDER HELPERS ---
+  const renderStatus = () => {
+    if (!statusMessage) return null;
+    return (
+        <div className="fixed top-4 right-4 z-[100] animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className={`px-6 py-4 rounded-xl shadow-2xl flex items-center border-l-4 ${
+                statusMessage.type === 'success' ? 'bg-white border-green-500 text-green-800' :
+                statusMessage.type === 'error' ? 'bg-white border-red-500 text-red-800' :
+                'bg-white border-blue-500 text-blue-800'
+            }`}>
+                {statusMessage.type === 'success' && <CheckCircle size={20} className="mr-3 text-green-500"/>}
+                {statusMessage.type === 'error' && <AlertCircle size={20} className="mr-3 text-red-500"/>}
+                {statusMessage.type === 'info' && <FileText size={20} className="mr-3 text-blue-500"/>}
+                <p className="font-bold text-sm">{statusMessage.text}</p>
+            </div>
+        </div>
+    );
+  };
+
   // --- DASHBOARD ---
   return (
     <div className="p-8 max-w-7xl mx-auto">
+        {renderStatus()}
         <div className="flex justify-between items-center mb-8">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800">{isLab ? 'Laboratorio Clínico' : 'Imagenología y Radiología'}</h2>

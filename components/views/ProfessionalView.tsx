@@ -54,6 +54,13 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   const [isSaved, setIsSaved] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
+
+  const showStatus = (type: 'success' | 'error' | 'info', text: string) => {
+      setStatusMessage({ type, text });
+      setTimeout(() => setStatusMessage(null), 3000);
+  };
+
   // ⚡ TRINITY: Fetch Patients from API
   useEffect(() => {
     const fetchPatients = async () => {
@@ -304,7 +311,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       setHrUser(updatedUser); // Update local view state
       
       // In a real app, this would call an API.
-      alert("Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
+      showStatus('success', "Sus descargos han sido registrados correctamente en el sistema de Talento Humano.");
       setShowDescargosModal(false);
   };
 
@@ -333,7 +340,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
 
   const handleOpenPaymentModal = () => {
       const activeContract = hrUser.contracts?.find(c => c.isActive && c.type === ContractType.OPS);
-      if (!activeContract) return alert("Solo disponible para contratos OPS Activos.");
+      if (!activeContract) return showStatus('error', "Solo disponible para contratos OPS Activos.");
       
       setNewPayment({
           period: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
@@ -393,7 +400,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           pdfWindow.document.close();
       }
 
-      alert("Cuenta de cobro generada y notificada a Administración.");
+      showStatus('success', "Cuenta de cobro generada y notificada a Administración.");
   };
 
 
@@ -522,7 +529,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     if (action === 'FINALIZE') {
         // 🩺 DOC HOUSE: Gender-based clinical validation
         if (selectedPatient.gender === 'M' && (selectedTemplate?.recordType === RecordType.PYP_PREGNANCY || selectedTemplate?.recordType === RecordType.PYP_PUERPERIUM)) {
-            alert("Error: Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.");
+            showStatus('error', "Las plantillas de control prenatal/puerperio no son aplicables a pacientes de género masculino.");
             return;
         }
 
@@ -539,14 +546,14 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
         }
 
         if ((!currentRecord.diagnoses || currentRecord.diagnoses.length === 0) && selectedTemplate?.recordType !== RecordType.PROCEDURE) {
-            alert("Es obligatorio seleccionar al menos un diagnóstico CIE-11.");
+            showStatus('error', "Es obligatorio seleccionar al menos un diagnóstico CIE-11.");
             setActiveFormTab('orders_tab');
             return;
         }
         // VALIDATE BARTHEL IF REQUIRED
         if (isFirstTimeRCV && selectedTemplate?.recordType === RecordType.PYP_CV_RISK) {
             if(!dynamicData['global_barthel']) {
-                alert("La Escala de Barthel es obligatoria para el ingreso al programa de RCV.");
+                showStatus('error', "La Escala de Barthel es obligatoria para el ingreso al programa de RCV.");
                 return;
             }
         }
@@ -615,7 +622,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
           setShowAuthModal(false);
           setViewMode('LIST');
           setSelectedPatient(null);
-          alert(`Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`);
+          showStatus('success', `Historia finalizada y Resumen Digital de Atención (RDA) enviado a Plataforma de Interoperabilidad.`);
         }, 2500);
       } else {
         setShowAuthModal(false);
@@ -627,7 +634,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   
   const handleAddDiagnosis = (code: string, name: string) => {
       if (!validateCIE11Code(code)) {
-          alert("Código CIE-11 no válido para este paciente.");
+          showStatus('error', "Código CIE-11 no válido para este paciente.");
           return;
       }
       if (currentRecord.diagnoses?.some(d => d.code === code)) return;
@@ -679,7 +686,7 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
       const currentAnalysis = dynamicData['d_analisis'] || '';
       const newAnalysis = currentAnalysis + importText;
       setDynamicData({ ...dynamicData, d_analisis: newAnalysis });
-      alert(`✅ Datos de ${result.chiefComplaint} importados correctamente al campo 'Análisis Clínico'.`);
+      showStatus('success', `Datos de ${result.chiefComplaint} importados correctamente.`);
   };
 
   const renderField = (field: any, isReadOnly: boolean) => {
@@ -1523,9 +1530,29 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
     );
   }
 
+  // --- RENDER HELPERS ---
+  const renderStatus = () => {
+    if (!statusMessage) return null;
+    return (
+        <div className="fixed top-4 right-4 z-[100] animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className={`px-6 py-4 rounded-xl shadow-2xl flex items-center border-l-4 ${
+                statusMessage.type === 'success' ? 'bg-white border-green-500 text-green-800' :
+                statusMessage.type === 'error' ? 'bg-white border-red-500 text-red-800' :
+                'bg-white border-blue-500 text-blue-800'
+            }`}>
+                {statusMessage.type === 'success' && <CheckCircle size={20} className="mr-3 text-green-500"/>}
+                {statusMessage.type === 'error' && <AlertCircle size={20} className="mr-3 text-red-500"/>}
+                {statusMessage.type === 'info' && <FileText size={20} className="mr-3 text-blue-500"/>}
+                <p className="font-bold text-sm">{statusMessage.text}</p>
+            </div>
+        </div>
+    );
+  };
+
   // --- LIST VIEW ---
   return (
     <div className="p-6">
+        {renderStatus()}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
             <h2 className="text-2xl font-bold text-slate-800">Mis Pacientes</h2>
             <div className="relative w-full md:w-72">
