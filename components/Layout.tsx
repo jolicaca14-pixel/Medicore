@@ -48,16 +48,19 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
     let items: any[] = [];
     const roles = user.roles || [];
 
-    if (roles.includes(UserRole.ADMIN)) {
-      items = [
-        ...items,
-        { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
-        { id: 'users', label: 'Gestión Usuarios', icon: Users },
-        { id: 'files', label: 'Gestión Archivos', icon: FileText },
-        { id: 'hr', label: 'Talento Humano', icon: Briefcase }, // NEW HR MODULE
-        { id: 'reports', label: 'Gestión Financiera', icon: DollarSign },
-        { id: 'settings', label: 'Plantillas / Roles', icon: Settings },
-      ];
+    const isAdmin = roles.includes(UserRole.ADMIN);
+    const isManager = roles.includes(UserRole.MANAGER);
+    const isAccountant = roles.includes(UserRole.ACCOUNTANT);
+
+    if (isAdmin || isManager || isAccountant) {
+      if(!items.some(i => i.id === 'dashboard')) items.push({ id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard });
+      if (isAdmin) {
+          items.push({ id: 'users', label: 'Gestión Usuarios', icon: Users });
+          items.push({ id: 'files', label: 'Gestión Archivos', icon: FileText });
+          items.push({ id: 'settings', label: 'Plantillas / Roles', icon: Settings });
+      }
+      items.push({ id: 'hr', label: 'Talento Humano', icon: Briefcase });
+      items.push({ id: 'reports', label: 'Gestión Financiera', icon: DollarSign });
     }
     
     if (roles.includes(UserRole.PROFESSIONAL) || roles.includes(UserRole.PSYCHOLOGIST)) {
