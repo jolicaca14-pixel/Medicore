@@ -54,10 +54,22 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
         { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
         { id: 'users', label: 'Gestión Usuarios', icon: Users },
         { id: 'files', label: 'Gestión Archivos', icon: FileText },
-        { id: 'hr', label: 'Talento Humano', icon: Briefcase }, // NEW HR MODULE
+        { id: 'hr', label: 'Talento Humano', icon: Briefcase },
         { id: 'reports', label: 'Gestión Financiera', icon: DollarSign },
         { id: 'settings', label: 'Plantillas / Roles', icon: Settings },
       ];
+    }
+
+    if (roles.includes(UserRole.MANAGER)) {
+       if(!items.some(i => i.id === 'dashboard')) items.push({ id: 'dashboard', label: 'Gerencia', icon: LayoutDashboard });
+       if(!items.some(i => i.id === 'hr')) items.push({ id: 'hr', label: 'Talento Humano', icon: Briefcase });
+       if(!items.some(i => i.id === 'reports')) items.push({ id: 'reports', label: 'Gestión Financiera', icon: DollarSign });
+    }
+
+    if (roles.includes(UserRole.ACCOUNTANT)) {
+       if(!items.some(i => i.id === 'dashboard')) items.push({ id: 'dashboard', label: 'Contabilidad', icon: LayoutDashboard });
+       if(!items.some(i => i.id === 'reports')) items.push({ id: 'reports', label: 'Reportes Financieros', icon: DollarSign });
+       if(!items.some(i => i.id === 'hr')) items.push({ id: 'hr', label: 'Nómina / Contratos', icon: Briefcase });
     }
     
     if (roles.includes(UserRole.PROFESSIONAL) || roles.includes(UserRole.PSYCHOLOGIST)) {

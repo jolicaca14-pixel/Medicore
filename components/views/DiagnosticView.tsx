@@ -126,8 +126,63 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const recordsInGroup = completedRecords.filter(r => r.patientId === MOCK_PATIENTS.find(p => p.fullName === patientName)?.id && r.dateCreated.startsWith(date));
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+              <html>
+              <head>
+                  <title>Resultados - ${patientName}</title>
+                  <style>
+                      body { font-family: sans-serif; padding: 40px; color: #334155; }
+                      .header { display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
+                      .logo { font-size: 24px; font-weight: bold; color: #0f172a; }
+                      .report-info { text-align: right; }
+                      .result-block { margin-bottom: 40px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+                      .result-header { background: #f8fafc; padding: 12px; font-weight: bold; border-bottom: 1px solid #e2e8f0; }
+                      .result-body { padding: 12px; }
+                      .field-row { display: flex; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; }
+                      .field-label { font-weight: bold; width: 200px; color: #64748b; font-size: 14px; }
+                      .field-value { flex: 1; font-size: 14px; }
+                      .footer { margin-top: 50px; font-size: 12px; text-align: center; color: #94a3b8; }
+                  </style>
+              </head>
+              <body>
+                  <div class="header">
+                      <div class="logo">MediCore Diagnostic</div>
+                      <div class="report-info">
+                          <h2>INFORME CONSOLIDADO</h2>
+                          <p>Fecha: ${date}</p>
+                      </div>
+                  </div>
+                  <div class="patient-info">
+                      <h3>Paciente: ${patientName}</h3>
+                  </div>
+                  ${recordsInGroup.map(r => `
+                      <div class="result-block">
+                          <div class="result-header">${r.chiefComplaint}</div>
+                          <div class="result-body">
+                              ${Object.entries(r.dynamicData).map(([key, val]) => `
+                                  <div class="field-row">
+                                      <span class="field-label">${MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key}:</span>
+                                      <span class="field-value">${val}</span>
+                                  </div>
+                              `).join('')}
+                          </div>
+                      </div>
+                  `).join('')}
+                  <div class="footer">
+                      <p>Resultados verificados digitalmente por ${user.name}</p>
+                      <p>Este documento es una representación impresa de resultados digitales.</p>
+                  </div>
+                  <script>window.print();</script>
+              </body>
+              </html>
+          `);
+          printWindow.document.close();
+      }
   };
 
   // --- RENDER FORM ---
