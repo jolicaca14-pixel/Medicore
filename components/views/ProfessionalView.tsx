@@ -1524,6 +1524,82 @@ export const ProfessionalView: React.FC<ProfessionalViewProps> = ({ user, active
   }
 
   // --- LIST VIEW ---
+  if (activeTab === 'appointments') {
+      const today = new Date().toISOString().split('T')[0];
+      const todayAppts = MOCK_APPOINTMENTS.filter(a => a.date === today && a.professionalId === user.id);
+
+      return (
+          <div className="p-6 animate-in fade-in duration-500">
+              <h2 className="text-2xl font-bold text-slate-800 mb-6">Agenda de Hoy</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {todayAppts.map(appt => {
+                      const patient = patients.find(p => p.id === appt.patientId);
+                      if(!patient) return null;
+                      return (
+                          <div key={appt.id} className={`bg-white p-6 rounded-xl shadow-sm border border-l-4 ${appt.status === 'WAITING' ? 'border-l-green-500 bg-green-50/20' : 'border-l-blue-500'} hover:shadow-md transition-all cursor-pointer group`} onClick={() => handleCreateRecord(patient)}>
+                              <div className="flex justify-between items-start mb-4">
+                                  <span className="text-lg font-bold text-slate-800">{appt.time}</span>
+                                  <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${appt.status === 'WAITING' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                      {appt.status === 'WAITING' ? 'EN SALA' : 'PROGRAMADA'}
+                                  </span>
+                              </div>
+                              <h3 className="font-bold text-slate-700">{patient.fullName}</h3>
+                              <p className="text-xs text-slate-500">{patient.identification}</p>
+                              <p className="text-sm text-slate-400 mt-2 italic">"{appt.reason}"</p>
+                              <button className="mt-4 w-full bg-slate-900 text-white py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                                  Atender Ahora
+                              </button>
+                          </div>
+                      );
+                  })}
+                  {todayAppts.length === 0 && <div className="col-span-full py-12 text-center text-slate-400 italic bg-white rounded-xl border border-dashed border-slate-300">No hay pacientes programados para hoy.</div>}
+              </div>
+          </div>
+      );
+  }
+
+  if (activeTab === 'records') {
+      const myRecords = records.filter(r => r.professionalId === user.id && r.status === RecordStatus.FINALIZED);
+      return (
+          <div className="p-6 animate-in fade-in duration-500">
+              <h2 className="text-2xl font-bold text-slate-800 mb-6">Mis Historias Finalizadas</h2>
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <table className="w-full text-sm text-left">
+                      <thead className="bg-slate-50 text-slate-500 font-medium">
+                          <tr>
+                              <th className="p-4">Fecha</th>
+                              <th className="p-4">Paciente</th>
+                              <th className="p-4">Tipo</th>
+                              <th className="p-4">Diagnóstico</th>
+                              <th className="p-4 text-right">Acción</th>
+                          </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                          {myRecords.map(r => {
+                              const p = patients.find(pat => pat.id === r.patientId);
+                              return (
+                                  <tr key={r.id} className="hover:bg-slate-50">
+                                      <td className="p-4 font-medium text-slate-700">{new Date(r.dateFinalized || r.dateCreated).toLocaleDateString()}</td>
+                                      <td className="p-4">
+                                          <p className="font-bold text-slate-800">{p?.fullName || 'Paciente Desconocido'}</p>
+                                          <p className="text-xs text-slate-400">{p?.identification}</p>
+                                      </td>
+                                      <td className="p-4 text-xs font-bold text-slate-500">{r.recordType}</td>
+                                      <td className="p-4 text-xs">{r.diagnoses?.[0]?.name || '-'}</td>
+                                      <td className="p-4 text-right">
+                                          <button onClick={() => { setSelectedPatient(p || null); setCurrentRecord(r); setViewMode('VIEW'); }} className="text-blue-600 hover:bg-blue-50 px-3 py-1 rounded border border-blue-100 font-bold">Ver Detalle</button>
+                                      </td>
+                                  </tr>
+                              );
+                          })}
+                          {myRecords.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-slate-400 italic">No tiene historias finalizadas registradas.</td></tr>}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      );
+  }
+
   return (
     <div className="p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">

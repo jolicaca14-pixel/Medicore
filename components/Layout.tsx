@@ -58,6 +58,14 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
         { id: 'reports', label: 'Gestión Financiera', icon: DollarSign },
         { id: 'settings', label: 'Plantillas / Roles', icon: Settings },
       ];
+    } else if (roles.includes(UserRole.MANAGER) || roles.includes(UserRole.ACCOUNTANT)) {
+        // Shared access for management roles but NOT users/files/settings
+        items = [
+            ...items,
+            { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
+            { id: 'hr', label: 'Talento Humano', icon: Briefcase },
+            { id: 'reports', label: 'Gestión Financiera', icon: DollarSign },
+        ];
     }
     
     if (roles.includes(UserRole.PROFESSIONAL) || roles.includes(UserRole.PSYCHOLOGIST)) {
