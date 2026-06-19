@@ -126,8 +126,60 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const recordsInGroup = completedRecords.filter(r => {
+          const patient = MOCK_PATIENTS.find(p => p.id === r.patientId);
+          return patient?.fullName === patientName && r.dateCreated.startsWith(date);
+      });
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+          printWindow.document.write(`
+            <html>
+              <head>
+                <title>Resultados - ${patientName}</title>
+                <style>
+                  body { font-family: sans-serif; padding: 40px; color: #333; }
+                  .header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 20px; }
+                  .result-block { margin-bottom: 40px; border: 1px solid #eee; padding: 20px; border-radius: 8px; }
+                  h3 { color: #2563eb; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+                  .field { margin: 10px 0; font-size: 14px; }
+                  .label { font-weight: bold; color: #666; }
+                </style>
+              </head>
+              <body>
+                <div class="header">
+                  <h1>MEDICORE IPS - LABORATORIO E IMAGENOLOGÍA</h1>
+                  <p>Informe Consolidado de Resultados</p>
+                  <p><strong>Paciente:</strong> ${patientName} | <strong>Fecha:</strong> ${date}</p>
+                </div>
+                ${recordsInGroup.map(r => `
+                  <div class="result-block">
+                    <h3>${r.chiefComplaint}</h3>
+                    <p style="font-size: 12px; color: #999;">ID Resultado: ${r.id} | Profesional: ${r.professionalName}</p>
+                    <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 10px; margin-top: 15px;">
+                      ${Object.entries(r.dynamicData).map(([key, val]) => {
+                          const field = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key);
+                          return `
+                            <div class="field">
+                              <span class="label">${field?.label || key}:</span>
+                              <span>${val} ${field?.unit || ''}</span>
+                            </div>
+                          `;
+                      }).join('')}
+                    </div>
+                  </div>
+                `).join('')}
+                <div style="margin-top: 50px; font-size: 10px; color: #999; text-align: center; border-top: 1px solid #eee; pt: 20px;">
+                  Este documento es una representación impresa de resultados electrónicos.
+                  Validado digitalmente por el profesional responsable.
+                </div>
+              </body>
+            </html>
+          `);
+          printWindow.document.close();
+          printWindow.print();
+      }
   };
 
   // --- RENDER FORM ---
