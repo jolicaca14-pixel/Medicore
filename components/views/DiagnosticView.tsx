@@ -126,8 +126,76 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const groupKey = `${patientName}|${date}`; // Not perfect but works for mock
+      const patientRecords = completedRecords.filter(r => {
+          const pName = MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName || 'Desconocido';
+          return pName === patientName && r.dateCreated.startsWith(date);
+      });
+
+      const resultsHtml = patientRecords.map(r => {
+          let dataHtml = '';
+          Object.entries(r.dynamicData).forEach(([key, val]) => {
+              const field = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key);
+              dataHtml += `
+                <div style="margin-bottom: 10px; border-left: 3px solid #0ea5e9; padding-left: 10px;">
+                    <span style="font-weight: bold; color: #64748b; font-size: 0.9em; display: block;">${field?.label || key}:</span>
+                    <span style="font-size: 1.1em;">${val} ${field?.unit || ''}</span>
+                </div>
+              `;
+          });
+          return `
+            <div style="margin-bottom: 40px; page-break-inside: avoid;">
+                <h3 style="color: #0ea5e9; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">${r.chiefComplaint}</h3>
+                <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 20px;">
+                    ${dataHtml}
+                </div>
+            </div>
+          `;
+      }).join('');
+
+      printWindow.document.write(`
+        <html>
+            <head>
+                <title>Resultados - ${patientName}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; line-height: 1.6; padding: 40px; }
+                    .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0ea5e9; padding-bottom: 20px; margin-bottom: 30px; }
+                    .patient-info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
+                    .footer { margin-top: 50px; text-align: center; font-size: 0.8em; color: #94a3b8; border-top: 1px solid #eee; padding-top: 20px; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div>
+                        <h1 style="color: #0ea5e9; margin: 0;">MEDICORE IPS</h1>
+                        <p style="margin: 5px 0;">Unidad de Ayudas Diagnósticas</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <h2 style="margin: 0;">REPORTE DE RESULTADOS</h2>
+                        <p style="margin: 5px 0;">Fecha: ${date}</p>
+                    </div>
+                </div>
+
+                <div class="patient-info">
+                    <p style="margin: 0;"><strong>PACIENTE:</strong> ${patientName}</p>
+                    <p style="margin: 5px 0 0 0;"><strong>FECHA REPORTE:</strong> ${new Date().toLocaleString()}</p>
+                </div>
+
+                ${resultsHtml}
+
+                <div class="footer">
+                    <p>Estos resultados deben ser interpretados por su médico tratante.</p>
+                    <p>Firmado electrónicamente por: ${user.name} - ${user.roles.includes(UserRole.BACTERIOLOGIST) ? 'Bacteriólogo' : 'Radiólogo'}</p>
+                </div>
+            </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
   };
 
   // --- RENDER FORM ---
