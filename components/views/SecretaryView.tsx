@@ -53,6 +53,16 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   const [tariffMode, setTariffMode] = useState<'SOAT' | 'PARTICULAR'>('SOAT');
   const [invoices, setInvoices] = useState<Invoice[]>([]); // Cartera
 
+  // Patient Management Modal
+  const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
+  const [currentPatient, setCurrentPatient] = useState<Partial<Patient>>({});
+  const [patientSearchTerm, setPatientSearchTerm] = useState('');
+
+  // Payment Modal
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+
   // Manual Item
   const [manualItemName, setManualItemName] = useState('');
   const [manualItemPrice, setManualItemPrice] = useState('');
@@ -267,34 +277,92 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const itemsHtml = invoice.items.map(item => `
+        <tr>
+            <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price)}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+        </tr>
+      `).join('');
+
+      printWindow.document.write(`
+        <html>
+            <head>
+                <title>Factura ${invoice.id}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; padding: 40px; }
+                    .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+                    .logo { font-size: 24px; font-bold: bold; color: #1e293b; }
+                    .info { margin-bottom: 20px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                    th { background: #f8fafc; text-align: left; padding: 12px; border-bottom: 2px solid #e2e8f0; }
+                    .totals { margin-top: 30px; text-align: right; }
+                    .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #64748b; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="logo">MEDICORE IPS</div>
+                    <div>
+                        <h2 style="margin: 0;">FACTURA DE VENTA</h2>
+                        <p style="margin: 5px 0; color: #64748b;">N° ${invoice.id}</p>
+                    </div>
+                </div>
+                <div class="info">
+                    <p><strong>Paciente:</strong> ${invoice.patientName}</p>
+                    <p><strong>Fecha:</strong> ${new Date(invoice.date).toLocaleString()}</p>
+                    <p><strong>Estado:</strong> ${invoice.status}</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Descripción</th>
+                            <th style="text-align: center;">Cant.</th>
+                            <th style="text-align: right;">P. Unitario</th>
+                            <th style="text-align: right;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>${itemsHtml}</tbody>
+                </table>
+                <div class="totals">
+                    <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+                    <p>Descuento: ${formatCurrency(invoice.discount)}</p>
+                    <h3 style="font-size: 20px; color: #1e293b;">TOTAL: ${formatCurrency(invoice.total)}</h3>
+                    <p style="color: #ef4444;">Saldo Pendiente: ${formatCurrency(invoice.balance)}</p>
+                </div>
+                <div class="footer">
+                    <p>Gracias por confiar en MEDICORE IPS. Resolución DIAN 123456789</p>
+                </div>
+                <script>window.print();</script>
+            </body>
+        </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
-  const registerPayment = (id: string) => {
+  const handleOpenPaymentModal = (id: string) => {
       const inv = invoices.find(i => i.id === id);
-      if(!inv) return;
+      if (!inv) return;
+      setSelectedInvoiceId(id);
+      setPaymentAmount(inv.balance.toString());
+      setIsPaymentModalOpen(true);
+  };
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
+  const registerPayment = () => {
+      if (!selectedInvoiceId) return;
+      const amount = parseFloat(paymentAmount);
+      const inv = invoices.find(i => i.id === selectedInvoiceId);
       
-      if(amount > inv.balance) {
-          alert("El monto ingresado supera el saldo pendiente.");
-          return;
-      }
+      if (!inv || isNaN(amount) || amount <= 0) return alert("Monto no válido");
+      if (amount > inv.balance) return alert("El monto supera el saldo");
 
       setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
+          if (invoice.id !== selectedInvoiceId) return invoice;
           const newBalance = invoice.balance - amount;
           const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
           return {
@@ -304,7 +372,29 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
+      setIsPaymentModalOpen(false);
       alert("Pago registrado correctamente.");
+  };
+
+  const handleNewPatient = () => {
+      setCurrentPatient({ id: `p${Date.now()}`, fullName: '', identification: '', insuranceType: 'CONTRIBUTIVO', birthDate: '', gender: 'M' });
+      setIsPatientModalOpen(true);
+  };
+
+  const handleEditPatient = (p: Patient) => {
+      setCurrentPatient({ ...p });
+      setIsPatientModalOpen(true);
+  };
+
+  const handleSavePatient = () => {
+      if (!currentPatient.fullName || !currentPatient.identification) return alert("Nombre e identificación son obligatorios");
+      const finalPatient = { ...currentPatient } as Patient;
+      if (patients.some(p => p.id === finalPatient.id)) {
+          setPatients(prev => prev.map(p => p.id === finalPatient.id ? finalPatient : p));
+      } else {
+          setPatients(prev => [...prev, finalPatient]);
+      }
+      setIsPatientModalOpen(false);
   };
 
   return (
@@ -339,8 +429,83 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+             <div className="space-y-6">
+                {isPatientModalOpen && (
+                    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                            <h3 className="text-lg font-bold text-slate-800 mb-4">{currentPatient.id && patients.some(p => p.id === currentPatient.id) ? 'Editar Paciente' : 'Nuevo Registro de Paciente'}</h3>
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="col-span-2">
+                                        <label className="text-xs font-bold text-slate-500">Nombre Completo</label>
+                                        <input className="w-full border p-2 rounded" value={currentPatient.fullName || ''} onChange={e => setCurrentPatient({...currentPatient, fullName: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500">Identificación</label>
+                                        <input className="w-full border p-2 rounded" value={currentPatient.identification || ''} onChange={e => setCurrentPatient({...currentPatient, identification: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500">Tipo de Afiliación</label>
+                                        <select className="w-full border p-2 rounded" value={currentPatient.insuranceType} onChange={e => setCurrentPatient({...currentPatient, insuranceType: e.target.value as any})}>
+                                            <option value="CONTRIBUTIVO">Contributivo</option>
+                                            <option value="SUBSIDIADO">Subsidiado</option>
+                                            <option value="PARTICULAR">Particular</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-2 mt-6">
+                                <button onClick={() => setIsPatientModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
+                                <button onClick={handleSavePatient} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar Paciente</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2>
+                    <button onClick={handleNewPatient} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center hover:bg-blue-700 shadow-md transition-all">
+                        <Plus size={18} className="mr-2"/> Nuevo Paciente
+                    </button>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="relative mb-6">
+                        <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                        <input
+                            type="text"
+                            placeholder="Buscar paciente por nombre o documento..."
+                            className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                            value={patientSearchTerm}
+                            onChange={e => setPatientSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-medium">
+                            <tr>
+                                <th className="p-4">Paciente</th>
+                                <th className="p-4">Documento</th>
+                                <th className="p-4">Tipo Seguro</th>
+                                <th className="p-4 text-right">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {patients.filter(p => p.fullName.toLowerCase().includes(patientSearchTerm.toLowerCase()) || p.identification.includes(patientSearchTerm)).map(p => (
+                                <tr key={p.id} className="hover:bg-slate-50 group">
+                                    <td className="p-4 font-bold text-slate-700">{p.fullName}</td>
+                                    <td className="p-4 text-slate-500">{p.identification}</td>
+                                    <td className="p-4">
+                                        <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-1 rounded-full font-bold">{p.insuranceType}</span>
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <button onClick={() => handleEditPatient(p)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                            <Edit size={16}/>
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
              </div>
           )}
           {/* AGENDA TAB (Now Functional) */}
@@ -649,6 +814,33 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
           {/* CARTERA TAB (Enhanced) */}
           {activeTab === 'CARTERA' && (
               <div>
+                   {isPaymentModalOpen && (
+                        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                            <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Registrar Abono a Cartera</h3>
+                                <p className="text-sm text-slate-500 mb-4">Ingrese el monto recaudado para la factura <span className="font-mono">{selectedInvoiceId}</span>.</p>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase">Monto a Recibir</label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                                            <input
+                                                type="number"
+                                                className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-lg font-bold"
+                                                value={paymentAmount}
+                                                onChange={e => setPaymentAmount(e.target.value)}
+                                                autoFocus
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 mt-6">
+                                    <button onClick={() => setIsPaymentModalOpen(false)} className="flex-1 px-4 py-2 text-slate-600 font-bold">Cancelar</button>
+                                    <button onClick={registerPayment} className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 shadow-lg">Confirmar Pago</button>
+                                </div>
+                            </div>
+                        </div>
+                   )}
                    <h2 className="text-2xl font-bold text-slate-800 mb-6">Cartera (Cuentas por Cobrar)</h2>
                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                        <table className="w-full text-sm text-left">
@@ -679,7 +871,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                       <td className="p-4 text-right flex justify-end space-x-2">
                                           <button onClick={() => printInvoice(inv)} className="bg-slate-200 text-slate-700 p-2 rounded hover:bg-slate-300" title="Imprimir"><Printer size={16}/></button>
                                           {inv.status !== 'PAID' && (
-                                              <button onClick={() => registerPayment(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
+                                              <button onClick={() => handleOpenPaymentModal(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
                                                   Abonar
                                               </button>
                                           )}
