@@ -126,8 +126,57 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string, records: ClinicalRecord[]) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const resultsHtml = records.map(r => {
+          const results = Object.entries(r.dynamicData).map(([key, val]) => {
+              const fieldLabel = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key)?.label || key;
+              return `<div style="margin-bottom: 5px;"><strong>${fieldLabel}:</strong> ${val}</div>`;
+          }).join('');
+
+          return `
+            <div style="margin-bottom: 30px; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+                <h3 style="margin-top: 0; color: #1e293b; border-bottom: 1px solid #eee; padding-bottom: 10px;">${r.chiefComplaint}</h3>
+                <div>${results}</div>
+                <div style="margin-top: 15px; font-size: 11px; color: #64748b;">
+                    Validado por: ${r.professionalName} | Fecha: ${new Date(r.dateFinalized || '').toLocaleString()}
+                </div>
+            </div>
+          `;
+      }).join('');
+
+      printWindow.document.write(`
+        <html>
+            <head>
+                <title>Resultados - ${patientName}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; padding: 40px; }
+                    .header { text-align: center; margin-bottom: 40px; }
+                    .logo { font-size: 24px; font-weight: bold; color: #1e293b; margin-bottom: 5px; }
+                    .patient-info { background: #f8fafc; padding: 20px; border-radius: 10px; margin-bottom: 30px; }
+                    .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #64748b; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="logo">MEDICORE IPS - SERVICIOS DIAGNÓSTICOS</div>
+                    <p style="margin: 0; color: #64748b;">Reporte Consolidado de Resultados</p>
+                </div>
+                <div class="patient-info">
+                    <h2 style="margin: 0 0 10px 0;">${patientName}</h2>
+                    <p style="margin: 0;">Fecha del Reporte: ${date}</p>
+                </div>
+                <div>${resultsHtml}</div>
+                <div class="footer">
+                    <p>Este documento es una representación impresa de un registro electrónico. Validación biométrica realizada.</p>
+                </div>
+                <script>window.print();</script>
+            </body>
+        </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---
@@ -256,7 +305,7 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
                                                 ))}
                                             </div>
                                         </div>
-                                        <button onClick={() => handlePrintDate(patientName, date)} className="flex items-center px-4 py-2 border rounded hover:bg-white text-slate-600 font-bold text-sm">
+                                        <button onClick={() => handlePrintDate(patientName, date, recordsInGroup)} className="flex items-center px-4 py-2 border rounded hover:bg-white text-slate-600 font-bold text-sm">
                                             <Printer size={16} className="mr-2"/> Imprimir Resultados Fecha
                                         </button>
                                     </div>
