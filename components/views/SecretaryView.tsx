@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User, Patient, Appointment, Invoice, InvoiceItem, RecordType, RecordStatus, ClinicalRecord, UserRole, TariffItem } from '../../types';
 import { MOCK_PATIENTS, MOCK_APPOINTMENTS, MOCK_RECORDS, MOCK_SOAT_TARIFF, SMLDV_2024, formatCurrency, MOCK_USERS } from '../../constants';
 import { appointmentService } from '../../services/appointmentService';
-import { Users, Calendar, FileText, Search, Plus, Edit, Trash2, X, DollarSign, Printer, CheckCircle, Clock, Download, Briefcase, Percent, Stethoscope, ListPlus, UserCheck, AlertOctagon, RotateCcw, Loader2 } from 'lucide-react';
+import { Users, Calendar, Search, Plus, Trash2, X, DollarSign, Printer, CheckCircle, Briefcase, Stethoscope, UserCheck, AlertOctagon, RotateCcw, Loader2 } from 'lucide-react';
 
 interface SecretaryViewProps {
   user: User;
@@ -52,6 +52,11 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   const [partialPayment, setPartialPayment] = useState<string>('');
   const [tariffMode, setTariffMode] = useState<'SOAT' | 'PARTICULAR'>('SOAT');
   const [invoices, setInvoices] = useState<Invoice[]>([]); // Cartera
+
+  // Cartera Payment Modal State
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<string>('');
 
   // Manual Item
   const [manualItemName, setManualItemName] = useState('');
@@ -267,26 +272,101 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   const printInvoice = (invoice: Invoice) => {
-      // Simulate Print
-      const printContent = `
-        FACTURA DE VENTA N° ${invoice.id}
-        Paciente: ${invoice.patientName}
-        Total: ${formatCurrency(invoice.total)}
-        Pagado: ${formatCurrency(invoice.total - invoice.balance)}
-        Saldo Pendiente: ${formatCurrency(invoice.balance)}
-        Estado: ${invoice.status}
-      `;
-      alert("Imprimiendo...\n" + printContent);
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const itemsHtml = invoice.items.map(item => `
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+        </tr>
+      `).join('');
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Factura ${invoice.id}</title>
+            <style>
+              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; padding: 40px; line-height: 1.6; }
+              .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
+              .info { display: flex; justify-content: space-between; margin-bottom: 30px; }
+              table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+              th { background: #f9f9f9; padding: 12px; text-align: left; border-bottom: 2px solid #eee; }
+              .totals { text-align: right; }
+              .totals p { margin: 5px 0; }
+              .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #777; border-top: 1px solid #eee; padding-top: 20px; }
+              @media print { .no-print { display: none; } }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1 style="margin: 0; color: #1e293b;">MEDICORE IPS SAS</h1>
+              <p style="margin: 5px 0;">NIT: 900.123.456-7</p>
+              <p style="margin: 5px 0;">Calle 100 # 15-20, Bogotá D.C.</p>
+              <h2 style="margin-top: 20px;">FACTURA DE VENTA N° ${invoice.id}</h2>
+            </div>
+
+            <div class="info">
+              <div>
+                <p><strong>CLIENTE:</strong> ${invoice.patientName}</p>
+                <p><strong>FECHA:</strong> ${new Date(invoice.date).toLocaleDateString()}</p>
+              </div>
+              <div>
+                <p><strong>ESTADO:</strong> ${invoice.status}</p>
+                <p><strong>PAGADOR:</strong> ${invoice.payerType === 'INSURER' ? 'ENTIDAD / EPS' : 'PARTICULAR'}</p>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Descripción del Servicio</th>
+                  <th style="text-align: center;">Cant.</th>
+                  <th style="text-align: right;">Valor Unit.</th>
+                  <th style="text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+            </table>
+
+            <div class="totals">
+              <p>Subtotal: ${formatCurrency(invoice.subtotal)}</p>
+              <p>Descuentos: -${formatCurrency(invoice.discount)}</p>
+              <h3 style="margin-top: 10px;">TOTAL A PAGAR: ${formatCurrency(invoice.total)}</h3>
+              <p>Pagado: ${formatCurrency(invoice.total - invoice.balance)}</p>
+              <p style="font-weight: bold; color: #dc2626;">Saldo Pendiente: ${formatCurrency(invoice.balance)}</p>
+            </div>
+
+            <div class="footer">
+              <p>Esta factura de venta se asimila en todos sus efectos a una letra de cambio según el Art. 774 del Código de Comercio.</p>
+              <p>Generado por: ${user.name} - MediCore Pro HCE</p>
+              <button class="no-print" onclick="window.print()" style="margin-top: 20px; padding: 10px 20px; background: #1e293b; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Imprimir Factura</button>
+            </div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- CARTERA HANDLERS ---
-  const registerPayment = (id: string) => {
+  const handleOpenPaymentModal = (id: string) => {
       const inv = invoices.find(i => i.id === id);
       if(!inv) return;
+      setSelectedInvoiceId(id);
+      setPaymentAmount(inv.balance.toString());
+      setIsPaymentModalOpen(true);
+  };
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
+  const confirmRegisterPayment = () => {
+      if(!selectedInvoiceId) return;
+      const amount = parseFloat(paymentAmount);
+      const inv = invoices.find(i => i.id === selectedInvoiceId);
+
+      if(!inv || isNaN(amount) || amount <= 0) return alert("Monto inválido");
       
       if(amount > inv.balance) {
           alert("El monto ingresado supera el saldo pendiente.");
@@ -294,7 +374,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       }
 
       setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
+          if (invoice.id !== selectedInvoiceId) return invoice;
           const newBalance = invoice.balance - amount;
           const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
           return {
@@ -304,6 +384,10 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
+
+      setIsPaymentModalOpen(false);
+      setSelectedInvoiceId(null);
+      setPaymentAmount('');
       alert("Pago registrado correctamente.");
   };
 
@@ -335,7 +419,47 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 overflow-y-auto p-8 relative">
+
+          {/* PAYMENT MODAL (CARTERA) */}
+          {isPaymentModalOpen && (
+              <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                  <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
+                      <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                          <DollarSign className="mr-2 text-green-600"/> Registrar Abono a Cartera
+                      </h3>
+                      <div className="space-y-4">
+                          <div>
+                              <p className="text-xs font-bold text-slate-500 uppercase">Factura</p>
+                              <p className="text-sm font-medium text-slate-700">{selectedInvoiceId}</p>
+                          </div>
+                          <div>
+                              <p className="text-xs font-bold text-slate-500 uppercase">Saldo Pendiente</p>
+                              <p className="text-lg font-bold text-red-600">
+                                  {formatCurrency(invoices.find(i => i.id === selectedInvoiceId)?.balance || 0)}
+                              </p>
+                          </div>
+                          <div>
+                              <label htmlFor="payment-amount" className="block text-sm font-bold text-slate-700 mb-1">Monto a Recibir</label>
+                              <input
+                                  id="payment-amount"
+                                  type="number"
+                                  value={paymentAmount}
+                                  onChange={(e) => setPaymentAmount(e.target.value)}
+                                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold text-green-700"
+                                  autoFocus
+                              />
+                          </div>
+                      </div>
+                      <div className="flex justify-end gap-2 mt-6">
+                          <button onClick={() => setIsPaymentModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                          <button onClick={confirmRegisterPayment} className="px-4 py-2 bg-green-600 text-white rounded-lg font-bold text-sm hover:bg-green-700">
+                              Confirmar Pago
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          )}
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
@@ -679,7 +803,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                       <td className="p-4 text-right flex justify-end space-x-2">
                                           <button onClick={() => printInvoice(inv)} className="bg-slate-200 text-slate-700 p-2 rounded hover:bg-slate-300" title="Imprimir"><Printer size={16}/></button>
                                           {inv.status !== 'PAID' && (
-                                              <button onClick={() => registerPayment(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
+                                              <button onClick={() => handleOpenPaymentModal(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
                                                   Abonar
                                               </button>
                                           )}

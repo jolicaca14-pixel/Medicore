@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, Patient, RecordStatus, UserRole, ClinicalRecord, RecordType, RoleTemplate } from '../../types';
 import { MOCK_PATIENTS, MOCK_TEMPLATES, MOCK_RECORDS, MOCK_SECTION_LIBRARY } from '../../constants';
-import { TestTube, CheckCircle, Upload, Search, Filter, Clock, Printer, Image, FileText, ChevronRight, Save, Lock, AlertCircle, X } from 'lucide-react';
+import { Upload, Clock, Printer, Save, X } from 'lucide-react';
 
 interface DiagnosticViewProps {
   user: User;
@@ -126,8 +126,83 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const patientRecords = completedRecords.filter(r =>
+        MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientName &&
+        r.dateCreated.startsWith(date)
+      );
+
+      const resultsHtml = patientRecords.map(record => {
+        const sectionsHtml = Object.entries(record.dynamicData).map(([key, val]) => {
+          const field = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key);
+          const label = field?.label || key;
+          const unit = field?.unit ? ` (${field.unit})` : '';
+          return `
+            <div style="margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
+              <span style="font-weight: bold; font-size: 12px; color: #64748b; display: block;">${label}${unit}</span>
+              <span style="font-size: 14px; color: #1e293b;">${val}</span>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div style="margin-bottom: 30px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
+            <h3 style="margin-top: 0; color: #2563eb; border-bottom: 2px solid #eff6ff; padding-bottom: 10px;">${record.chiefComplaint}</h3>
+            <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 15px;">
+              ${sectionsHtml}
+            </div>
+            <div style="margin-top: 15px; font-size: 11px; color: #94a3b8;">
+              ID Resultado: ${record.id} | Profesional: ${record.professionalName}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Resultados - ${patientName}</title>
+            <style>
+              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; padding: 40px; background: #f8fafc; }
+              .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+              .header { text-align: center; border-bottom: 3px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
+              .patient-info { background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 30px; display: flex; justify-content: space-between; }
+              .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #64748b; }
+              @media print { body { background: white; padding: 0; } .container { shadow: none; max-width: 100%; } .no-print { display: none; } }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1 style="margin: 0; color: #1e293b;">MEDICORE IPS SAS</h1>
+                <p style="margin: 5px 0;">Departamento de Ayudas Diagnósticas</p>
+                <h2 style="margin-top: 15px; color: #2563eb;">REPORTE CONSOLIDADO DE RESULTADOS</h2>
+              </div>
+
+              <div class="patient-info">
+                <div>
+                  <p style="margin: 0;"><strong>PACIENTE:</strong> ${patientName}</p>
+                </div>
+                <div>
+                  <p style="margin: 0;"><strong>FECHA:</strong> ${date}</p>
+                </div>
+              </div>
+
+              ${resultsHtml}
+
+              <div class="footer">
+                <p>Este documento es un reporte de resultados diagnósticos y debe ser interpretado por su médico tratante.</p>
+                <p>Generado por: ${user.name} | MediCore Pro HCE</p>
+                <button class="no-print" onclick="window.print()" style="margin-top: 20px; padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Imprimir Reporte</button>
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---

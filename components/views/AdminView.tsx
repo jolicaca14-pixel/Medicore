@@ -3,10 +3,9 @@ import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType
 import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
 import { 
-    Shield, Users, FileText, Settings, Plus, Edit, Trash2, X, Save, 
-    Download, CheckCircle, Search, LayoutTemplate, List, AlertCircle, 
-    ChevronDown, ChevronRight, Calculator, Type, Hash, Calendar, CheckSquare, AlignLeft, Info,
-    Library, Copy, Database, DollarSign, TrendingUp, CreditCard, Briefcase, Clock, File, Lock, AlertTriangle, Paperclip, Activity, Zap, Eye, UploadCloud, Layers, Ban, Printer, Upload, FileJson
+    Users, FileText, Plus, Edit, Trash2, X, Shield,
+    Download, CheckCircle, Search, LayoutTemplate, Calculator,
+    Database, DollarSign, TrendingUp, Briefcase, File, AlertTriangle, Activity, Zap, UploadCloud, Layers, Ban, Upload, FileJson
 } from 'lucide-react';
 import { UserForm } from '../UserForm';
 
@@ -59,6 +58,11 @@ const roleLabels: Record<UserRole, string> = {
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
   const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
+  const isManager = currentUserSession?.roles.includes(UserRole.MANAGER);
+  const isAccountant = currentUserSession?.roles.includes(UserRole.ACCOUNTANT);
+
+  // Administrative Access helper
+  const hasAdministrativeAccess = isAdmin || isManager || isAccountant;
 
   // --- STATE MANAGEMENT ---
   
@@ -106,6 +110,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
   const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
 
+  // Config Form States
+  const [editingTemplate, setEditingTemplate] = useState<Partial<RoleTemplate>>({ allowedRoles: [], sections: [] });
+  const [editingSection, setEditingSection] = useState<Partial<TemplateSection>>({ fields: [] });
+  const [editingField, setEditingField] = useState<Partial<TemplateField>>({ type: FieldType.TEXT });
+
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
   const [ripsEndDate, setRipsEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -119,7 +128,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   };
   
   const handleAddNewUser = () => { 
-      setCurrentUser({ id: `u${Date.now()}`, roles: [UserRole.PROFESSIONAL], status: 'ACTIVE', name: '', username: '' }); 
+      setCurrentUser({
+          id: `u${Date.now()}`,
+          roles: [UserRole.PROFESSIONAL],
+          status: 'ACTIVE',
+          name: '',
+          username: '',
+          firstName: '',
+          lastName: '',
+          documentNumber: '',
+          specialty: '',
+          professionalLicense: ''
+      });
   };
 
   const handleSaveUser = (userToSave: Partial<User>) => {
@@ -471,25 +491,79 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       alert("Paquete de RIPS generado y descargado exitosamente.");
   };
 
-  const handleNewTemplate = () => setIsTemplateModalOpen(true);
-  const handleNewSection = () => setIsSectionModalOpen(true);
-  const handleNewField = () => setIsFieldModalOpen(true);
+  const handleNewTemplate = () => {
+    setEditingTemplate({ id: `t_${Date.now()}`, allowedRoles: [], sections: [], active: true });
+    setIsTemplateModalOpen(true);
+  };
+  const handleNewSection = () => {
+    setEditingSection({ id: `s_${Date.now()}`, fields: [] });
+    setIsSectionModalOpen(true);
+  };
+  const handleNewField = () => {
+    setEditingField({ id: `f_${Date.now()}`, type: FieldType.TEXT });
+    setIsFieldModalOpen(true);
+  };
+
+  const handleSaveConfigTemplate = () => {
+    if (!editingTemplate.name) return alert("Ingrese un nombre para la plantilla");
+    setTemplates(prev => {
+        const exists = prev.some(t => t.id === editingTemplate.id);
+        if (exists) return prev.map(t => t.id === editingTemplate.id ? editingTemplate as RoleTemplate : t);
+        return [...prev, editingTemplate as RoleTemplate];
+    });
+    setIsTemplateModalOpen(false);
+  };
+
+  const handleSaveConfigSection = () => {
+    if (!editingSection.title) return alert("Ingrese un título para la sección");
+    setGlobalSections(prev => {
+        const exists = prev.some(s => s.id === editingSection.id);
+        if (exists) return prev.map(s => s.id === editingSection.id ? editingSection as TemplateSection : s);
+        return [...prev, editingSection as TemplateSection];
+    });
+    setIsSectionModalOpen(false);
+  };
+
+  const handleSaveConfigField = () => {
+    if (!editingField.label) return alert("Ingrese una etiqueta para el campo");
+    setGlobalFields(prev => {
+        const exists = prev.some(f => f.id === editingField.id);
+        if (exists) return prev.map(f => f.id === editingField.id ? editingField as TemplateField : f);
+        return [...prev, editingField as TemplateField];
+    });
+    setIsFieldModalOpen(false);
+  };
 
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
+  // Strictly ADMIN for specific tabs
+  const isStrictAdminTab = activeTab === 'users' || activeTab === 'settings' || activeTab === 'files';
+  // Manager/Accountant can see Dashboard, HR and Reports
+  const isSharedManagementTab = activeTab === 'dashboard' || activeTab === 'hr' || activeTab === 'reports';
+
+  if (isStrictAdminTab && !isAdmin) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
               <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
-              <p className="text-sm">Se requieren permisos de ADMINISTRADOR para acceder a este módulo.</p>
+              <p className="text-sm">Se requieren permisos de ADMINISTRADOR para acceder a este módulo de configuración.</p>
           </div>
       );
   }
 
-  // 1. DASHBOARD (Dynamic & Actionable) - Only for Admins
-  if (activeTab === 'dashboard' && isAdmin) {
+  if (isSharedManagementTab && !hasAdministrativeAccess) {
+    return (
+        <div className="flex flex-col items-center justify-center h-full text-slate-400">
+            <Ban size={64} className="mb-4 text-red-400"/>
+            <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
+            <p className="text-sm">No tiene permisos suficientes para acceder a la gestión administrativa.</p>
+        </div>
+    );
+  }
+
+  // 1. DASHBOARD (Dynamic & Actionable) - For Admins, Managers and Accountants
+  if (activeTab === 'dashboard' && hasAdministrativeAccess) {
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
@@ -730,7 +804,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
     );
   }
   // HR MODULE - ADMIN VIEW
-  if (activeTab === 'hr' && isAdmin) {
+  if (activeTab === 'hr' && hasAdministrativeAccess) {
       return (
           <div className="space-y-6">
               {/* MODALS */}
@@ -1075,7 +1149,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   }
 
   // 4. REPORTS TAB - NEW RIPS GENERATION
-  if (activeTab === 'reports' && isAdmin) {
+  if (activeTab === 'reports' && hasAdministrativeAccess) {
       return (
           <div className="space-y-8 animate-in fade-in duration-500">
               <h2 className="text-2xl font-bold text-slate-800 mb-2">Reportes y Analítica</h2>
@@ -1166,16 +1240,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* User Form Space (Top) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <div className="bg-slate-50 p-6 rounded-xl shadow-inner border border-slate-200">
+                 <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
                     <div>
-                        <h3 className="text-lg font-bold text-slate-800">
-                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
-                        </h3>
-                        <p className="text-sm text-slate-500">Espacio dedicado para la gestión y creación de cuentas del sistema.</p>
+                        <h2 className="text-xl font-extrabold text-slate-900 flex items-center uppercase tracking-tight">
+                            <Shield className="mr-2 text-blue-600" size={24}/> Centro de Gestión de Identidades
+                        </h2>
+                        <p className="text-sm text-slate-500 font-medium mt-1">
+                            {currentUser.id && users.some(u => u.id === currentUser.id)
+                                ? `Modificando perfil: ${currentUser.name}`
+                                : 'Registrar un nuevo colaborador en la plataforma'}
+                        </p>
                     </div>
-                    <button onClick={handleAddNewUser} className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg flex items-center hover:bg-slate-800 transition-colors shadow-lg">
-                        <Plus size={18} className="mr-2"/> Crear Nuevo Usuario
+                    <button onClick={handleAddNewUser} className="px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl flex items-center hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95">
+                        <Plus size={20} className="mr-2"/> Crear Nuevo Usuario
                     </button>
                  </div>
                  <div className="mt-6">
@@ -1247,27 +1325,81 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">Configurar Plantilla</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700">Nombre de la Plantilla</label>
+                                <input className="w-full border p-2 rounded" value={editingTemplate.name || ''} onChange={e => setEditingTemplate({...editingTemplate, name: e.target.value})}/>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700">Descripción</label>
+                                <textarea className="w-full border p-2 rounded" value={editingTemplate.description || ''} onChange={e => setEditingTemplate({...editingTemplate, description: e.target.value})}/>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700">Tipo de Registro</label>
+                                <select className="w-full border p-2 rounded" value={editingTemplate.recordType} onChange={e => setEditingTemplate({...editingTemplate, recordType: e.target.value as RecordType})}>
+                                    {Object.values(RecordType).map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
+                            <button onClick={handleSaveConfigTemplate} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar</button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">Configurar Sección</h3>
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="block text-sm font-bold text-slate-700">Título de la Sección</label>
+                                  <input className="w-full border p-2 rounded" value={editingSection.title || ''} onChange={e => setEditingSection({...editingSection, title: e.target.value})}/>
+                              </div>
+                              <div>
+                                  <label className="block text-sm font-bold text-slate-700">Descripción (Opcional)</label>
+                                  <input className="w-full border p-2 rounded" value={editingSection.description || ''} onChange={e => setEditingSection({...editingSection, description: e.target.value})}/>
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                              <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
+                              <button onClick={handleSaveConfigSection} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar</button>
+                          </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">Configurar Campo</h3>
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="block text-sm font-bold text-slate-700">Etiqueta (Label)</label>
+                                  <input className="w-full border p-2 rounded" value={editingField.label || ''} onChange={e => setEditingField({...editingField, label: e.target.value})}/>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="block text-sm font-bold text-slate-700">Tipo de Dato</label>
+                                      <select className="w-full border p-2 rounded" value={editingField.type} onChange={e => setEditingField({...editingField, type: e.target.value as FieldType})}>
+                                          {Object.values(FieldType).map(t => <option key={t} value={t}>{t}</option>)}
+                                      </select>
+                                  </div>
+                                  <div>
+                                      <label className="block text-sm font-bold text-slate-700">Unidad (ej. mg)</label>
+                                      <input className="w-full border p-2 rounded" value={editingField.unit || ''} onChange={e => setEditingField({...editingField, unit: e.target.value})}/>
+                                  </div>
+                              </div>
+                              <div className="flex items-center">
+                                  <input type="checkbox" id="req-check" className="mr-2" checked={editingField.required} onChange={e => setEditingField({...editingField, required: e.target.checked})}/>
+                                  <label htmlFor="req-check" className="text-sm font-bold text-slate-700">Es campo obligatorio</label>
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                              <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
+                              <button onClick={handleSaveConfigField} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Guardar</button>
+                          </div>
                       </div>
                   </div>
               )}
@@ -1308,8 +1440,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           <LayoutTemplate size={20}/>
                                       </div>
                                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button onClick={() => setIsTemplateModalOpen(true)} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
-                                          <button onClick={() => window.confirm('¿Eliminar esta plantilla?') && alert('Plantilla eliminada')} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
+                                          <button onClick={() => { setEditingTemplate(t); setIsTemplateModalOpen(true); }} className="p-1.5 bg-white border rounded hover:text-blue-600"><Edit size={14}/></button>
+                                          <button onClick={() => { if(window.confirm('¿Eliminar esta plantilla?')) setTemplates(prev => prev.filter(tmpl => tmpl.id !== t.id)) }} className="p-1.5 bg-white border rounded hover:text-red-600"><Trash2 size={14}/></button>
                                       </div>
                                   </div>
                                   <h4 className="font-bold text-slate-800">{t.name}</h4>
@@ -1371,7 +1503,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                           ))}
                                           {sec.fields.length > 4 && <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] text-slate-500">+{sec.fields.length - 4}</div>}
                                       </div>
-                                      <button onClick={() => setIsSectionModalOpen(true)} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
+                                      <button onClick={() => { setEditingSection(sec); setIsSectionModalOpen(true); }} className="p-2 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={16}/></button>
                                   </div>
                               </div>
                           ))}
@@ -1431,7 +1563,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                                               ) : <span className="text-xs text-slate-400">Opcional</span>}
                                           </td>
                                           <td className="p-3 text-right">
-                                              <button onClick={() => setIsFieldModalOpen(true)} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
+                                              <button onClick={() => { setEditingField(field); setIsFieldModalOpen(true); }} className="p-1.5 hover:bg-slate-200 rounded text-slate-500"><Edit size={14}/></button>
                                           </td>
                                       </tr>
                                   ))}
