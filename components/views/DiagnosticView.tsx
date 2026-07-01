@@ -126,8 +126,57 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const recordsInGroup = completedRecords.filter(r => {
+          const p = MOCK_PATIENTS.find(pt => pt.fullName === patientName);
+          return r.patientId === p?.id && r.dateCreated.startsWith(date);
+      });
+
+      const printContent = `
+        <html>
+          <head>
+            <title>Resultados - ${patientName}</title>
+            <style>
+              body { font-family: sans-serif; padding: 30px; color: #333; }
+              .header { border-bottom: 2px solid #3b82f6; padding-bottom: 15px; margin-bottom: 30px; }
+              .result-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+              .result-title { font-weight: bold; color: #1e293b; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 15px; }
+              .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+              .field-label { font-weight: bold; color: #64748b; font-size: 12px; }
+              .field-value { color: #1e293b; font-size: 14px; margin-bottom: 8px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>MEDICORE - Reporte de Diagnóstico</h1>
+              <p><strong>Paciente:</strong> ${patientName}</p>
+              <p><strong>Fecha de Resultados:</strong> ${date}</p>
+            </div>
+            ${recordsInGroup.map(r => `
+              <div class="result-card">
+                <div class="result-title">${r.chiefComplaint}</div>
+                <div class="field-grid">
+                  ${Object.entries(r.dynamicData).map(([key, val]) => {
+                      const field = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key);
+                      return `
+                        <div>
+                          <div class="field-label">${field?.label || key}</div>
+                          <div class="field-value">${val} ${field?.unit ? `(${field.unit})` : ''}</div>
+                        </div>
+                      `;
+                  }).join('')}
+                </div>
+              </div>
+            `).join('')}
+            <script>window.print();</script>
+          </body>
+        </html>
+      `;
+      printWindow.document.write(printContent);
+      printWindow.document.close();
   };
 
   // --- RENDER FORM ---
