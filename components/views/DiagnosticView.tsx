@@ -126,8 +126,72 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+    // 🖨️ Create a consolidated print view for diagnostic results
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const patientRecords = completedRecords.filter(r =>
+        (MOCK_PATIENTS.find(p => p.id === r.patientId)?.fullName === patientName) &&
+        r.dateCreated.startsWith(date)
+    );
+
+    const resultsHtml = patientRecords.map(r => `
+        <div style="margin-bottom: 25px; border: 1px solid #eee; padding: 15px; border-radius: 8px;">
+            <h3 style="color: #1e293b; margin-top: 0; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">${r.chiefComplaint}</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px;">
+                ${Object.entries(r.dynamicData).map(([key, val]) => {
+                    const field = MOCK_SECTION_LIBRARY.flatMap(s => s.fields).find(f => f.id === key);
+                    return `<div><strong>${field?.label || key}:</strong> ${val} ${field?.unit || ''}</div>`;
+                }).join('')}
+            </div>
+            <p style="font-size: 11px; color: #64748b; margin-top: 10px; border-top: 1px dashed #eee; pt: 5px;">
+                Validado por: ${r.professionalName} | Fecha: ${new Date(r.dateFinalized!).toLocaleString()}
+            </p>
+        </div>
+    `).join('');
+
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>Reporte de Resultados - ${patientName}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #334155; line-height: 1.5; padding: 40px; }
+                    .header { text-align: center; margin-bottom: 40px; border-bottom: 3px solid #0f172a; padding-bottom: 20px; }
+                    .header h1 { margin: 0; color: #0f172a; text-transform: uppercase; letter-spacing: 2px; }
+                    .patient-info { background: #f8fafc; padding: 20px; border-radius: 10px; margin-bottom: 30px; display: grid; grid-template-columns: 1fr 1fr; }
+                    .footer { margin-top: 50px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+                    @media print { .no-print { display: none; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>MediCore IPS - Reporte de Ayudas Diagnósticas</h1>
+                    <p>Software de Historia Clínica de Alta Complejidad</p>
+                </div>
+                <div class="patient-info">
+                    <div><strong>PACIENTE:</strong> ${patientName}</div>
+                    <div><strong>FECHA DE REPORTE:</strong> ${date}</div>
+                    <div><strong>SEDE:</strong> Principal - Bogotá D.C.</div>
+                    <div><strong>ESTADO:</strong> FINALIZADO / VALIDADO</div>
+                </div>
+
+                <div class="results">
+                    ${resultsHtml}
+                </div>
+
+                <div class="footer">
+                    Este documento es una representación digital de los resultados almacenados en MediCore HCE.
+                    La firma digital del profesional que valida se encuentra en el repositorio central.
+                </div>
+
+                <script>
+                    window.onload = function() { window.print(); }
+                </script>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
   };
 
   // --- RENDER FORM ---
