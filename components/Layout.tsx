@@ -47,17 +47,28 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
   const getMenuItems = () => {
     let items: any[] = [];
     const roles = user.roles || [];
+    const isAdministrative = roles.includes(UserRole.ADMIN) || roles.includes(UserRole.MANAGER) || roles.includes(UserRole.ACCOUNTANT);
 
-    if (roles.includes(UserRole.ADMIN)) {
+    if (isAdministrative) {
       items = [
         ...items,
         { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
         { id: 'users', label: 'Gestión Usuarios', icon: Users },
-        { id: 'files', label: 'Gestión Archivos', icon: FileText },
-        { id: 'hr', label: 'Talento Humano', icon: Briefcase }, // NEW HR MODULE
-        { id: 'reports', label: 'Gestión Financiera', icon: DollarSign },
-        { id: 'settings', label: 'Plantillas / Roles', icon: Settings },
       ];
+
+      if (roles.includes(UserRole.ADMIN)) {
+        items.push({ id: 'files', label: 'Gestión Archivos', icon: FileText });
+      }
+
+      items = [
+        ...items,
+        { id: 'hr', label: 'Talento Humano', icon: Briefcase },
+        { id: 'reports', label: 'Gestión Financiera', icon: DollarSign },
+      ];
+
+      if (roles.includes(UserRole.ADMIN)) {
+        items.push({ id: 'settings', label: 'Plantillas / Roles', icon: Settings });
+      }
     }
     
     if (roles.includes(UserRole.PROFESSIONAL) || roles.includes(UserRole.PSYCHOLOGIST)) {

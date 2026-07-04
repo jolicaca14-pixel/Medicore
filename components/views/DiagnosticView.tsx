@@ -127,7 +127,55 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
 
   // --- PRINT VIEW ---
   const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+    const recordsInGroup = completedRecords.filter(r => r.patientId === patientId || MOCK_PATIENTS.find(p => p.fullName === patientId)?.id === r.patientId);
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const html = `
+      <html>
+        <head>
+          <title>Resultados de Diagnóstico - ${patientId}</title>
+          <style>
+            body { font-family: sans-serif; padding: 40px; color: #334155; }
+            .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+            .patient-info { margin-bottom: 30px; display: grid; grid-template-cols: 1fr 1fr; gap: 10px; }
+            .result-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+            .result-title { font-weight: bold; font-size: 1.1em; color: #1e293b; margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; }
+            .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9em; }
+            .data-label { font-weight: bold; color: #64748b; }
+            .footer { margin-top: 50px; text-align: center; font-size: 0.8em; color: #94a3b8; }
+            @media print { .no-print { display: none; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>MEDICORE IPS</h1>
+            <p>Reporte Consolidado de Ayudas Diagnósticas</p>
+          </div>
+          <div class="patient-info">
+            <div><strong>Paciente:</strong> ${patientId}</div>
+            <div><strong>Fecha Reporte:</strong> ${date}</div>
+          </div>
+          ${recordsInGroup.map(r => `
+            <div class="result-card">
+              <div class="result-title">${r.chiefComplaint}</div>
+              <div class="data-grid">
+                ${Object.entries(r.dynamicData).map(([key, val]) => `
+                  <div><span class="data-label">${key}:</span> ${val}</div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+          <div class="footer">
+            <p>Este documento es una representación digital de resultados clínicos. Firma digital: ${user.name}</p>
+            <button class="no-print" onclick="window.print()">Imprimir Documento</button>
+          </div>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
   };
 
   // --- RENDER FORM ---
