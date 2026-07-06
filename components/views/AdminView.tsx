@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType, TariffItem, Contract, ContractType, ContractAudit, DisciplinaryAction, PaymentRequest, ClinicalRecord, RecordType, RecordStatus, Patient } from '../../types';
 import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
+import { isAdministrative } from '../../utils/auth';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
 import { 
     Shield, Users, FileText, Settings, Plus, Edit, Trash2, X, Save, 
@@ -59,6 +60,7 @@ const roleLabels: Record<UserRole, string> = {
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, currentUserSession }) => {
   const isAdmin = currentUserSession?.roles.includes(UserRole.ADMIN);
+  const isAuthAdmin = isAdministrative(currentUserSession);
 
   // --- STATE MANAGEMENT ---
   
@@ -102,9 +104,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   const [globalFields, setGlobalFields] = useState<TemplateField[]>(MOCK_FIELD_LIBRARY);
   const [globalSections, setGlobalSections] = useState<TemplateSection[]>(MOCK_SECTION_LIBRARY);
   const [templates, setTemplates] = useState<RoleTemplate[]>(MOCK_TEMPLATES);
+
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [newTemplate, setNewTemplate] = useState<Partial<RoleTemplate>>({});
+
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
+  const [newSection, setNewSection] = useState<Partial<TemplateSection>>({});
+
   const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
+  const [newField, setNewField] = useState<Partial<TemplateField>>({});
 
   // RIPS STATE
   const [ripsStartDate, setRipsStartDate] = useState(new Date().toISOString().split('T')[0].substring(0, 8) + '01');
@@ -116,6 +124,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // --- USER HANDLERS ---
   const handleEditUser = (user: User) => { 
       setCurrentUser({ ...user }); 
+      // Scroll to form if needed or just provide visual cue
   };
   
   const handleAddNewUser = () => { 
@@ -471,25 +480,61 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       alert("Paquete de RIPS generado y descargado exitosamente.");
   };
 
-  const handleNewTemplate = () => setIsTemplateModalOpen(true);
-  const handleNewSection = () => setIsSectionModalOpen(true);
-  const handleNewField = () => setIsFieldModalOpen(true);
+  const handleNewTemplate = () => {
+    setNewTemplate({
+        id: `t_${Date.now()}`,
+        name: '',
+        description: '',
+        active: true,
+        allowedRoles: [UserRole.PROFESSIONAL],
+        sections: [],
+        recordType: RecordType.GENERAL
+    });
+    setIsTemplateModalOpen(true);
+  };
+  const handleNewSection = () => {
+    setNewSection({
+        id: `s_${Date.now()}`,
+        title: '',
+        fields: []
+    });
+    setIsSectionModalOpen(true);
+  };
+  const handleNewField = () => {
+    setNewField({
+        id: `f_${Date.now()}`,
+        label: '',
+        type: 'TEXT',
+        required: false
+    });
+    setIsFieldModalOpen(true);
+  };
 
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
+  if ((activeTab === 'users' || activeTab === 'hr' || activeTab === 'reports' || activeTab === 'dashboard') && !isAuthAdmin) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
               <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
-              <p className="text-sm">Se requieren permisos de ADMINISTRADOR para acceder a este módulo.</p>
+              <p className="text-sm">Se requieren permisos ADMINISTRATIVOS para acceder a este módulo.</p>
           </div>
       );
   }
 
-  // 1. DASHBOARD (Dynamic & Actionable) - Only for Admins
-  if (activeTab === 'dashboard' && isAdmin) {
+  if ((activeTab === 'settings' || activeTab === 'files') && !isAdmin) {
+    return (
+        <div className="flex flex-col items-center justify-center h-full text-slate-400">
+            <Ban size={64} className="mb-4 text-red-400"/>
+            <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
+            <p className="text-sm">Se requieren permisos de SUPER-ADMINISTRADOR para acceder a este módulo.</p>
+        </div>
+    );
+}
+
+  // 1. DASHBOARD (Dynamic & Actionable) - Only for Admins/Managers
+  if (activeTab === 'dashboard' && isAuthAdmin) {
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
@@ -1161,24 +1206,35 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
       );
   }
 
-  // 2. USERS LIST - Only Admin
-  if (activeTab === 'users' && isAdmin) {
+  // 2. USERS LIST - Only Administrative roles
+  if (activeTab === 'users' && isAuthAdmin) {
       return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* User Form Space (Top) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6 border-b pb-4">
+            {/* User Form Space (Top) - Centro de Gestión de Identidades */}
+            <div className="bg-slate-50 p-8 rounded-2xl shadow-inner border-2 border-slate-200 relative overflow-hidden">
+                 <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                     <Shield size={120} />
+                 </div>
+                 <div className="flex justify-between items-center mb-8 border-b border-slate-200 pb-6 relative z-10">
                     <div>
-                        <h3 className="text-lg font-bold text-slate-800">
-                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
+                        <h3 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
+                            <Shield className="mr-3 text-blue-600" size={28}/>
+                            Centro de Gestión de Identidades
                         </h3>
-                        <p className="text-sm text-slate-500">Espacio dedicado para la gestión y creación de cuentas del sistema.</p>
+                        <p className="text-slate-500 font-medium mt-1">
+                            {currentUser.id && users.some(u => u.id === currentUser.id)
+                                ? `Modificando credenciales de: ${currentUser.name || currentUser.username}`
+                                : 'Portal de registro para nuevos colaboradores y profesionales.'}
+                        </p>
                     </div>
-                    <button onClick={handleAddNewUser} className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg flex items-center hover:bg-slate-800 transition-colors shadow-lg">
-                        <Plus size={18} className="mr-2"/> Crear Nuevo Usuario
+                    <button
+                        onClick={handleAddNewUser}
+                        className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl flex items-center hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95"
+                    >
+                        <Plus size={20} className="mr-2"/> Nuevo Registro
                     </button>
                  </div>
-                 <div className="mt-6">
+                 <div className="relative z-10 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                     <UserForm
                         user={currentUser}
                         onSave={handleSaveUser}
@@ -1247,27 +1303,105 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">Configurar Plantilla</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Nombre de la Plantilla</label>
+                                <input className="w-full border p-2 rounded text-sm" value={newTemplate.name} onChange={e => setNewTemplate({...newTemplate, name: e.target.value})} placeholder="Ej: Consulta de Especialista" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Descripción</label>
+                                <textarea className="w-full border p-2 rounded text-sm" value={newTemplate.description} onChange={e => setNewTemplate({...newTemplate, description: e.target.value})} placeholder="Para que se usa esta plantilla..." />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Tipo de Registro</label>
+                                <select className="w-full border p-2 rounded text-sm" value={newTemplate.recordType} onChange={e => setNewTemplate({...newTemplate, recordType: e.target.value as RecordType})}>
+                                    {Object.values(RecordType).map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold">Cancelar</button>
+                            <button
+                                onClick={() => {
+                                    if(!newTemplate.name) return alert("Ingrese un nombre");
+                                    setTemplates([...templates, newTemplate as RoleTemplate]);
+                                    setIsTemplateModalOpen(false);
+                                }}
+                                className="px-4 py-2 bg-slate-900 text-white rounded font-bold"
+                            >
+                                Guardar Plantilla
+                            </button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">Configurar Sección</h3>
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Título de la Sección</label>
+                                  <input className="w-full border p-2 rounded text-sm" value={newSection.title} onChange={e => setNewSection({...newSection, title: e.target.value})} placeholder="Ej: Antecedentes Patológicos" />
+                              </div>
+                              <p className="text-xs text-slate-400 italic">Podrá agregar campos a esta sección desde la edición de la misma.</p>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold">Cancelar</button>
+                            <button
+                                onClick={() => {
+                                    if(!newSection.title) return alert("Ingrese un título");
+                                    setGlobalSections([...globalSections, newSection as TemplateSection]);
+                                    setIsSectionModalOpen(false);
+                                }}
+                                className="px-4 py-2 bg-slate-900 text-white rounded font-bold"
+                            >
+                                Guardar Sección
+                            </button>
+                          </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4">Configurar Campo</h3>
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Etiqueta del Campo</label>
+                                  <input className="w-full border p-2 rounded text-sm" value={newField.label} onChange={e => setNewField({...newField, label: e.target.value})} placeholder="Ej: Tensión Arterial" />
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">Tipo de Dato</label>
+                                      <select className="w-full border p-2 rounded text-sm" value={newField.type} onChange={e => setNewField({...newField, type: e.target.value as any})}>
+                                          <option value="TEXT">Texto Corto</option>
+                                          <option value="TEXTAREA">Texto Largo</option>
+                                          <option value="NUMBER">Número</option>
+                                          <option value="SELECT">Selección</option>
+                                          <option value="DATE">Fecha</option>
+                                      </select>
+                                  </div>
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">Unidad (Opcional)</label>
+                                      <input className="w-full border p-2 rounded text-sm" value={newField.unit} onChange={e => setNewField({...newField, unit: e.target.value})} placeholder="Ej: mmHg, Kg" />
+                                  </div>
+                              </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold">Cancelar</button>
+                            <button
+                                onClick={() => {
+                                    if(!newField.label) return alert("Ingrese una etiqueta");
+                                    setGlobalFields([...globalFields, newField as TemplateField]);
+                                    setIsFieldModalOpen(false);
+                                }}
+                                className="px-4 py-2 bg-slate-900 text-white rounded font-bold"
+                            >
+                                Guardar Campo
+                            </button>
+                          </div>
                       </div>
                   </div>
               )}

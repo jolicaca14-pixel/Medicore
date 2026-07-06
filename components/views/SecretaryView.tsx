@@ -280,21 +280,28 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
   };
 
   // --- CARTERA HANDLERS ---
-  const registerPayment = (id: string) => {
-      const inv = invoices.find(i => i.id === id);
-      if(!inv) return;
+  const [isPaymentRegModalOpen, setIsPaymentRegModalOpen] = useState(false);
+  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<Invoice | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
 
-      const amountStr = prompt(`Saldo pendiente: ${formatCurrency(inv.balance)}\nIngrese el monto a pagar:`);
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr);
+  const handleOpenPaymentReg = (inv: Invoice) => {
+    setSelectedInvoiceForPayment(inv);
+    setPaymentAmount(inv.balance.toString());
+    setIsPaymentRegModalOpen(true);
+  };
+
+  const confirmRegisterPayment = () => {
+      if(!selectedInvoiceForPayment) return;
+      const amount = parseFloat(paymentAmount);
       
-      if(amount > inv.balance) {
+      if(isNaN(amount) || amount <= 0) return alert("Monto inválido");
+      if(amount > selectedInvoiceForPayment.balance) {
           alert("El monto ingresado supera el saldo pendiente.");
           return;
       }
 
       setInvoices(invoices.map(invoice => {
-          if (invoice.id !== id) return invoice;
+          if (invoice.id !== selectedInvoiceForPayment.id) return invoice;
           const newBalance = invoice.balance - amount;
           const newStatus = newBalance <= 0 ? 'PAID' : 'PARTIAL';
           return {
@@ -304,6 +311,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
               payments: [...invoice.payments, { id: `pay-${Date.now()}`, date: new Date().toISOString(), amount, method: 'CASH' }]
           };
       }));
+      setIsPaymentRegModalOpen(false);
       alert("Pago registrado correctamente.");
   };
 
@@ -335,7 +343,41 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 overflow-y-auto p-8 relative">
+
+        {/* PAYMENT REGISTRATION MODAL */}
+        {isPaymentRegModalOpen && selectedInvoiceForPayment && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
+                    <h3 className="text-lg font-bold text-slate-800 mb-2 flex items-center">
+                        <DollarSign className="mr-2 text-green-600"/> Registrar Abono a Cartera
+                    </h3>
+                    <p className="text-xs text-slate-500 mb-4">Factura: {selectedInvoiceForPayment.id} - {selectedInvoiceForPayment.patientName}</p>
+
+                    <div className="space-y-4">
+                        <div className="bg-slate-50 p-3 rounded-lg border">
+                            <p className="text-[10px] font-bold text-slate-500 uppercase">Saldo Pendiente</p>
+                            <p className="text-xl font-black text-slate-900">{formatCurrency(selectedInvoiceForPayment.balance)}</p>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">Monto a Recibir</label>
+                            <input
+                                type="number"
+                                className="w-full border-2 border-blue-100 p-3 rounded-xl text-lg font-bold focus:border-blue-500 outline-none"
+                                value={paymentAmount}
+                                onChange={e => setPaymentAmount(e.target.value)}
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 mt-6">
+                        <button onClick={() => setIsPaymentRegModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold text-sm">Cancelar</button>
+                        <button onClick={confirmRegisterPayment} className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold shadow-lg shadow-green-100">Registrar Pago</button>
+                    </div>
+                </div>
+            </div>
+        )}
           
           {/* PATIENTS TAB */}
           {activeTab === 'PATIENTS' && (
@@ -679,7 +721,7 @@ export const SecretaryView: React.FC<SecretaryViewProps> = ({ user, onLogout }) 
                                       <td className="p-4 text-right flex justify-end space-x-2">
                                           <button onClick={() => printInvoice(inv)} className="bg-slate-200 text-slate-700 p-2 rounded hover:bg-slate-300" title="Imprimir"><Printer size={16}/></button>
                                           {inv.status !== 'PAID' && (
-                                              <button onClick={() => registerPayment(inv.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
+                                              <button onClick={() => handleOpenPaymentReg(inv)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
                                                   Abonar
                                               </button>
                                           )}

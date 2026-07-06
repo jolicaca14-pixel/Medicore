@@ -126,8 +126,66 @@ export const DiagnosticView: React.FC<DiagnosticViewProps> = ({ user, onLogout }
   };
 
   // --- PRINT VIEW ---
-  const handlePrintDate = (patientId: string, date: string) => {
-      alert(`Generando PDF consolidado de resultados para el paciente ${patientId} con fecha ${date}...`);
+  const handlePrintDate = (patientName: string, date: string) => {
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+        printWindow.document.write(`
+            <html>
+            <head>
+                <title>Resultados de Diagnóstico - ${patientName}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; }
+                    .header { border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+                    .patient-info { display: grid; grid-cols: 2; gap: 10px; margin-bottom: 30px; background: #f8fafc; padding: 15px; border-radius: 8px; }
+                    .result-box { border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+                    .result-title { font-weight: bold; color: #2563eb; border-bottom: 1px solid #eff6ff; margin-bottom: 10px; padding-bottom: 5px; }
+                    .footer { margin-top: 50px; font-size: 10px; color: #94a3b8; text-align: center; }
+                    @media print { .no-print { display: none; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1 style="margin:0; color: #0f172a;">MEDICORE IPS</h1>
+                    <p style="margin:5px 0; color: #64748b;">Reporte Consolidado de Ayudas Diagnósticas</p>
+                </div>
+
+                <div class="patient-info">
+                    <div><strong>Paciente:</strong> ${patientName}</div>
+                    <div><strong>Fecha del Reporte:</strong> ${date}</div>
+                    <div><strong>Institución:</strong> MediCore Centro de Diagnóstico</div>
+                </div>
+
+                <div class="results">
+                    <div class="result-box">
+                        <div class="result-title">VALORES ENCONTRADOS</div>
+                        <p>Los resultados adjuntos corresponden a la toma realizada en la fecha indicada. Se recomienda correlación clínica por parte del médico tratante.</p>
+                        <ul style="list-style: none; padding: 0;">
+                            <li style="margin-bottom: 10px; padding: 8px; background: #f1f5f9;">Simulación de datos clínicos: Resultados dentro de parámetros de referencia institucionales.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div style="margin-top: 80px; display: flex; justify-content: space-between;">
+                    <div style="text-align: center; width: 200px;">
+                        <div style="border-top: 1px solid #000; padding-top: 5px;">Firma Especialista</div>
+                    </div>
+                    <div style="text-align: center; width: 200px;">
+                        <div style="border-top: 1px solid #000; padding-top: 5px;">Sello Institucional</div>
+                    </div>
+                </div>
+
+                <div class="footer">
+                    Este documento es una representación impresa de un registro electrónico. Generado por MediCore Pro.
+                </div>
+
+                <div class="no-print" style="margin-top: 20px; text-align: center;">
+                    <button onclick="window.print()" style="padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Imprimir Documento</button>
+                </div>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    }
   };
 
   // --- RENDER FORM ---
