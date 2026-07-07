@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, UserRole, RoleTemplate, TemplateSection, TemplateField, FieldType, TariffItem, Contract, ContractType, ContractAudit, DisciplinaryAction, PaymentRequest, ClinicalRecord, RecordType, RecordStatus, Patient } from '../../types';
 import { MOCK_USERS, MOCK_TEMPLATES, MOCK_SECTION_LIBRARY, MOCK_FIELD_LIBRARY, MOCK_SOAT_TARIFF, SMLDV_2024, MOCK_CONTRACTS, MOCK_SHIFTS, formatCurrency, MOCK_PAYMENT_REQUESTS, MOCK_RECORDS, MOCK_PATIENTS } from '../../constants';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart, PieChart, Pie, Cell, Legend } from 'recharts';
+import { isAdministrative } from '../../utils/auth';
 import { 
     Shield, Users, FileText, Settings, Plus, Edit, Trash2, X, Save, 
     Download, CheckCircle, Search, LayoutTemplate, List, AlertCircle, 
@@ -277,7 +278,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
                     alert(`Contrato "${newFileName}" agregado al usuario seleccionado.`);
                 } else { // PAYMENTS
                     const user = users.find(u => u.id === selectedUserIdForUpload);
-                    if (!user) return;
+                    if (!user) {
+                        clearInterval(interval);
+                        setIsFileUploadModalOpen(false);
+                        setUploadProgress(0);
+                        return 100;
+                    }
 
                     const newPaymentRequest: PaymentRequest = {
                         id: `pr${Date.now()}`,
@@ -478,18 +484,21 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   // --- RENDER LOGIC ---
 
   // 0. ACCESS CONTROL CHECK
-  if ((activeTab === 'users' || activeTab === 'settings' || activeTab === 'hr' || activeTab === 'files') && !isAdmin) {
+  const isHRorReports = activeTab === 'hr' || activeTab === 'reports' || activeTab === 'dashboard';
+  const isRestrictedTab = activeTab === 'users' || activeTab === 'settings' || activeTab === 'files';
+
+  if ((isRestrictedTab && !isAdmin) || (isHRorReports && !isAdministrative(currentUserSession))) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Ban size={64} className="mb-4 text-red-400"/>
               <h2 className="text-xl font-bold text-slate-700">Acceso Restringido</h2>
-              <p className="text-sm">Se requieren permisos de ADMINISTRADOR para acceder a este módulo.</p>
+              <p className="text-sm">Usted no tiene permisos suficientes para acceder a este módulo.</p>
           </div>
       );
   }
 
-  // 1. DASHBOARD (Dynamic & Actionable) - Only for Admins
-  if (activeTab === 'dashboard' && isAdmin) {
+  // 1. DASHBOARD (Dynamic & Actionable) - For all Admin Roles
+  if (activeTab === 'dashboard' && isAdministrative(currentUserSession)) {
       const financialData = generateFinancialData('MONTH', false);
       const serviceData = generateServiceDistribution();
 
@@ -1165,12 +1174,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
   if (activeTab === 'users' && isAdmin) {
       return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* User Form Space (Top) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                 <div className="flex justify-between items-center mb-6 border-b pb-4">
+            {/* User Form Space (Top) - Centro de Gestión de Identidades */}
+            <div className="bg-slate-50 p-6 rounded-xl shadow-sm border border-slate-200">
+                 <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
                     <div>
                         <h3 className="text-lg font-bold text-slate-800">
-                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Usuario' : 'Nuevo Usuario'}
+                            {currentUser.id && users.some(u => u.id === currentUser.id) ? 'Editando Colaborador' : 'Centro de Gestión de Identidades'}
                         </h3>
                         <p className="text-sm text-slate-500">Espacio dedicado para la gestión y creación de cuentas del sistema.</p>
                     </div>
@@ -1246,28 +1255,131 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeTab, setActiveTab, c
               
               {isTemplateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Plantilla</h3>
-                        <p>Contenido del modal de nueva plantilla...</p>
-                        <button onClick={() => setIsTemplateModalOpen(false)}>Cerrar</button>
+                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-slate-800">Nueva Plantilla de Historia</h3>
+                            <button onClick={() => setIsTemplateModalOpen(false)}><X size={20}/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Nombre de la Plantilla</label>
+                                <input type="text" className="w-full border p-2 rounded text-sm" placeholder="Ej. Consulta Especializada" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Tipo de Registro</label>
+                                    <select className="w-full border p-2 rounded text-sm">
+                                        {Object.values(RecordType).map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Estado</label>
+                                    <select className="w-full border p-2 rounded text-sm">
+                                        <option value="true">Activa</option>
+                                        <option value="false">Inactiva</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Descripción</label>
+                                <textarea className="w-full border p-2 rounded text-sm" rows={2} placeholder="Propósito de esta plantilla..."></textarea>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                            <button onClick={() => {
+                                const newTpl: RoleTemplate = {
+                                    id: `t_${Date.now()}`,
+                                    name: 'Nueva Plantilla',
+                                    description: 'Descripción de la nueva plantilla',
+                                    active: true,
+                                    allowedRoles: [UserRole.PROFESSIONAL],
+                                    sections: [],
+                                    recordType: RecordType.GENERAL
+                                };
+                                setTemplates([...templates, newTpl]);
+                                setIsTemplateModalOpen(false);
+                                alert("Plantilla creada exitosamente.");
+                            }} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm shadow-lg">Crear Plantilla</button>
+                        </div>
                     </div>
                 </div>
               )}
               {isSectionModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Sección</h3>
-                          <p>Contenido del modal de nueva sección...</p>
-                          <button onClick={() => setIsSectionModalOpen(false)}>Cerrar</button>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-slate-800">Nueva Sección Clínica</h3>
+                            <button onClick={() => setIsSectionModalOpen(false)}><X size={20}/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Título de la Sección</label>
+                                <input type="text" className="w-full border p-2 rounded text-sm" placeholder="Ej. Examen Físico Segmentario" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">ID Único</label>
+                                <input type="text" className="w-full border p-2 rounded text-sm font-mono" placeholder="sec_examen_fisico" />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsSectionModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                            <button onClick={() => {
+                                const newSec: TemplateSection = {
+                                    id: `sec_${Date.now()}`,
+                                    title: 'Nueva Sección',
+                                    fields: []
+                                };
+                                setGlobalSections([...globalSections, newSec]);
+                                setIsSectionModalOpen(false);
+                                alert("Sección agregada a la biblioteca.");
+                            }} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm shadow-lg">Guardar Sección</button>
+                        </div>
                       </div>
                   </div>
               )}
               {isFieldModalOpen && (
                   <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-4">Nuevo Campo</h3>
-                          <p>Contenido del modal de nuevo campo...</p>
-                          <button onClick={() => setIsFieldModalOpen(false)}>Cerrar</button>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-slate-800">Nuevo Campo / Variable</h3>
+                            <button onClick={() => setIsFieldModalOpen(false)}><X size={20}/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">ID Variable</label>
+                                    <input type="text" className="w-full border p-2 rounded text-sm font-mono" placeholder="v_tension_art" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Tipo de Dato</label>
+                                    <select className="w-full border p-2 rounded text-sm">
+                                        <option value="TEXT">Texto</option>
+                                        <option value="NUMBER">Número</option>
+                                        <option value="SELECT">Selección</option>
+                                        <option value="CALCULATED">Calculado</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Etiqueta (Label)</label>
+                                <input type="text" className="w-full border p-2 rounded text-sm" placeholder="Ej. Tensión Arterial" />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button onClick={() => setIsFieldModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium text-sm">Cancelar</button>
+                            <button onClick={() => {
+                                const newField: TemplateField = {
+                                    id: `v_${Date.now()}`,
+                                    label: 'Nuevo Campo',
+                                    type: 'TEXT',
+                                    required: false
+                                };
+                                setGlobalFields([...globalFields, newField]);
+                                setIsFieldModalOpen(false);
+                                alert("Campo registrado exitosamente.");
+                            }} className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm shadow-lg">Crear Variable</button>
+                        </div>
                       </div>
                   </div>
               )}
